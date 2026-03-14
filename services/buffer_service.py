@@ -30,11 +30,30 @@ class BufferService:
         if variables:
             payload["variables"] = variables
         response = requests.post(BUFFER_API, headers=self.headers, json=payload)
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(f"Buffer API {response.status_code}: {response.text}")
+            response.raise_for_status()
         data = response.json()
         if "errors" in data:
             raise RuntimeError(f"Buffer API error: {data['errors']}")
         return data.get("data", {})
+
+    def get_organization_id(self) -> str:
+        """Return the first organization ID from the account."""
+        query = """
+        query GetOrg {
+          account {
+            organizations {
+              id
+            }
+          }
+        }
+        """
+        data = self._query(query)
+        orgs = data.get("account", {}).get("organizations", [])
+        if not orgs:
+            raise RuntimeError("No organizations found in Buffer account.")
+        return orgs[0]["id"]
 
     def get_channels(self) -> list:
         """Get all connected social channels."""
@@ -107,29 +126,31 @@ class BufferService:
         Create a draft idea in Buffer (for review before scheduling).
         Ideas show up in Buffer's Ideas board for manual review.
         """
+        org_id = self.get_organization_id()
         mutation = """
         mutation CreateIdea($input: CreateIdeaInput!) {
           createIdea(input: $input) {
-            idea {
+            ... on Idea {
               id
               content {
-                text
                 title
+                text
               }
             }
           }
         }
         """
+        content: dict = {"text": text}
+        if title:
+            content["title"] = title
         variables = {
             "input": {
-                "content": {
-                    "text": text,
-                    **({"title": title} if title else {})
-                }
+                "organizationId": org_id,
+                "content": content,
             }
         }
         data = self._query(mutation, variables)
-        idea = data.get("createIdea", {}).get("idea", {})
+        idea = data.get("createIdea", {})
         logger.info(f"Idea created: id={idea.get('id')}")
         return idea
 

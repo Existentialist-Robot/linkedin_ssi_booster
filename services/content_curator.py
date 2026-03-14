@@ -6,16 +6,23 @@ Targets: engage_with_insights SSI component.
 """
 
 import feedparser
-import requests
+import json
 import logging
+import os
+import random
+import requests
 import time
 from itertools import cycle
+from pathlib import Path
 from typing import Optional, Union
 from services.claude_service import ClaudeService, SSI_COMPONENT_INSTRUCTIONS  # noqa: E402 — run from project root
 from services.gemini_service import GeminiService
 from services.ollama_service import OllamaService
 
 logger = logging.getLogger(__name__)
+
+CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
+IDEAS_CACHE_PATH = Path(os.getenv("IDEAS_CACHE_PATH", "published_ideas_cache.json"))
 
 # RSS feeds relevant to Shawn's niche
 RSS_FEEDS = [
@@ -42,7 +49,17 @@ class ContentCurator:
         self.claude = claude_service
         self.buffer = buffer_service
 
-    def fetch_relevant_articles(self, max_per_feed: int = 3) -> list:
+    def _load_published_titles(self) -> set:
+        if IDEAS_CACHE_PATH.exists():
+            return set(json.loads(IDEAS_CACHE_PATH.read_text()))
+        return set()
+
+    def _save_published_title(self, title: str) -> None:
+        titles = self._load_published_titles()
+        titles.add(title)
+        IDEAS_CACHE_PATH.write_text(json.dumps(sorted(titles), indent=2))
+
+    def fetch_relevant_articles(self, max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
         """Fetch recent articles matching our keyword list."""
         articles = []
         for feed_info in RSS_FEEDS:
@@ -76,10 +93,15 @@ class ContentCurator:
         Rotates through all SSI components so curated posts contribute to every pillar.
         """
         articles = self.fetch_relevant_articles()
+        random.shuffle(articles)
+        published = self._load_published_titles()
         created_ideas = []
         ssi_rotation = cycle(SSI_COMPONENT_INSTRUCTIONS.keys())
 
         for i, article in enumerate(articles[:max_ideas]):
+            if article["title"] in published:
+                logger.info(f"Skipping already-published idea: {article['title'][:60]}")
+                continue
             if i > 0:
                 time.sleep(request_delay)
             ssi_component = next(ssi_rotation)
@@ -111,6 +133,7 @@ class ContentCurator:
                         text=post_text,
                         title=f"[Curated|{ssi_component}] {article['title'][:70]}"
                     )
+                    self._save_published_title(article["title"])
                     created_ideas.append(idea)
                 else:
                     logger.warning("No buffer_service provided — skipping idea creation")

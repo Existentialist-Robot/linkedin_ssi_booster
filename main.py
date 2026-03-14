@@ -76,7 +76,7 @@ def main():
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
         ai = ClaudeService(api_key=anthropic_api_key)
     claude  = ai  # keep existing variable name for compatibility
-    curator = ContentCurator(claude_service=ai)
+    curator = ContentCurator(claude_service=ai, buffer_service=buffer)
     tracker = SSITracker()
 
     if args.report:

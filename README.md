@@ -1,8 +1,36 @@
 # LinkedIn SSI Booster — Buffer API Integration
 
-Automates LinkedIn post generation and scheduling via Claude AI, Google Gemini, or local Ollama
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-- Buffer API to systematically grow your Social Selling Index (SSI) score.
+Automates LinkedIn post generation and scheduling via Claude AI, Google Gemini, or local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
+
+## What is the LinkedIn SSI?
+
+The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
+
+A higher SSI directly correlates with more profile views, post reach, and inbound connection requests. LinkedIn's own data shows that professionals with an SSI above 70 get 45% more opportunities than those below 30.
+
+The score breaks down into four components (25 points each):
+
+| Component                             | What LinkedIn measures                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------- |
+| **Establish your professional brand** | Completeness of profile, consistency of posting, saves/shares on your content     |
+| **Find the right people**             | Profile searches landing on you, connection acceptance rate, right-audience reach |
+| **Engage with insights**              | Shares, comments, and reactions on industry content; thought leadership signals   |
+| **Build relationships**               | Connection growth, message response rate, relationship depth                      |
+
+### Why automate it?
+
+SSI decays if you go quiet — LinkedIn penalises inconsistency. Manually writing 3 posts per week, curating industry articles with original commentary, and maintaining an on-brand voice across hundreds of posts is simply not sustainable alongside a full-time engineering role.
+
+This tool handles the repeatable parts:
+
+- **Consistent cadence** — 3 posts/week scheduled to Buffer at proven engagement times (Tue/Wed/Fri 4 PM EST)
+- **On-brand content** — every post is grounded in your real projects, real numbers, and real technical voice via a detailed persona prompt
+- **All four SSI pillars** — the content calendar and curator rotate across all four components so no single pillar is neglected
+- **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary for you to review in Buffer Ideas before publishing
+
+You still review and approve curated posts before they go live. The tool removes the blank-page problem, not your judgment.
 
 ## How it works
 
@@ -92,6 +120,30 @@ python main.py --report
 | `--dry-run`  | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                              |
 
 **Why curate goes to Ideas, not the queue:** The AI summarises articles it found today and adds your commentary, but you should review that commentary before it goes live. Buffer Ideas sit in a drafts inbox so you can edit, approve, or discard each one.
+
+### How the curation pipeline works
+
+Each time you run `python main.py --curate`, the following happens:
+
+1. **Fetch** — all 6 RSS feeds are scanned (up to `CURATOR_MAX_PER_FEED` entries each, default 10)
+2. **Filter** — only articles whose title or summary contains a niche keyword (RAG, LLM, neo4j, MCP, GovTech, etc.) are kept
+3. **Shuffle** — the matched articles are randomly shuffled so you get a different selection each run, not always the same top entries
+4. **Dedup check** — article titles are checked against `published_ideas_cache.json` (a local file); any article you've already pushed to Buffer is skipped
+5. **Generate** — each selected article is sent to the AI with your persona prompt and an SSI component goal; the service writes a LinkedIn post with your commentary
+6. **Append link** — the source article URL is always appended programmatically after the AI responds (never left to the model to include)
+7. **Push to Buffer Ideas** — the post is created in your Buffer Ideas board for review; the article title is written to the local cache so it won't be re-submitted on future runs
+
+**Dedup cache** (`published_ideas_cache.json`): A sorted JSON array of article titles that have already been pushed. It lives at the project root and is gitignored — it's local state, not source code. If you want to re-submit an article (e.g. after editing the persona), just delete its title from the file or clear the file entirely.
+
+```json
+[
+  "Beyond Semantic Similarity: Introducing NVIDIA NeMo Retriever",
+  "The Multi-Agent Trap",
+  "Why Care About Prompt Caching in LLMs?"
+]
+```
+
+The cache path can be overridden with `IDEAS_CACHE_PATH` in `.env` if you want to store it elsewhere.
 
 ## Choosing an AI backend
 
@@ -185,3 +237,7 @@ linkedin_ssi_booster/
 - **Gemini API key** (free): https://aistudio.google.com/apikey
 - **Ollama models**: https://ollama.com/library
 - **Track your SSI**: https://linkedin.com/sales/ssi
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.

@@ -45,3 +45,5 @@ Thumbs.db
 # Project-specific
 files.zip
 ssi_data.json
+github_repos_cache.json
+published_ideas_cache.json
