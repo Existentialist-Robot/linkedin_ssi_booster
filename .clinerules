@@ -1,0 +1,55 @@
+# Cline Rules — LinkedIn SSI Booster
+
+# Project: linkedin_ssi_booster
+
+# Author: Shawn Jackson Dyck
+
+# Stack: Python 3.11+, Anthropic Claude API, Buffer GraphQL API
+
+## Project Structure
+
+- All service modules live in `services/` package: `claude_service.py`, `buffer_service.py`, `content_curator.py`, `ssi_tracker.py`
+- Root-level orchestration: `main.py`, `scheduler.py`, `content_calendar.py`
+- Always import services via `from services.X import Y` — never from root
+- Run all scripts from the **project root** so `services/` is on sys.path
+
+## Code Style
+
+- Python 3.11+ syntax preferred
+- Type hints on all function signatures
+- Use `logging` (not `print`) for diagnostics — logger names match module name
+- No bare `except:` — always catch specific exception types
+- Constants in UPPER_SNAKE_CASE at module top
+
+## Environment & Secrets
+
+- All secrets loaded via `python-dotenv` from `.env` (never hardcode keys)
+- Required env vars: `ANTHROPIC_API_KEY`, `BUFFER_API_KEY`
+- `.env` is gitignored — use `.env.example` as template
+
+## External APIs
+
+- **Buffer**: GraphQL API at `https://api.buffer.com` — all calls through `BufferService._query()`
+- **Anthropic**: Use `ClaudeService` wrapper; default model is `claude-opus-4-5` unless cost-optimisation needed
+- Always handle API errors explicitly; surface meaningful messages to the logger
+
+## SSI Focus
+
+Four target components with individual weightings:
+
+- `establish_brand` — post quality, profile completeness
+- `find_right_people` — targeting, connection quality
+- `engage_with_insights` — article sharing, commenting
+- `build_relationships` — DMs, story posts
+
+## Testing
+
+- Prefer `--dry-run` flag pattern for destructive operations (no API calls)
+- Unit tests go in `tests/` (create if missing); name files `test_<module>.py`
+- Mock external API calls — never hit live Anthropic/Buffer in tests
+
+## Do Not
+
+- Do not add `sys.path` hacks in source files — fix the package structure instead
+- Do not commit `.env` or any file containing API keys
+- Do not generate mock LinkedIn SSI data without a `# NOTE: mock data` comment
