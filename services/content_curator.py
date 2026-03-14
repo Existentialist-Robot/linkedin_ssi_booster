@@ -8,8 +8,12 @@ Targets: engage_with_insights SSI component.
 import feedparser
 import requests
 import logging
-from typing import Optional
-from services.claude_service import ClaudeService  # noqa: E402 — run from project root
+import time
+from itertools import cycle
+from typing import Optional, Union
+from services.claude_service import ClaudeService, SSI_COMPONENT_INSTRUCTIONS  # noqa: E402 — run from project root
+from services.gemini_service import GeminiService
+from services.ollama_service import OllamaService
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +38,7 @@ KEYWORDS = [
 
 class ContentCurator:
 
-    def __init__(self, claude_service: ClaudeService, buffer_service=None):
+    def __init__(self, claude_service: Union[ClaudeService, GeminiService, OllamaService], buffer_service=None):
         self.claude = claude_service
         self.buffer = buffer_service
 
@@ -64,32 +68,48 @@ class ContentCurator:
         logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
         return articles
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5) -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0) -> list:
         """
         Main entry point: fetch articles, generate posts with Claude,
         push as Ideas to Buffer for manual review before publishing.
+        request_delay: seconds to wait between AI calls (helps with rate limits).
+        Rotates through all SSI components so curated posts contribute to every pillar.
         """
         articles = self.fetch_relevant_articles()
         created_ideas = []
+        ssi_rotation = cycle(SSI_COMPONENT_INSTRUCTIONS.keys())
 
-        for article in articles[:max_ideas]:
-            logger.info(f"Generating curation post for: {article['title'][:60]}...")
+        for i, article in enumerate(articles[:max_ideas]):
+            if i > 0:
+                time.sleep(request_delay)
+            ssi_component = next(ssi_rotation)
+            logger.info(f"Generating curation post [{ssi_component}] for: {article['title'][:60]}...")
             post_text = self.claude.summarise_for_curation(
                 article_text=article["summary"],
-                source_url=article["link"]
+                source_url=article["link"],
+                ssi_component=ssi_component,
             )
+
+            if not post_text:
+                logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
+                continue
+
+            # Always guarantee the source link appears in the post
+            if article["link"] and article["link"] not in post_text:
+                post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
             if dry_run:
                 print(f"\n{'='*60}")
                 print(f"SOURCE: {article['source']}")
                 print(f"ARTICLE: {article['title']}")
+                print(f"SSI COMPONENT: {ssi_component}")
                 print(f"\nGENERATED POST:\n{post_text}")
-                created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text})
+                created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component})
             else:
                 if self.buffer:
                     idea = self.buffer.create_idea(
                         text=post_text,
-                        title=f"[Curated] {article['title'][:80]}"
+                        title=f"[Curated|{ssi_component}] {article['title'][:70]}"
                     )
                     created_ideas.append(idea)
                 else:

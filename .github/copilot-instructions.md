@@ -64,3 +64,9 @@ linkedin_ssi_booster/
 - Prefer `pathlib.Path` over `os.path` for file operations
 - Raise `ValueError` for invalid config at init time (fail fast)
 - Keep Buffer and Anthropic calls in their respective service classes — do not scatter API calls across the codebase
+
+## After Every Code Change
+
+- Always run `python -m py_compile <changed_files>` immediately after editing any `.py` file
+- Fix all syntax errors before considering a task complete
+- Example: `python -m py_compile services/claude_service.py services/gemini_service.py services/ollama_service.py`

@@ -48,6 +48,12 @@ Four target components with individual weightings:
 - Unit tests go in `tests/` (create if missing); name files `test_<module>.py`
 - Mock external API calls — never hit live Anthropic/Buffer in tests
 
+## After Every Code Change
+
+- Always run `python -m py_compile <changed_files>` immediately after editing any `.py` file
+- Fix all syntax errors before considering a task complete
+- Example: `python -m py_compile services/claude_service.py services/gemini_service.py services/ollama_service.py`
+
 ## Do Not
 
 - Do not add `sys.path` hacks in source files — fix the package structure instead

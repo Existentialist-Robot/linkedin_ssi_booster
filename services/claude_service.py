@@ -4,45 +4,68 @@ Generates LinkedIn posts tailored to SSI components using the Anthropic API.
 Each post is engineered to push a specific SSI component score.
 """
 
+import os
 import anthropic
+from anthropic.types import TextBlock
 import logging
 from typing import Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
-# Maps SSI components to writing instructions
-SSI_COMPONENT_INSTRUCTIONS = {
-    "establish_brand": """
-        This post should ESTABLISH PROFESSIONAL BRAND.
-        - Share something you built, learned, or solved
-        - Demonstrate deep expertise in AI/RAG/search
-        - Use specific technical details — not vague claims
-        - End with a clear point of view or lesson learned
-        - LinkedIn algorithm rewards posts that get saves and shares
-    """,
-    "find_right_people": """
-        This post should help FIND THE RIGHT PEOPLE.
-        - Mention specific tools, communities, or events (AI/GovTech/Ottawa)
-        - Ask a question that invites replies from your target audience
-        - Tag relevant communities or technologies (not people)
-        - This drives profile visits from the right professionals
-    """,
-    "engage_with_insights": """
-        This post should ENGAGE WITH INSIGHTS.
-        - Reference or summarize a recent AI paper, article, or trend
-        - Give YOUR take on it — don't just summarize
-        - Make a bold or counterintuitive claim based on your experience
-        - Invite discussion: 'What's your experience with this?'
-        - This component rewards thoughtful engagement on others' content too
-    """,
-    "build_relationships": """
-        This post should BUILD RELATIONSHIPS.
-        - Share a behind-the-scenes story or honest lesson from a project
-        - Be specific about challenges you faced and how you solved them
-        - Show personality — not just technical facts
-        - Make it feel like a conversation, not a press release
-        - End with something that invites comments and connection
-    """
+# ---------------------------------------------------------------------------
+# Configurable via .env — override any of these without touching code
+# ---------------------------------------------------------------------------
+
+PERSONA_SYSTEM_PROMPT: str = os.getenv(
+    "PERSONA_SYSTEM_PROMPT",
+    """You are a LinkedIn content strategist and ghostwriter for a senior professional.
+Your voice is technical but human: concise, direct, and occasionally contrarian. Posts feel written by someone who has actually shipped the thing.
+Never use: 'In the age of AI', 'Game changer', 'Exciting to share', 'Thrilled to announce', 'Delighted to', 'I am pleased to'.
+Never start a post with 'I'. Never use bullet points for the main body — write in short, punchy paragraphs.
+Avoid corporate jargon, passive voice, and hollow hype. Favour specifics over generalities.
+Set PERSONA_SYSTEM_PROMPT in your .env to customise this for a specific person and domain.
+IMPORTANT: Output plain text only — no Markdown. Do not use **, ##, __, `, or any other Markdown syntax. LinkedIn does not render Markdown."""
+)
+
+SSI_COMPONENT_INSTRUCTIONS: dict[str, str] = {
+    "establish_brand": os.getenv(
+        "SSI_ESTABLISH_BRAND",
+        """This post should ESTABLISH PROFESSIONAL BRAND.
+- Share something you built, learned, or solved
+- Demonstrate deep expertise in AI/RAG/search
+- Use specific technical details — not vague claims
+- End with a clear point of view or lesson learned
+- LinkedIn algorithm rewards posts that get saves and shares"""
+    ),
+    "find_right_people": os.getenv(
+        "SSI_FIND_RIGHT_PEOPLE",
+        """This post should help FIND THE RIGHT PEOPLE.
+- Mention specific tools, communities, or events relevant to your industry
+- Ask a question that invites replies from your target audience
+- Tag relevant communities or technologies (not people)
+- This drives profile visits from the right professionals"""
+    ),
+    "engage_with_insights": os.getenv(
+        "SSI_ENGAGE_WITH_INSIGHTS",
+        """This post should ENGAGE WITH INSIGHTS.
+- Reference or summarize a recent AI paper, article, or trend
+- Give YOUR take on it — don't just summarize
+- Make a bold or counterintuitive claim based on your experience
+- Invite discussion: 'What's your experience with this?'
+- This component rewards thoughtful engagement on others' content too"""
+    ),
+    "build_relationships": os.getenv(
+        "SSI_BUILD_RELATIONSHIPS",
+        """This post should BUILD RELATIONSHIPS.
+- Share a behind-the-scenes story or honest lesson from a project
+- Be specific about challenges you faced and how you solved them
+- Show personality — not just technical facts
+- Make it feel like a conversation, not a press release
+- End with something that invites comments and connection"""
+    ),
 }
 
 
@@ -77,10 +100,7 @@ class ClaudeService:
         ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["establish_brand"])
         hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in hashtags)
 
-        system_prompt = f"""You are a LinkedIn content strategist writing posts for a senior AI/ML engineer.
-Your posts are technical but human — they feel written by a real practitioner, not a marketing team.
-Never use: 'In the age of AI', 'Game changer', 'Exciting to share', 'Thrilled to announce'.
-Never start with 'I'. Never use bullet points for the main content — write in short punchy paragraphs.
+        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
 Maximum length: {max_length} characters including hashtags.
 
 Profile context:
@@ -92,10 +112,10 @@ SSI optimisation goal:
 
         user_prompt = f"""Write a LinkedIn post about: {title}
 Angle to take: {angle}
-End with these hashtags: {hashtag_str}
 
 The post should feel authentic to someone who actually built this, not generic AI content.
 Use a hook in the first line that stops the scroll — a surprising stat, a bold claim, or a short story.
+Do NOT include hashtags in your output — they will be appended automatically.
 """
 
         message = self.client.messages.create(
@@ -104,20 +124,30 @@ Use a hook in the first line that stops the scroll — a surprising stat, a bold
             messages=[{"role": "user", "content": user_prompt}],
             system=system_prompt
         )
-        return message.content[0].text.strip()
+        text_block = next(b for b in message.content if isinstance(b, TextBlock))
+        return text_block.text.strip()
 
-    def summarise_for_curation(self, article_text: str, source_url: str) -> Optional[str]:
+    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights") -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
+        Returns None if article_text is too short to be useful.
         Used by the ContentCurator service.
         """
+        if not article_text or len(article_text.strip()) < 100:
+            logger.warning(f"Skipping curation — article text too short ({len(article_text.strip())} chars): {source_url}")
+            return None
+        ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["engage_with_insights"])
         prompt = f"""Summarise this article and write a LinkedIn post sharing it with your own commentary.
-Format:
-- 1-2 sentence hook
-- 2-3 sentences summarising the key insight (in your own words, don't quote)
-- 1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
-- Link: {source_url}
-- 3-5 relevant hashtags
+Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
+Format (plain paragraphs, no dashes or bullets):
+1-2 sentence hook
+2-3 sentences summarising the key insight (in your own words, don't quote)
+1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
+3-5 relevant hashtags on the last line
+Do NOT include the article URL in your output — it will be appended automatically.
+
+SSI optimisation goal for this post:
+{ssi_instruction}
 
 Article:
 {article_text[:3000]}
@@ -125,6 +155,8 @@ Article:
         message = self.client.messages.create(
             model=self.model,
             max_tokens=512,
+            system=PERSONA_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}]
         )
-        return message.content[0].text.strip()
+        text_block = next(b for b in message.content if isinstance(b, TextBlock))
+        return text_block.text.strip()
