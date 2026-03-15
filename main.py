@@ -10,9 +10,9 @@ AI backends (mutually exclusive flags):
   --local    Ollama (local)    — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-  python main.py --generate [--week N] [--dry-run] [--local | --gemini]
-  python main.py --schedule [--week N] [--dry-run] [--local | --gemini]
-  python main.py --curate               [--dry-run] [--local | --gemini]
+  python main.py --generate [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|all]
+  python main.py --schedule [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|all]
+  python main.py --curate               [--dry-run] [--local | --gemini] [--channel linkedin|x|all]
   python main.py --report
 """
 
@@ -48,6 +48,8 @@ def main():
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
     parser.add_argument("--local",     action="store_true", help="Use local Ollama instead of Claude")
     parser.add_argument("--gemini",    action="store_true", help="Use Google Gemini instead of Claude")
+    parser.add_argument("--channel",   choices=["linkedin", "x", "all"], default="linkedin",
+                        help="Target channel(s) for scheduling/curation (default: linkedin)")
     args = parser.parse_args()
 
     buffer_api_key = os.getenv("BUFFER_API_KEY")
@@ -74,7 +76,11 @@ def main():
         anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         if not anthropic_api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
-        ai = ClaudeService(api_key=anthropic_api_key)
+        ai = ClaudeService(
+            api_key=anthropic_api_key,
+            model=os.getenv("CLAUDE_MODEL", "claude-opus-4-6"),
+        )
+        logger.info(f"Using Claude model: {ai.model}")
     claude  = ai  # keep existing variable name for compatibility
     curator = ContentCurator(claude_service=ai, buffer_service=buffer)
     tracker = SSITracker()
@@ -84,8 +90,8 @@ def main():
         return
 
     if args.curate:
-        logger.info("Curating AI news sources...")
-        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run)
+        logger.info(f"Curating AI news sources (channel: {args.channel})...")
+        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel)
         logger.info(f"Created {len(ideas)} ideas in Buffer")
         return
 
@@ -105,11 +111,14 @@ def main():
                 angle=topic["angle"],
                 ssi_component=topic["ssi_component"],
                 hashtags=topic.get("hashtags", []),
-                profile_context=PROFILE_CONTEXT
+                profile_context=PROFILE_CONTEXT,
+                channel=args.channel,
             )
-            hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))
-            if hashtag_str and hashtag_str not in post:
-                post = post.rstrip() + f"\n\n{hashtag_str}"
+            # Hashtags eat too many chars on X — only append for LinkedIn
+            if args.channel != "x":
+                hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))
+                if hashtag_str and hashtag_str not in post:
+                    post = post.rstrip() + f"\n\n{hashtag_str}"
             posts.append({**topic, "generated_text": post})
 
             if args.dry_run:
@@ -120,41 +129,23 @@ def main():
 
         if args.schedule and not args.dry_run:
             scheduler = PostScheduler(buffer_service=buffer)
-            scheduler.schedule_week(posts, week_number=args.week)
-            logger.info(f"Scheduled {len(posts)} posts to Buffer successfully")
+            scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)
+            logger.info(f"Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully")
 
 
 # ---------------------------------------------------------------------------
-# Profile context — static base, extended at module load with live GitHub data
-# if GITHUB_USER is set in .env (cached 24h to github_repos_cache.json).
+# Profile context — loaded from PROFILE_CONTEXT in .env (gitignored).
+# Extended at module load with live GitHub data if GITHUB_USER is set.
 # ---------------------------------------------------------------------------
-_PROFILE_CONTEXT_BASE = """
-Name: Shawn Jackson Dyck
-Title: Principal Software Engineer
-Location: Ottawa/Remote
-Links: github.com/samjd-zz | samjd-zz.github.io | linkedin.com/in/shawn-jackson-dyck-52aa74358
-
-Core expertise: AI-driven search, RAG pipelines, multi-agent orchestration, hybrid search, GovTech AI
-Languages & frameworks: Java 21 (Virtual Threads, Spring Boot/Batch/AI), Python (FastAPI, scikit-learn, Gymnasium), Vaadin 24
-Search stack: Elasticsearch (BM25+vector, sharding, kNN, translog), Apache Solr/Lucene, Neo4j graph traversal
-AI/ML: RAG architecture, multi-agent orchestration, NLP (GateNLP, SentenceTransformers), reinforcement learning, feature engineering
-Messaging: Solace PubSub+ Agent Mesh, JMS (millions of events/day), FastMCP, event-driven architecture
-
-Key projects (use these for specifics — never fabricate numbers):
-- G7 GovAI Grand Challenge RIA (2025): Led 3-person team. Bilingual NLP hybrid search over 397k Canadian federal law docs. Neo4j graph + Elasticsearch BM25+vector → sub-500ms Gemini RAG Q&A. Tech: Python, FastAPI, Elasticsearch, Neo4j, SentenceTransformers, React/TypeScript, Docker
-- S1gnal.Zero (2025): Winner "Best Use of Solace Agent" hackathon. 5-agent FastMCP bot/fake-review detection with real-time Vaadin UI on Solace PubSub+ Agent Mesh. Tech: Java 17, Python FastMCP, Solace PubSub+, Spring Boot, Vaadin, PostgreSQL
-- Answer42 (2025): 9-agent Spring Batch pipeline for academic paper analysis. Multi-source discovery (Crossref, Semantic Scholar, Perplexity), three-mode AI chat (Claude/GPT-4/Perplexity). Tech: Java 21, Spring Boot/Batch/AI, Vaadin 24, PostgreSQL/Supabase, Ollama
-- TPG/USPS (2014–2023): 9-year JMS lead processing millions of USPS shipment tracking events/day. Tech: Java 6/8, JMS, JAXB, WebSphere, Oracle
-- RL Environments (2025): Gymnasium-compliant RL env for B2B SaaS support ticket routing by agent expertise and workload. Tech: Python, scikit-learn, Stable-Baselines3, Streamlit
-- Grizz-AI (2024): Multi-model GenAI creative media studio orchestrating OpenAI, ElevenLabs TTS, Groq, Flux image models. Tech: Python, Flask/FastAPI, SQLite
-
-Experience: 20+ years Java/J2EE; since 2024 focused full-time on AI engineering (search, RAG, multi-agent, GovTech)
-Goal: Recognized voice in AI-driven search, RAG architecture, GovTech AI, and multi-agent systems on LinkedIn
-Tone: Technical but human — concise, direct, occasionally contrarian. Written by someone who has shipped these systems.
-"""
+_PROFILE_CONTEXT_BASE = os.getenv("PROFILE_CONTEXT", "").strip()
+if not _PROFILE_CONTEXT_BASE:
+    raise ValueError(
+        "PROFILE_CONTEXT is not set in .env. "
+        "Copy the example from .env.example and fill in your details."
+    )
 
 _github_block = build_github_profile_context()
-PROFILE_CONTEXT = _PROFILE_CONTEXT_BASE.rstrip() + (
+PROFILE_CONTEXT = _PROFILE_CONTEXT_BASE + (
     f"\n\n{_github_block}" if _github_block else ""
 )
 

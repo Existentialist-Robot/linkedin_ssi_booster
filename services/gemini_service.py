@@ -16,7 +16,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
 
-from services.claude_service import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS
+from services.claude_service import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,7 @@ class GeminiService:
         hashtags: list,
         profile_context: str,
         max_length: int = 1300,
+        channel: str = "linkedin",
     ) -> str:
         """
         Generate a LinkedIn post optimised for a specific SSI component.
@@ -86,9 +87,20 @@ class GeminiService:
         )
         hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in hashtags)
 
-        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
-Maximum length: {max_length} characters including hashtags.
+        if channel == "x":
+            max_length = X_CHAR_LIMIT
+            _platform_block = f"""\nIMPORTANT — this post is for X (Twitter), NOT LinkedIn:
+- Hard limit: {X_CHAR_LIMIT} characters total (count every character including spaces and punctuation)
+- Write ONE tight paragraph only — no multi-paragraph structure
+- No hashtags — they will NOT be appended for X
+- No 'Read more' or filler CTAs — the post must stand completely alone
+- Every word must earn its place; cut ruthlessly until it fits
+"""
+        else:
+            _platform_block = ""
 
+        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
+Maximum length: {max_length} characters including hashtags.{_platform_block}
 Profile context:
 {profile_context}
 
@@ -104,7 +116,7 @@ Do NOT include hashtags in your output — they will be appended automatically."
 
         return self._generate(system_prompt, user_prompt, max_tokens=512)
 
-    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights") -> Optional[str]:
+    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights", channel: str = "linkedin") -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
         Returns None if article_text is too short to be useful.
@@ -114,15 +126,27 @@ Do NOT include hashtags in your output — they will be appended automatically."
             logger.warning(f"Skipping curation — article text too short ({len(article_text.strip())} chars): {source_url}")
             return None
         ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["engage_with_insights"])
-        system_prompt = PERSONA_SYSTEM_PROMPT
-        user_prompt = f"""Summarise this article and write a LinkedIn post sharing it with your own commentary.
+
+        if channel == "x":
+            _text_budget = X_CHAR_LIMIT - X_URL_CHARS
+            format_instructions = f"""IMPORTANT — this post is for X (Twitter), NOT LinkedIn:
+- Hard limit: {_text_budget} characters for your text (the source URL adds {X_URL_CHARS} chars, totalling {X_CHAR_LIMIT})
+- One or two very short sentences only — no paragraphs, no structure
+- No hashtags
+- Lead with your single sharpest take on the article; skip the summary entirely
+Do NOT include the article URL — it will be appended automatically."""
+        else:
+            format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
 1-2 sentence hook
 2-3 sentences summarising the key insight (in your own words, don't quote)
 1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
 3-5 relevant hashtags on the last line
-Do NOT include the article URL in your output — it will be appended automatically.
+Do NOT include the article URL in your output — it will be appended automatically."""
+
+        system_prompt = PERSONA_SYSTEM_PROMPT
+        user_prompt = f"""{format_instructions}
 
 SSI optimisation goal for this post:
 {ssi_instruction}

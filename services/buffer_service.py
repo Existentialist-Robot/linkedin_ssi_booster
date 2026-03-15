@@ -7,7 +7,7 @@ Docs: https://developers.buffer.com
 
 import requests
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,9 @@ class BufferService:
             "Content-Type": "application/json"
         }
 
-    def _query(self, query: str, variables: dict = None) -> dict:
+    def _query(self, query: str, variables: Optional[dict] = None) -> dict:
         """Execute a GraphQL query/mutation against Buffer API."""
-        payload = {"query": query}
+        payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
         response = requests.post(BUFFER_API, headers=self.headers, json=payload)
@@ -90,6 +90,20 @@ class BufferService:
                 logger.warning(f"Using LinkedIn channel: {ch['name']} (serviceType: {ch.get('serviceType')})")
                 return ch["id"]
         raise RuntimeError("No LinkedIn channel found in Buffer. Connect your LinkedIn profile first.")
+
+    def get_x_channel_id(self) -> Optional[str]:
+        """Find the X (Twitter) channel ID."""
+        channels = self.get_channels()
+        for ch in channels:
+            if ch.get("service") == "twitter" and ch.get("serviceType") == "profile":
+                logger.info(f"Found X channel: {ch['name']} (id: {ch['id']})")
+                return ch["id"]
+        # Fallback: first twitter channel regardless of serviceType
+        for ch in channels:
+            if ch.get("service") == "twitter":
+                logger.warning(f"Using X channel: {ch['name']} (serviceType: {ch.get('serviceType')})")
+                return ch["id"]
+        raise RuntimeError("No X channel found in Buffer. Connect your X profile first.")
 
     def create_post(self, channel_id: str, text: str, scheduled_at: Optional[str] = None) -> dict:
         """

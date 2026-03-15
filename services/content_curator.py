@@ -12,7 +12,6 @@ import os
 import random
 import requests
 import time
-from itertools import cycle
 from pathlib import Path
 from typing import Optional, Union
 from services.claude_service import ClaudeService, SSI_COMPONENT_INSTRUCTIONS  # noqa: E402 — run from project root
@@ -23,6 +22,24 @@ logger = logging.getLogger(__name__)
 
 CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
 IDEAS_CACHE_PATH = Path(os.getenv("IDEAS_CACHE_PATH", "published_ideas_cache.json"))
+
+# ---------------------------------------------------------------------------
+# SSI post-type focus — how often each pillar gets a post (should add up to 100).
+# Bump a pillar up when it's lagging; dial it back when it improves.
+# ---------------------------------------------------------------------------
+_SSI_WEIGHTS: dict[str, float] = {
+    "establish_brand":      float(os.getenv("SSI_FOCUS_ESTABLISH_BRAND",      "25")),
+    "find_right_people":    float(os.getenv("SSI_FOCUS_FIND_RIGHT_PEOPLE",    "27")),
+    "engage_with_insights": float(os.getenv("SSI_FOCUS_ENGAGE_WITH_INSIGHTS", "24")),
+    "build_relationships":  float(os.getenv("SSI_FOCUS_BUILD_RELATIONSHIPS",  "24")),
+}
+
+
+def _pick_ssi_component() -> str:
+    """Pick a component proportionally to its configured focus percentage."""
+    components = list(_SSI_WEIGHTS.keys())
+    weights    = list(_SSI_WEIGHTS.values())
+    return random.choices(components, weights=weights, k=1)[0]
 
 # RSS feeds relevant to Shawn's niche
 RSS_FEEDS = [
@@ -85,18 +102,18 @@ class ContentCurator:
         logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
         return articles
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0) -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin") -> list:
         """
         Main entry point: fetch articles, generate posts with Claude,
         push as Ideas to Buffer for manual review before publishing.
         request_delay: seconds to wait between AI calls (helps with rate limits).
         Rotates through all SSI components so curated posts contribute to every pillar.
+        channel: 'linkedin' | 'x' | 'all' — included in the Buffer idea title for easy filtering.
         """
         articles = self.fetch_relevant_articles()
         random.shuffle(articles)
         published = self._load_published_titles()
         created_ideas = []
-        ssi_rotation = cycle(SSI_COMPONENT_INSTRUCTIONS.keys())
 
         for i, article in enumerate(articles[:max_ideas]):
             if article["title"] in published:
@@ -104,12 +121,14 @@ class ContentCurator:
                 continue
             if i > 0:
                 time.sleep(request_delay)
-            ssi_component = next(ssi_rotation)
+            # Weighted random pick: components with lower scores get more posts
+            ssi_component = _pick_ssi_component()
             logger.info(f"Generating curation post [{ssi_component}] for: {article['title'][:60]}...")
             post_text = self.claude.summarise_for_curation(
                 article_text=article["summary"],
                 source_url=article["link"],
                 ssi_component=ssi_component,
+                channel=channel,
             )
 
             if not post_text:
@@ -124,14 +143,15 @@ class ContentCurator:
                 print(f"\n{'='*60}")
                 print(f"SOURCE: {article['source']}")
                 print(f"ARTICLE: {article['title']}")
+                print(f"CHANNEL: {channel}")
                 print(f"SSI COMPONENT: {ssi_component}")
                 print(f"\nGENERATED POST:\n{post_text}")
-                created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component})
+                created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
             else:
                 if self.buffer:
                     idea = self.buffer.create_idea(
                         text=post_text,
-                        title=f"[Curated|{ssi_component}] {article['title'][:70]}"
+                        title=f"[{channel}|{ssi_component}] {article['title'][:70]}"
                     )
                     self._save_published_title(article["title"])
                     created_ideas.append(idea)

@@ -70,3 +70,4 @@ linkedin_ssi_booster/
 - Always run `python -m py_compile <changed_files>` immediately after editing any `.py` file
 - Fix all syntax errors before considering a task complete
 - Example: `python -m py_compile services/claude_service.py services/gemini_service.py services/ollama_service.py`
+- **Update README.md** whenever you change how the tool is configured, how a feature works, or what env vars are required — keep the docs in sync with the code

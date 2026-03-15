@@ -31,6 +31,19 @@ class PostScheduler:
     def __init__(self, buffer_service):
         self.buffer = buffer_service
 
+    def _resolve_channel_ids(self, channel: str) -> list[str]:
+        """Return a list of Buffer channel IDs for the given channel selector."""
+        if channel == "linkedin":
+            return [self.buffer.get_linkedin_channel_id()]
+        elif channel == "x":
+            return [self.buffer.get_x_channel_id()]
+        elif channel == "all":
+            ids = [self.buffer.get_linkedin_channel_id()]
+            ids.append(self.buffer.get_x_channel_id())
+            return ids
+        else:
+            raise ValueError(f"Unknown channel {channel!r}. Use 'linkedin', 'x', or 'all'.")
+
     def _next_slot(self, day_name: str, reference: datetime = None) -> str:
         """Calculate the next occurrence of a given weekday posting slot."""
         if reference is None:
@@ -52,13 +65,14 @@ class PostScheduler:
         post_dt = post_date.replace(hour=slot["hour"], minute=slot["minute"], second=0, microsecond=0)
         return post_dt.astimezone(pytz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    def schedule_week(self, posts: list, week_number: int = 1):
+    def schedule_week(self, posts: list, week_number: int = 1, channel: str = "linkedin"):
         """
         Schedule a week of posts to Buffer.
         Posts are distributed Tue/Wed/Fri at 4 PM EST.
-        Max 3 posts per week (matches your free plan queue rhythm).
+        Max 3 posts per week per channel (matches your free plan queue rhythm).
+        channel: 'linkedin' | 'x' | 'all'
         """
-        channel_id = self.buffer.get_linkedin_channel_id()
+        channel_ids = self._resolve_channel_ids(channel)
         days = ["tuesday", "wednesday", "friday"]
         reference = datetime.now(TIMEZONE)
 
@@ -67,22 +81,23 @@ class PostScheduler:
             reference = reference + timedelta(weeks=week_number - 1)
 
         scheduled = []
-        for i, post in enumerate(posts[:3]):
-            day_name     = days[i % 3]
-            scheduled_at = self._next_slot(day_name, reference=reference)
-            text         = post.get("generated_text", "")
+        for channel_id in channel_ids:
+            for i, post in enumerate(posts[:3]):
+                day_name     = days[i % 3]
+                scheduled_at = self._next_slot(day_name, reference=reference)
+                text         = post.get("generated_text", "")
 
-            if not text:
-                logger.warning(f"Post {i+1} has no generated text — skipping")
-                continue
+                if not text:
+                    logger.warning(f"Post {i+1} has no generated text — skipping")
+                    continue
 
-            result = self.buffer.create_post(
-                channel_id=channel_id,
-                text=text,
-                scheduled_at=scheduled_at
-            )
-            logger.info(f"Scheduled post {i+1}/{len(posts[:3])} → {day_name} {scheduled_at}")
-            scheduled.append(result)
+                result = self.buffer.create_post(
+                    channel_id=channel_id,
+                    text=text,
+                    scheduled_at=scheduled_at
+                )
+                logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(posts[:3])} → {day_name} {scheduled_at}")
+                scheduled.append(result)
 
-        logger.info(f"Week {week_number}: {len(scheduled)} posts scheduled to Buffer")
+        logger.info(f"Week {week_number}: {len(scheduled)} posts scheduled to Buffer ({channel})")
         return scheduled

@@ -48,6 +48,11 @@ Four target components with individual weightings:
 - Unit tests go in `tests/` (create if missing); name files `test_<module>.py`
 - Mock external API calls — never hit live Anthropic/Buffer in tests
 
+## After Every Change
+
+- Run `python -m py_compile <changed_files>` after editing any `.py` file and fix all errors before finishing
+- Update `README.md` whenever you change how the tool is configured, how a feature works, or what env vars are required — keep the docs in sync with the code
+
 ## After Every Code Change
 
 - Always run `python -m py_compile <changed_files>` immediately after editing any `.py` file

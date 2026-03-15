@@ -45,8 +45,8 @@ You still review and approve curated posts before they go live. The tool removes
 Every generated post is plain text — there's no audio or special format involved.  
 "Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
 
-**1. Your profile (`PROFILE_CONTEXT` in `main.py`)**  
-Injected into every prompt: your name, role, location, specialties (RAG, Neo4j, Java 21, etc.) and real project outcomes (G7 GovAI: 397k docs sub-500ms; S1gnal.Zero: hackathon winner; Answer42: 9-agent pipeline). The profile is also enriched at startup with live GitHub data via `services/github_service.py` — pinned repos, languages, and recent activity so the model has current project context.
+**1. Your profile (`PROFILE_CONTEXT` in `.env`)**  
+Injected into every prompt: your name, role, location, specialties, and real project outcomes. Stored in `.env` (gitignored) so it stays private and out of source control. The profile is also enriched at startup with live GitHub data via `services/github_service.py` — pinned repos, languages, and recent activity so the model has current project context.
 
 **2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)**  
 A detailed persona loaded into every AI call, covering:
@@ -69,7 +69,7 @@ Each topic has a specific `angle` field (e.g. _"contrast AI-TDD with vibe coding
 For curated posts (`--curate`), `content_curator.py` filters RSS feeds by your niche keywords (RAG, Neo4j, GovTech, MCP, Spring AI…) so only domain-relevant articles are ever posted — not random tech news.
 
 **Guaranteed output integrity**  
-Hashtags (for `--generate`) and source article links (for `--curate`) are always appended programmatically _after_ the model responds — never left to the model to include or place correctly.
+Hashtags (for `--generate` targeting LinkedIn) and source article links (for `--curate`) are always appended programmatically _after_ the model responds — never left to the model to include or place correctly. X posts skip hashtag appending entirely — X's 280-character limit leaves no room for them, and the prompt instructs the model to write a single tight paragraph instead of the multi-paragraph LinkedIn format.
 
 ## Setup
 
@@ -83,7 +83,9 @@ pip install -r requirements.txt
 
 # Configure API keys
 cp .env.example .env
-# Edit .env and add your keys:
+# Edit .env and fill in ALL required values:
+#   PROFILE_CONTEXT   → your name, role, projects (see template in .env.example)
+#   PERSONA_SYSTEM_PROMPT → your voice/persona (template in .env.example)
 #   BUFFER_API_KEY    → https://publish.buffer.com/settings/api
 #   ANTHROPIC_API_KEY → https://console.anthropic.com          (for --generate default)
 #   GEMINI_API_KEY    → https://aistudio.google.com/apikey     (for --gemini, free tier available)
@@ -100,12 +102,21 @@ cp .env.example .env
 # Generate + preview week 1 posts with Claude (dry run — no Buffer calls)
 python main.py --generate --week 1 --dry-run
 
-# Generate + schedule week 1 posts to Buffer
+# Generate + schedule week 1 posts to Buffer (LinkedIn, default)
 python main.py --generate --schedule --week 1
+
+# Schedule to X instead of LinkedIn
+python main.py --generate --schedule --week 1 --channel x
+
+# Schedule to both LinkedIn and X simultaneously
+python main.py --generate --schedule --week 1 --channel all
 
 # Curate AI news and push as Buffer ideas (for review before publishing)
 python main.py --curate --dry-run
 python main.py --curate
+
+# Curate ideas targeted at X audience
+python main.py --curate --channel x
 
 # Print weekly SSI action report
 python main.py --report
@@ -113,11 +124,14 @@ python main.py --report
 
 ### `--generate` vs `--curate` vs `--dry-run`
 
-| Flag         | Source                                                   | What it does                                                                                                                                  |
-| ------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--generate` | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                 |
-| `--curate`   | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; pushes to Buffer as **Ideas** (unscheduled drafts for review) |
-| `--dry-run`  | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                              |
+| Flag                 | Source                                                   | What it does                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                          |
+| `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; pushes to Buffer as **Ideas** (unscheduled drafts for review)                          |
+| `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                       |
+| `--channel linkedin` | Either                                                   | Target LinkedIn only (default)                                                                                                                                         |
+| `--channel x`        | Either                                                   | Target X (Twitter) only — generation prompt switches to X mode: 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer |
+| `--channel all`      | Either                                                   | Target both LinkedIn and X — each post is scheduled/created independently per channel                                                                                  |
 
 **Why curate goes to Ideas, not the queue:** The AI summarises articles it found today and adds your commentary, but you should review that commentary before it goes live. Buffer Ideas sit in a drafts inbox so you can edit, approve, or discard each one.
 
@@ -131,7 +145,7 @@ Each time you run `python main.py --curate`, the following happens:
 4. **Dedup check** — article titles are checked against `published_ideas_cache.json` (a local file); any article you've already pushed to Buffer is skipped
 5. **Generate** — each selected article is sent to the AI with your persona prompt and an SSI component goal; the service writes a LinkedIn post with your commentary
 6. **Append link** — the source article URL is always appended programmatically after the AI responds (never left to the model to include)
-7. **Push to Buffer Ideas** — the post is created in your Buffer Ideas board for review; the article title is written to the local cache so it won't be re-submitted on future runs
+7. **Push to Buffer Ideas** — the post is created in your Buffer Ideas board for review; the idea title is prefixed with `[channel|ssi_component]` (e.g. `[linkedin|engage_with_insights]`) so you can filter by channel or pillar at a glance; the article title is written to the local cache so it won't be re-submitted on future runs
 
 **Dedup cache** (`published_ideas_cache.json`): A sorted JSON array of article titles that have already been pushed. It lives at the project root and is gitignored — it's local state, not source code. If you want to re-submit an article (e.g. after editing the persona), just delete its title from the file or clear the file entirely.
 
@@ -164,6 +178,9 @@ python main.py --curate --gemini --dry-run
 # Ollama — fully local, no internet needed
 python main.py --generate --week 1 --local --dry-run
 python main.py --curate --local --dry-run
+
+# All flags compose freely — e.g. Gemini + X channel + dry-run
+python main.py --curate --gemini --channel x --dry-run
 ```
 
 ## Local generation with Ollama (free, offline)
@@ -210,6 +227,19 @@ OLLAMA_MODEL=mistral python main.py --generate --week 1 --local --dry-run
 | Engage with insights | 11.00   | 25     | Curated posts + daily commenting      |
 | Build relationships  | 11.85   | 25     | Reply to all comments, DM connections |
 | **Total**            | **43**  | **95** |                                       |
+
+### Controlling post-type focus
+
+Four percentage values in `.env` control how often each pillar gets a generated post. They should add up to 100 — bump a pillar up when it's lagging, dial it back when it improves:
+
+```ini
+SSI_FOCUS_ESTABLISH_BRAND=25
+SSI_FOCUS_FIND_RIGHT_PEOPLE=27
+SSI_FOCUS_ENGAGE_WITH_INSIGHTS=24
+SSI_FOCUS_BUILD_RELATIONSHIPS=24
+```
+
+The system uses these as-is — no formulas to think about. If `find_right_people` drops on your SSI page, move some points toward it from whichever pillar is healthiest.
 
 ## File Structure
 

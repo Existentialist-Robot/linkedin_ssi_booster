@@ -30,6 +30,10 @@ Set PERSONA_SYSTEM_PROMPT in your .env to customise this for a specific person a
 IMPORTANT: Output plain text only — no Markdown. Do not use **, ##, __, `, or any other Markdown syntax. LinkedIn does not render Markdown."""
 )
 
+# X (Twitter) platform limits — enforced at the prompt level, not by truncation
+X_CHAR_LIMIT = 280  # Standard X character limit
+X_URL_CHARS  = 23   # Every URL on X counts as exactly 23 characters regardless of real length
+
 SSI_COMPONENT_INSTRUCTIONS: dict[str, str] = {
     "establish_brand": os.getenv(
         "SSI_ESTABLISH_BRAND",
@@ -71,11 +75,11 @@ SSI_COMPONENT_INSTRUCTIONS: dict[str, str] = {
 
 class ClaudeService:
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = "claude-opus-4-6"):
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY is required")
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = "claude-opus-4-6"
+        self.model = model
 
     def generate_linkedin_post(
         self,
@@ -84,7 +88,8 @@ class ClaudeService:
         ssi_component: str,
         hashtags: list,
         profile_context: str,
-        max_length: int = 1300
+        max_length: int = 1300,
+        channel: str = "linkedin",
     ) -> str:
         """
         Generate a LinkedIn post optimised for a specific SSI component.
@@ -100,9 +105,20 @@ class ClaudeService:
         ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["establish_brand"])
         hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in hashtags)
 
-        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
-Maximum length: {max_length} characters including hashtags.
+        if channel == "x":
+            max_length = X_CHAR_LIMIT
+            _platform_block = f"""\nIMPORTANT — this post is for X (Twitter), NOT LinkedIn:
+- Hard limit: {X_CHAR_LIMIT} characters total (count every character including spaces and punctuation)
+- Write ONE tight paragraph only — no multi-paragraph structure
+- No hashtags — they will NOT be appended for X
+- No 'Read more' or filler CTAs — the post must stand completely alone
+- Every word must earn its place; cut ruthlessly until it fits
+"""
+        else:
+            _platform_block = ""
 
+        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
+Maximum length: {max_length} characters including hashtags.{_platform_block}
 Profile context:
 {profile_context}
 
@@ -127,7 +143,7 @@ Do NOT include hashtags in your output — they will be appended automatically.
         text_block = next(b for b in message.content if isinstance(b, TextBlock))
         return text_block.text.strip()
 
-    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights") -> Optional[str]:
+    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights", channel: str = "linkedin") -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
         Returns None if article_text is too short to be useful.
@@ -137,14 +153,26 @@ Do NOT include hashtags in your output — they will be appended automatically.
             logger.warning(f"Skipping curation — article text too short ({len(article_text.strip())} chars): {source_url}")
             return None
         ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["engage_with_insights"])
-        prompt = f"""Summarise this article and write a LinkedIn post sharing it with your own commentary.
+
+        if channel == "x":
+            _text_budget = X_CHAR_LIMIT - X_URL_CHARS  # reserve 23 chars for the URL Buffer appends
+            format_instructions = f"""IMPORTANT — this post is for X (Twitter), NOT LinkedIn:
+- Hard limit: {_text_budget} characters for your text (the source URL adds {X_URL_CHARS} chars, totalling {X_CHAR_LIMIT})
+- One or two very short sentences only — no paragraphs, no structure
+- No hashtags
+- Lead with your single sharpest take on the article; skip the summary entirely
+Do NOT include the article URL — it will be appended automatically."""
+        else:
+            format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
 1-2 sentence hook
 2-3 sentences summarising the key insight (in your own words, don't quote)
 1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
 3-5 relevant hashtags on the last line
-Do NOT include the article URL in your output — it will be appended automatically.
+Do NOT include the article URL in your output — it will be appended automatically."""
+
+        prompt = f"""{format_instructions}
 
 SSI optimisation goal for this post:
 {ssi_instruction}
