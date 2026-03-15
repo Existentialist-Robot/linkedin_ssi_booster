@@ -41,23 +41,29 @@ def _pick_ssi_component() -> str:
     weights    = list(_SSI_WEIGHTS.values())
     return random.choices(components, weights=weights, k=1)[0]
 
-# RSS feeds relevant to Shawn's niche
-RSS_FEEDS = [
-    {"name": "Anthropic Blog",        "url": "https://www.anthropic.com/rss.xml"},
-    {"name": "Hugging Face Blog",     "url": "https://huggingface.co/blog/feed.xml"},
-    {"name": "Towards Data Science",  "url": "https://towardsdatascience.com/feed"},
+# RSS feeds — override via CURATOR_RSS_FEEDS in .env as a JSON array:
+# [{"name": "My Blog", "url": "https://example.com/feed.xml"}, ...]
+_DEFAULT_RSS_FEEDS = [
+    {"name": "Anthropic Blog",              "url": "https://www.anthropic.com/rss.xml"},
+    {"name": "Hugging Face Blog",           "url": "https://huggingface.co/blog/feed.xml"},
+    {"name": "Towards Data Science",        "url": "https://towardsdatascience.com/feed"},
     {"name": "The Batch (DeepLearning.AI)", "url": "https://www.deeplearning.ai/the-batch/feed/"},
-    {"name": "AWS Machine Learning",  "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
-    {"name": "Google AI Blog",        "url": "https://blog.research.google/atom.xml"},
+    {"name": "AWS Machine Learning",        "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
+    {"name": "Google AI Blog",              "url": "https://blog.research.google/atom.xml"},
 ]
+_rss_env = os.getenv("CURATOR_RSS_FEEDS", "")
+RSS_FEEDS: list = json.loads(_rss_env) if _rss_env.strip() else _DEFAULT_RSS_FEEDS
 
-KEYWORDS = [
+# Keywords — override via CURATOR_KEYWORDS in .env as a comma-separated list
+_DEFAULT_KEYWORDS = [
     "RAG", "retrieval augmented", "LLM", "language model",
     "neo4j", "graph", "elasticsearch", "vector search",
     "agent", "multi-agent", "MCP", "model context protocol",
     "government AI", "GovTech", "regulatory", "compliance AI",
-    "Java AI", "Spring AI", "FastAPI"
+    "Java AI", "Spring AI", "FastAPI",
 ]
+_kw_env = os.getenv("CURATOR_KEYWORDS", "")
+KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env.strip() else _DEFAULT_KEYWORDS
 
 
 class ContentCurator:
@@ -112,7 +118,7 @@ class ContentCurator:
         """
         articles = self.fetch_relevant_articles()
         random.shuffle(articles)
-        published = self._load_published_titles()
+        published = set() if dry_run else self._load_published_titles()
         created_ideas = []
 
         for i, article in enumerate(articles[:max_ideas]):

@@ -139,7 +139,7 @@ python main.py --report
 
 Each time you run `python main.py --curate`, the following happens:
 
-1. **Fetch** — all 6 RSS feeds are scanned (up to `CURATOR_MAX_PER_FEED` entries each, default 10)
+1. **Fetch** — all RSS feeds are scanned (up to `CURATOR_MAX_PER_FEED` entries each, default 10; see [Customising RSS feeds and keywords](#customising-rss-feeds-and-keywords) to add your own)
 2. **Filter** — only articles whose title or summary contains a niche keyword (RAG, LLM, neo4j, MCP, GovTech, etc.) are kept
 3. **Shuffle** — the matched articles are randomly shuffled so you get a different selection each run, not always the same top entries
 4. **Dedup check** — article titles are checked against `published_ideas_cache.json` (a local file); any article you've already pushed to Buffer is skipped
@@ -158,6 +158,24 @@ Each time you run `python main.py --curate`, the following happens:
 ```
 
 The cache path can be overridden with `IDEAS_CACHE_PATH` in `.env` if you want to store it elsewhere.
+
+### Customising RSS feeds and keywords
+
+Both the RSS feed list and the keyword filter are configurable via `.env` — no code changes needed.
+
+**`CURATOR_KEYWORDS`** — comma-separated terms matched against article titles/summaries (overrides built-in list entirely):
+
+```ini
+CURATOR_KEYWORDS=RAG,LLM,neo4j,GovTech,Spring AI,MCP,vector search
+```
+
+**`CURATOR_RSS_FEEDS`** — JSON array of `{"name": "...", "url": "..."}` objects (overrides built-in list entirely):
+
+```ini
+CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss.xml"},{"name":"My Blog","url":"https://myblog.com/feed.xml"}]
+```
+
+Leave either variable unset to use the built-in defaults (6 AI/ML feeds + 19 niche keywords).
 
 ## Choosing an AI backend
 
@@ -178,6 +196,7 @@ python main.py --curate --gemini --dry-run
 # Ollama — fully local, no internet needed
 python main.py --generate --week 1 --local --dry-run
 python main.py --curate --local --dry-run
+python main.py --curate --local --channel x --dry-run
 
 # All flags compose freely — e.g. Gemini + X channel + dry-run
 python main.py --curate --gemini --channel x --dry-run
@@ -207,10 +226,18 @@ ollama pull llama3.2          # fast, good quality (~2 GB)
 # 4. Generate posts locally
 python main.py --generate --week 1 --local --dry-run
 
-# 5. Schedule locally-generated posts to Buffer
+# 5. Curate AI news locally — LinkedIn (default)
+python main.py --curate --local --dry-run
+python main.py --curate --local
+
+# 6. Curate AI news locally — X (280-char mode, no hashtags)
+python main.py --curate --local --channel x --dry-run
+python main.py --curate --local --channel x
+
+# 7. Schedule locally-generated posts to Buffer
 python main.py --generate --schedule --week 1 --local
 
-# 6. Override the model without editing .env
+# 8. Override the model without editing .env
 OLLAMA_MODEL=mistral python main.py --generate --week 1 --local --dry-run
 ```
 
