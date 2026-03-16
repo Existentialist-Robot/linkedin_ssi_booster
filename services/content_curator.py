@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import random
+import re
 import requests
 import time
 from pathlib import Path
@@ -50,6 +51,12 @@ _DEFAULT_RSS_FEEDS = [
     {"name": "The Batch (DeepLearning.AI)", "url": "https://www.deeplearning.ai/the-batch/feed/"},
     {"name": "AWS Machine Learning",        "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
     {"name": "Google AI Blog",              "url": "https://blog.research.google/atom.xml"},
+    {"name": "Spring Blog",                 "url": "https://spring.io/blog.atom"},
+    {"name": "Elastic Blog",                "url": "https://www.elastic.co/blog/feed"},
+    {"name": "Neo4j Blog",                  "url": "https://neo4j.com/blog/feed/"},
+    {"name": "Inside Java",                 "url": "https://inside.java/feed.xml"},
+    {"name": "LangChain Blog",              "url": "https://blog.langchain.dev/rss/"},
+    {"name": "The New Stack",               "url": "https://thenewstack.io/feed/"},
 ]
 _rss_env = os.getenv("CURATOR_RSS_FEEDS", "")
 RSS_FEEDS: list = json.loads(_rss_env) if _rss_env.strip() else _DEFAULT_RSS_FEEDS
@@ -61,6 +68,14 @@ _DEFAULT_KEYWORDS = [
     "agent", "multi-agent", "MCP", "model context protocol",
     "government AI", "GovTech", "regulatory", "compliance AI",
     "Java AI", "Spring AI", "FastAPI",
+    "Spring Boot", "Spring Batch", "Java 21", "virtual thread",
+    "reinforcement learning", "scikit-learn", "embeddings", "BM25",
+    "Solr", "Lucene", "NLP", "sentence transformer", "context engineering",
+    "event-driven", "event broker", "Solace", "PubSub", "streaming",
+    "microservices", "Docker", "Groq", "OpenRouter", "Perplexity AI",
+    "Ollama", "Vaadin", "FastMCP", "kNN", "feature engineering",
+    "neural network", "agentic", "agentic AI", "Supabase",
+    "vector database", "knowledge graph",
 ]
 _kw_env = os.getenv("CURATOR_KEYWORDS", "")
 KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env.strip() else _DEFAULT_KEYWORDS
@@ -82,6 +97,21 @@ class ContentCurator:
         titles.add(title)
         IDEAS_CACHE_PATH.write_text(json.dumps(sorted(titles), indent=2))
 
+    def _fetch_article_text(self, url: str, max_chars: int = 3000) -> str:
+        """Fetch a URL and return plain text (script/style stripped). Used when RSS has no summary."""
+        try:
+            resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            html = resp.text
+            # Remove script and style blocks entirely
+            html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r"<[^>]+>", " ", html)
+            text = re.sub(r"\s+", " ", text).strip()
+            return text[:max_chars]
+        except Exception as e:
+            logger.debug(f"Could not fetch article text from {url}: {e}")
+            return ""
+
     def fetch_relevant_articles(self, max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
         """Fetch recent articles matching our keyword list."""
         articles = []
@@ -89,12 +119,16 @@ class ContentCurator:
             try:
                 feed = feedparser.parse(feed_info["url"])
                 for entry in feed.entries[:max_per_feed]:
-                    title   = entry.get("title") or ""
-                    summary = entry.get("summary") or ""
-                    link    = entry.get("link") or ""
+                    title   = str(entry.get("title") or "")
+                    summary = str(entry.get("summary") or "")
+                    link    = str(entry.get("link") or "")
                     content = f"{title} {summary}".lower()
 
                     if any(kw.lower() in content for kw in KEYWORDS):
+                        # Enrich summary at collection time so the AI always has text to work with
+                        if len(summary.strip()) < 100 and link:
+                            logger.debug(f"RSS summary empty for '{title[:50]}' — fetching URL")
+                            summary = self._fetch_article_text(link)
                         articles.append({
                             "source": feed_info["name"],
                             "title":  title,
@@ -121,11 +155,13 @@ class ContentCurator:
         published = set() if dry_run else self._load_published_titles()
         created_ideas = []
 
-        for i, article in enumerate(articles[:max_ideas]):
+        for article in articles:
+            if len(created_ideas) >= max_ideas:
+                break
             if article["title"] in published:
                 logger.info(f"Skipping already-published idea: {article['title'][:60]}")
                 continue
-            if i > 0:
+            if created_ideas:
                 time.sleep(request_delay)
             # Weighted random pick: components with lower scores get more posts
             ssi_component = _pick_ssi_component()
