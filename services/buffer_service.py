@@ -105,6 +105,20 @@ class BufferService:
                 return ch["id"]
         raise RuntimeError("No X channel found in Buffer. Connect your X profile first.")
 
+    def get_bluesky_channel_id(self) -> Optional[str]:
+        """Find the Bluesky channel ID."""
+        channels = self.get_channels()
+        for ch in channels:
+            if ch.get("service") == "bluesky" and ch.get("serviceType") == "profile":
+                logger.info(f"Found Bluesky channel: {ch['name']} (id: {ch['id']})")
+                return ch["id"]
+        # Fallback: first bluesky channel regardless of serviceType
+        for ch in channels:
+            if ch.get("service") == "bluesky":
+                logger.warning(f"Using Bluesky channel: {ch['name']} (serviceType: {ch.get('serviceType')})")
+                return ch["id"]
+        raise RuntimeError("No Bluesky channel found in Buffer. Connect your Bluesky profile first.")
+
     def create_post(self, channel_id: str, text: str, scheduled_at: Optional[str] = None) -> dict:
         """
         Create a post in Buffer.
@@ -133,6 +147,54 @@ class BufferService:
         data = self._query(mutation, variables)
         post = data.get("createPost", {}).get("post", {})
         logger.info(f"Post created: id={post.get('id')} status={post.get('status')} scheduledAt={post.get('scheduledAt')}")
+        return post
+
+    def create_scheduled_post(
+        self,
+        channel_id: str,
+        text: str,
+        thread: Optional[list[str]] = None,
+        first_comment: Optional[str] = None,
+    ) -> dict:
+        """
+        Schedule a post to the next available Buffer queue slot.
+        thread: additional posts in the thread (X/Bluesky) — each item is the text of one reply post.
+        first_comment: LinkedIn first comment text (placed in metadata.linkedin.firstComment).
+        """
+        mutation = """
+        mutation CreateScheduledPost($input: CreatePostInput!) {
+          createPost(input: $input) {
+            ... on PostActionSuccess {
+              post {
+                id
+                text
+                status
+                scheduledAt
+              }
+            }
+            ... on MutationError {
+              message
+            }
+          }
+        }
+        """
+        post_input: dict = {
+            "channelId": channel_id,
+            "text": text,
+            "schedulingType": "automatic",
+            "mode": "queue",
+        }
+        if thread:
+            post_input["thread"] = [{"text": t} for t in thread]
+        if first_comment:
+            post_input["metadata"] = {"linkedin": {"firstComment": first_comment}}
+
+        data = self._query(mutation, {"input": post_input})
+        result = data.get("createPost", {})
+        if "message" in result:
+            raise RuntimeError(f"Buffer createPost error: {result['message']}")
+        post = result.get("post", {})
+        logger.info(f"Scheduled post: id={post.get('id')} status={post.get('status')} scheduledAt={post.get('scheduledAt')}")
         return post
 
     def create_idea(self, text: str, title: str = "") -> dict:

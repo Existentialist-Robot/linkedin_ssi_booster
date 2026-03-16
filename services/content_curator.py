@@ -142,13 +142,20 @@ class ContentCurator:
         logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
         return articles
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin") -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea") -> list:
         """
-        Main entry point: fetch articles, generate posts with Claude,
-        push as Ideas to Buffer for manual review before publishing.
-        request_delay: seconds to wait between AI calls (helps with rate limits).
-        Rotates through all SSI components so curated posts contribute to every pillar.
-        channel: 'linkedin' | 'x' | 'all' — included in the Buffer idea title for easy filtering.
+        Main entry point: fetch articles, generate posts with the configured AI service,
+        and either push as Buffer Ideas (message_type='idea') or schedule directly to the
+        next available queue slot (message_type='post').
+
+        message_type='idea'  — creates Buffer Ideas for manual review before publishing.
+        message_type='post'  — schedules posts directly:
+            linkedin → full post + LinkedIn first comment (hashtags/link kept out of body)
+            x        → 3-post thread: hook / insight / close
+            bluesky  → 3-post thread: hook / insight / close
+            all      → LinkedIn post + X thread + Bluesky thread per article
+
+        request_delay: seconds to wait between AI calls (rate-limit buffer).
         """
         articles = self.fetch_relevant_articles()
         random.shuffle(articles)
@@ -165,39 +172,152 @@ class ContentCurator:
                 time.sleep(request_delay)
             # Weighted random pick: components with lower scores get more posts
             ssi_component = _pick_ssi_component()
-            logger.info(f"Generating curation post [{ssi_component}] for: {article['title'][:60]}...")
-            post_text = self.claude.summarise_for_curation(
-                article_text=article["summary"],
-                source_url=article["link"],
-                ssi_component=ssi_component,
-                channel=channel,
-            )
+            logger.info(f"Generating [{message_type}|{ssi_component}] for: {article['title'][:60]}...")
 
-            if not post_text:
-                logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
-                continue
+            # ----------------------------------------------------------------
+            # X / Bluesky thread mode
+            # ----------------------------------------------------------------
+            if message_type == "post" and channel in ("x", "bluesky"):
+                thread_posts = self.claude.generate_thread_posts(
+                    article_text=article["summary"],
+                    source_url=article["link"],
+                    ssi_component=ssi_component,
+                    channel=channel,
+                )
+                if not thread_posts:
+                    logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
+                    continue
 
-            # Always guarantee the source link appears in the post
-            if article["link"] and article["link"] not in post_text:
-                post_text = post_text.rstrip() + f"\n\n{article['link']}"
-
-            if dry_run:
-                print(f"\n{'='*60}")
-                print(f"SOURCE: {article['source']}")
-                print(f"ARTICLE: {article['title']}")
-                print(f"CHANNEL: {channel}")
-                print(f"SSI COMPONENT: {ssi_component}")
-                print(f"\nGENERATED POST:\n{post_text}")
-                created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
-            else:
-                if self.buffer:
-                    idea = self.buffer.create_idea(
-                        text=post_text,
-                        title=f"[{channel}|{ssi_component}] {article['title'][:70]}"
-                    )
-                    self._save_published_title(article["title"])
-                    created_ideas.append(idea)
+                if dry_run:
+                    print(f"\n{'='*60}")
+                    print(f"SOURCE: {article['source']}")
+                    print(f"ARTICLE: {article['title']}")
+                    print(f"CHANNEL: {channel} (thread)")
+                    print(f"SSI COMPONENT: {ssi_component}")
+                    print("\nTHREAD POSTS:")
+                    for i, t in enumerate(thread_posts, 1):
+                        print(f"  Post {i} ({len(t)} chars): {t}")
+                    created_ideas.append({"dry_run": True, "title": article["title"], "thread": thread_posts, "ssi_component": ssi_component, "channel": channel})
                 else:
-                    logger.warning("No buffer_service provided — skipping idea creation")
+                    if self.buffer:
+                        channel_id = (
+                            self.buffer.get_x_channel_id() if channel == "x"
+                            else self.buffer.get_bluesky_channel_id()
+                        )
+                        post = self.buffer.create_scheduled_post(
+                            channel_id=channel_id,
+                            text=thread_posts[0],
+                            thread=thread_posts[1:],
+                        )
+                        self._save_published_title(article["title"])
+                        created_ideas.append(post)
+                    else:
+                        logger.warning("No buffer_service provided — skipping post creation")
+
+            # ----------------------------------------------------------------
+            # "all" channels post mode — LinkedIn + X thread + Bluesky thread
+            # ----------------------------------------------------------------
+            elif message_type == "post" and channel == "all":
+                li_text = self.claude.summarise_for_curation(
+                    article_text=article["summary"],
+                    source_url=article["link"],
+                    ssi_component=ssi_component,
+                    channel="linkedin",
+                )
+                if not li_text:
+                    logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
+                    continue
+                if article["link"] and article["link"] not in li_text:
+                    li_text = li_text.rstrip() + f"\n\n{article['link']}"
+                first_comment = self.claude.generate_first_comment(li_text, article["link"])
+
+                time.sleep(request_delay)
+                x_thread = self.claude.generate_thread_posts(article["summary"], article["link"], ssi_component, "x")
+                time.sleep(request_delay)
+                bsky_thread = self.claude.generate_thread_posts(article["summary"], article["link"], ssi_component, "bluesky")
+
+                if dry_run:
+                    print(f"\n{'='*60}")
+                    print(f"SOURCE: {article['source']}")
+                    print(f"ARTICLE: {article['title']}")
+                    print(f"CHANNEL: all")
+                    print(f"SSI COMPONENT: {ssi_component}")
+                    print(f"\nLINKEDIN POST:\n{li_text}")
+                    print(f"\nLINKEDIN FIRST COMMENT:\n{first_comment}")
+                    print("\nX THREAD:")
+                    for i, t in enumerate(x_thread or [], 1):
+                        print(f"  Post {i}: {t}")
+                    print("\nBLUESKY THREAD:")
+                    for i, t in enumerate(bsky_thread or [], 1):
+                        print(f"  Post {i}: {t}")
+                    created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
+                else:
+                    if self.buffer:
+                        self.buffer.create_scheduled_post(
+                            self.buffer.get_linkedin_channel_id(), li_text, first_comment=first_comment
+                        )
+                        if x_thread:
+                            self.buffer.create_scheduled_post(
+                                self.buffer.get_x_channel_id(), x_thread[0], thread=x_thread[1:]
+                            )
+                        if bsky_thread:
+                            self.buffer.create_scheduled_post(
+                                self.buffer.get_bluesky_channel_id(), bsky_thread[0], thread=bsky_thread[1:]
+                            )
+                        self._save_published_title(article["title"])
+                        created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
+                    else:
+                        logger.warning("No buffer_service provided — skipping post creation")
+
+            # ----------------------------------------------------------------
+            # LinkedIn post mode  OR  idea mode (all channels)
+            # ----------------------------------------------------------------
+            else:
+                effective_channel = "linkedin" if message_type == "post" else channel
+                post_text = self.claude.summarise_for_curation(
+                    article_text=article["summary"],
+                    source_url=article["link"],
+                    ssi_component=ssi_component,
+                    channel=effective_channel,
+                )
+                if not post_text:
+                    logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
+                    continue
+
+                # Always guarantee the source link appears in the post
+                if article["link"] and article["link"] not in post_text:
+                    post_text = post_text.rstrip() + f"\n\n{article['link']}"
+
+                if dry_run:
+                    print(f"\n{'='*60}")
+                    print(f"SOURCE: {article['source']}")
+                    print(f"ARTICLE: {article['title']}")
+                    print(f"CHANNEL: {channel}")
+                    print(f"SSI COMPONENT: {ssi_component}")
+                    print(f"\nGENERATED POST:\n{post_text}")
+                    dry_entry: dict = {"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel}
+                    if message_type == "post":
+                        first_comment = self.claude.generate_first_comment(post_text, article["link"])
+                        print(f"\nFIRST COMMENT:\n{first_comment}")
+                        dry_entry["first_comment"] = first_comment
+                    created_ideas.append(dry_entry)
+                else:
+                    if self.buffer:
+                        if message_type == "post":
+                            first_comment = self.claude.generate_first_comment(post_text, article["link"])
+                            post = self.buffer.create_scheduled_post(
+                                self.buffer.get_linkedin_channel_id(), post_text, first_comment=first_comment
+                            )
+                            self._save_published_title(article["title"])
+                            created_ideas.append(post)
+                        else:
+                            idea = self.buffer.create_idea(
+                                text=post_text,
+                                title=f"[{channel}|{ssi_component}] {article['title'][:70]}"
+                            )
+                            self._save_published_title(article["title"])
+                            created_ideas.append(idea)
+                    else:
+                        logger.warning("No buffer_service provided — skipping idea creation")
 
         return created_ideas

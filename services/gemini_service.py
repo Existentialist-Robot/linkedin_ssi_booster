@@ -116,6 +116,77 @@ Do NOT include hashtags in your output — they will be appended automatically."
 
         return self._generate(system_prompt, user_prompt, max_tokens=512)
 
+    def generate_thread_posts(
+        self,
+        article_text: str,
+        source_url: str,
+        ssi_component: str = "engage_with_insights",
+        channel: str = "x",
+    ) -> "Optional[list[str]]":
+        """
+        Generate a 3-post thread (X or Bluesky) from an article.
+        Returns a list of exactly 3 strings, or None if article_text is too short.
+        Same signature as ClaudeService.generate_thread_posts.
+        """
+        if not article_text or len(article_text.strip()) < 100:
+            logger.warning(f"Skipping thread generation — article text too short: {source_url}")
+            return None
+
+        ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["engage_with_insights"])
+        platform = "Bluesky" if channel == "bluesky" else "X (Twitter)"
+        char_limit = X_CHAR_LIMIT - X_URL_CHARS  # 257 chars — safe for both X and Bluesky
+
+        prompt = f"""Generate a 3-post {platform} thread from the article below.
+Output ONLY the three posts separated by "---" on its own line. No labels, no numbering.
+
+Post 1 (hook): A bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+---
+Post 2 (insight): Your technical take or the key finding. Concrete details — no vague generalities. Max {char_limit} chars.
+---
+Post 3 (close): A clear call to action or key takeaway. Do NOT include the source URL. Max {char_limit} chars.
+
+Rules:
+- No hashtags in any post
+- No "1/3", "2/3", "3/3" thread numbering
+- No Markdown formatting — plain text only
+- Count characters carefully — stay under {char_limit} per post
+
+SSI optimisation goal:
+{ssi_instruction}
+
+Article:
+{article_text[:3000]}"""
+
+        raw = self._generate(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=600)
+        parts = [p.strip() for p in raw.split("---") if p.strip()]
+        if len(parts) < 3:
+            logger.warning(f"Thread generation returned {len(parts)} parts (expected 3) for: {source_url}")
+            return None
+        return parts[:3]
+
+    def generate_first_comment(self, post_text: str, source_url: str) -> str:
+        """
+        Generate a LinkedIn first comment with hashtags and source link.
+        Same signature as ClaudeService.generate_first_comment.
+        """
+        prompt = f"""Write a LinkedIn first comment for the post below.
+
+The comment should contain:
+- 3-5 relevant hashtags (space-separated)
+- The source URL: {source_url}
+- Optionally 1 short sentence that adds context or invites engagement
+
+Keep it concise — the post body carries the main content.
+Output plain text only — no Markdown.
+
+Post:
+{post_text}"""
+
+        comment = self._generate(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=200)
+        if source_url and source_url not in comment:
+            comment = comment.rstrip() + f"\n\n{source_url}"
+        return comment
+
     def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights", channel: str = "linkedin") -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.

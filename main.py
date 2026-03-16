@@ -10,9 +10,9 @@ AI backends (mutually exclusive flags):
   --local    Ollama (local)    — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-  python main.py --generate [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|all]
-  python main.py --schedule [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|all]
-  python main.py --curate               [--dry-run] [--local | --gemini] [--channel linkedin|x|all]
+  python main.py --generate [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all]
+  python main.py --schedule [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all]
+  python main.py --curate               [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all] [--type idea|post]
   python main.py --report
 """
 
@@ -48,8 +48,10 @@ def main():
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
     parser.add_argument("--local",     action="store_true", help="Use local Ollama instead of Claude")
     parser.add_argument("--gemini",    action="store_true", help="Use Google Gemini instead of Claude")
-    parser.add_argument("--channel",   choices=["linkedin", "x", "all"], default="linkedin",
+    parser.add_argument("--channel",   choices=["linkedin", "x", "bluesky", "all"], default="linkedin",
                         help="Target channel(s) for scheduling/curation (default: linkedin)")
+    parser.add_argument("--type",      choices=["idea", "post"], default="idea",
+                        help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")
     args = parser.parse_args()
 
     buffer_api_key = os.getenv("BUFFER_API_KEY")
@@ -90,9 +92,9 @@ def main():
         return
 
     if args.curate:
-        logger.info(f"Curating AI news sources (channel: {args.channel})...")
-        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel)
-        logger.info(f"Created {len(ideas)} ideas in Buffer")
+        logger.info(f"Curating AI news sources (channel: {args.channel}, type: {args.type})...")
+        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type)
+        logger.info(f"Created {len(ideas)} {'posts' if args.type == 'post' else 'ideas'} in Buffer")
         return
 
     if args.generate or args.schedule:

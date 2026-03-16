@@ -6,6 +6,7 @@ Targets: Tue/Wed/Fri 4:00 PM EST — matching your Buffer posting windows.
 
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 import pytz
 
 logger = logging.getLogger(__name__)
@@ -37,14 +38,17 @@ class PostScheduler:
             return [self.buffer.get_linkedin_channel_id()]
         elif channel == "x":
             return [self.buffer.get_x_channel_id()]
+        elif channel == "bluesky":
+            return [self.buffer.get_bluesky_channel_id()]
         elif channel == "all":
             ids = [self.buffer.get_linkedin_channel_id()]
             ids.append(self.buffer.get_x_channel_id())
+            ids.append(self.buffer.get_bluesky_channel_id())
             return ids
         else:
-            raise ValueError(f"Unknown channel {channel!r}. Use 'linkedin', 'x', or 'all'.")
+            raise ValueError(f"Unknown channel {channel!r}. Use 'linkedin', 'x', 'bluesky', or 'all'.")
 
-    def _next_slot(self, day_name: str, reference: datetime = None) -> str:
+    def _next_slot(self, day_name: str, reference: Optional[datetime] = None) -> str:
         """Calculate the next occurrence of a given weekday posting slot."""
         if reference is None:
             reference = datetime.now(TIMEZONE)
