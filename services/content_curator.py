@@ -223,12 +223,12 @@ class ContentCurator:
                     source_url=article["link"],
                     ssi_component=ssi_component,
                     channel="linkedin",
+                    post_mode=True,
                 )
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
-                if article["link"] and article["link"] not in li_text:
-                    li_text = li_text.rstrip() + f"\n\n{article['link']}"
+                # post_mode: link stays out of body — first comment carries it
                 first_comment = self.claude.generate_first_comment(li_text, article["link"])
 
                 time.sleep(request_delay)
@@ -279,13 +279,15 @@ class ContentCurator:
                     source_url=article["link"],
                     ssi_component=ssi_component,
                     channel=effective_channel,
+                    post_mode=(message_type == "post"),
                 )
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
 
-                # Always guarantee the source link appears in the post
-                if article["link"] and article["link"] not in post_text:
+                # idea mode: append source link to post body
+                # post mode: link goes in first comment — skip append here
+                if message_type == "idea" and article["link"] and article["link"] not in post_text:
                     post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:

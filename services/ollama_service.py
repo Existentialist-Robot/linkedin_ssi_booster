@@ -170,11 +170,12 @@ Post:
             comment = comment.rstrip() + f"\n\n{source_url}"
         return comment
 
-    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights", channel: str = "linkedin") -> Optional[str]:
+    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights", channel: str = "linkedin", post_mode: bool = False) -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
         Returns None if article_text is too short to be useful.
         Same signature as ClaudeService.summarise_for_curation.
+        post_mode=True: omits hashtags and URL from the body — both go in the first comment instead.
         """
         if not article_text or len(article_text.strip()) < 100:
             logger.warning(f"Skipping curation — article text too short ({len(article_text.strip())} chars): {source_url}")
@@ -189,6 +190,15 @@ Post:
 - No hashtags
 - Lead with your single sharpest take on the article; skip the summary entirely
 Do NOT include the article URL — it will be appended automatically."""
+        elif post_mode:
+            format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
+Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
+Format (plain paragraphs, no dashes or bullets):
+1-2 sentence hook
+2-3 sentences summarising the key insight (in your own words, don't quote)
+1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
+Do NOT include hashtags — they will be added in the first comment.
+Do NOT include the article URL — it will be added in the first comment."""
         else:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
