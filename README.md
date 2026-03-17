@@ -55,8 +55,8 @@ A detailed persona loaded into every AI call, covering:
 - Target audience, voice guidance, and forbidden phrases
 - **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
 
-**3. Writing rules (`SSI_COMPONENT_INSTRUCTIONS` in `claude_service.py`, shared by all AI backends)**  
-Hard rules baked into the system prompt:
+**3. Writing rules (configurable via `.env`, shared by all AI backends)**  
+Per-pillar instructions injected into every AI call. All four are overridable in `.env` without touching code (`SSI_ESTABLISH_BRAND`, `SSI_FIND_RIGHT_PEOPLE`, `SSI_ENGAGE_WITH_INSIGHTS`, `SSI_BUILD_RELATIONSHIPS`). The defaults live in `claude_service.py` and are imported by the Gemini and Ollama backends too. Built-in rules:
 
 - Never start with "I"
 - Never use filler phrases ("Game changer", "Excited to share", "landscape", "leverage", etc.)
