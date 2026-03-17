@@ -55,7 +55,7 @@ A detailed persona loaded into every AI call, covering:
 - Target audience, voice guidance, and forbidden phrases
 - **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
 
-**3. Writing rules (`SSI_COMPONENT_INSTRUCTIONS` in `claude_service.py`)**  
+**3. Writing rules (`SSI_COMPONENT_INSTRUCTIONS` in `claude_service.py`, shared by all AI backends)**  
 Hard rules baked into the system prompt:
 
 - Never start with "I"
