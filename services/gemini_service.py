@@ -32,9 +32,14 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         logger.info(f"GeminiService initialised — model={model}")
 
+    # Retry delays longer than this indicate a quota exhaustion (daily/hourly limit),
+    # not a per-minute rate limit. Fail fast rather than sleeping for hours.
+    _MAX_RETRY_SLEEP = 90
+
     def _generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024, _retries: int = 3) -> str:
         """Send a request to Gemini and return the response text.
         Automatically retries on 429 rate-limit errors with the suggested delay.
+        Raises immediately with a clear message if a daily/hourly quota is exhausted.
         """
         try:
             response = self.client.models.generate_content(
@@ -61,10 +66,23 @@ class GeminiService:
                             break
                 except Exception:
                     pass
+                if retry_delay > self._MAX_RETRY_SLEEP:
+                    # A long retry delay means a daily or hourly quota is exhausted —
+                    # sleeping for hours would just hang the process. Fail fast instead.
+                    quota_msg = getattr(e, "message", None) or str(e)
+                    raise RuntimeError(
+                        f"Gemini quota exhausted (retry suggested in {retry_delay:.0f}s). "
+                        f"You have likely hit the free-tier daily request or token limit. "
+                        f"Wait until the quota resets (usually midnight Pacific time) or "
+                        f"check https://aistudio.google.com/ for your usage. "
+                        f"API message: {quota_msg}"
+                    ) from e
                 logger.warning(f"Gemini rate limit hit — waiting {retry_delay:.0f}s then retrying ({_retries} left)")
                 time.sleep(retry_delay)
                 return self._generate(system_prompt, user_prompt, max_tokens, _retries - 1)
-            raise RuntimeError(f"Gemini API error (model={self.model}): {e}") from e
+            # For non-429 errors, include the API message for easier diagnosis
+            api_msg = getattr(e, "message", None) or str(e)
+            raise RuntimeError(f"Gemini API error {e.code} (model={self.model}): {api_msg}") from e
         except Exception as e:
             raise RuntimeError(f"Gemini API error (model={self.model}): {e}") from e
 
