@@ -228,8 +228,9 @@ class ContentCurator:
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
-                # post_mode: link stays out of body — first comment carries it
-                first_comment = self.claude.generate_first_comment(li_text, article["link"])
+                # Append source link to the post body
+                if article["link"] and article["link"] not in li_text:
+                    li_text = li_text.rstrip() + f"\n\n{article['link']}"
 
                 time.sleep(request_delay)
                 x_thread = self.claude.generate_thread_posts(article["summary"], article["link"], ssi_component, "x")
@@ -243,7 +244,6 @@ class ContentCurator:
                     print(f"CHANNEL: all")
                     print(f"SSI COMPONENT: {ssi_component}")
                     print(f"\nLINKEDIN POST:\n{li_text}")
-                    print(f"\nLINKEDIN FIRST COMMENT:\n{first_comment}")
                     print("\nX THREAD:")
                     for i, t in enumerate(x_thread or [], 1):
                         print(f"  Post {i}: {t}")
@@ -254,7 +254,7 @@ class ContentCurator:
                 else:
                     if self.buffer:
                         self.buffer.create_scheduled_post(
-                            self.buffer.get_linkedin_channel_id(), li_text, first_comment=first_comment
+                            self.buffer.get_linkedin_channel_id(), li_text
                         )
                         if x_thread:
                             self.buffer.create_scheduled_post(
@@ -285,9 +285,8 @@ class ContentCurator:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
 
-                # idea mode: append source link to post body
-                # post mode: link goes in first comment — skip append here
-                if message_type == "idea" and article["link"] and article["link"] not in post_text:
+                # Always append source link to the post body
+                if article["link"] and article["link"] not in post_text:
                     post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
@@ -297,18 +296,12 @@ class ContentCurator:
                     print(f"CHANNEL: {channel}")
                     print(f"SSI COMPONENT: {ssi_component}")
                     print(f"\nGENERATED POST:\n{post_text}")
-                    dry_entry: dict = {"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel}
-                    if message_type == "post":
-                        first_comment = self.claude.generate_first_comment(post_text, article["link"])
-                        print(f"\nFIRST COMMENT:\n{first_comment}")
-                        dry_entry["first_comment"] = first_comment
-                    created_ideas.append(dry_entry)
+                    created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
                 else:
                     if self.buffer:
                         if message_type == "post":
-                            first_comment = self.claude.generate_first_comment(post_text, article["link"])
                             post = self.buffer.create_scheduled_post(
-                                self.buffer.get_linkedin_channel_id(), post_text, first_comment=first_comment
+                                self.buffer.get_linkedin_channel_id(), post_text
                             )
                             self._save_published_title(article["title"])
                             created_ideas.append(post)

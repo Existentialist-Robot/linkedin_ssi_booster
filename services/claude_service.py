@@ -254,15 +254,15 @@ Post:
 - Lead with your single sharpest take on the article; skip the summary entirely
 Do NOT include the article URL — it will be appended automatically."""
         elif post_mode:
-            # LinkedIn direct-post: keep body clean — hashtags + link go in the first comment
+            # LinkedIn direct-post: keep body clean — no hashtags, link appended programmatically
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
 1-2 sentence hook
 2-3 sentences summarising the key insight (in your own words, don't quote)
 1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
-Do NOT include hashtags — they will be added in the first comment.
-Do NOT include the article URL — it will be added in the first comment."""
+Do NOT include hashtags.
+Do NOT include the article URL — it will be appended automatically."""
         else:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
