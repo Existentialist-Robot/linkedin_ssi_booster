@@ -171,6 +171,29 @@ class BufferService:
           }
         }
         """
+        # Hard-enforce per-platform character limits (LLMs don't always comply with the prompt).
+        # X: 280 chars total; a Buffer-appended URL counts as 23 chars, so cap text at 257.
+        # Bluesky: 300 chars total; same URL accounting → cap text at 277.
+        # Thread reply items never get a URL appended, so they use the full platform limit.
+        if channel == "x":
+            text_limit, reply_limit = 257, 280
+        elif channel == "bluesky":
+            text_limit, reply_limit = 277, 300
+        else:
+            text_limit, reply_limit = None, None  # LinkedIn — no hard limit enforced here
+
+        def _cap(s: str, limit: int) -> str:
+            if len(s) <= limit:
+                return s
+            truncated = s[:limit].rsplit(" ", 1)[0]
+            logger.warning(f"Truncated post from {len(s)} to {len(truncated)} chars (limit {limit})")
+            return truncated
+
+        if text_limit:
+            text = _cap(text, text_limit)
+        if thread and reply_limit:
+            thread = [_cap(t, reply_limit) for t in thread]
+
         post_input: dict = {
             "channelId": channel_id,
             "text": text,
