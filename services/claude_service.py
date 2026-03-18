@@ -76,7 +76,19 @@ def _parse_thread_parts(raw: str, source_url: str) -> "Optional[list[str]]":
     if len(paras) >= 2:
         return paras[:2]
 
-    logger.warning(f"Thread generation returned {len(parts)} parts (expected 2) for: {source_url}")
+    # Strategy 4: sentence-boundary split — split a single blob roughly in half
+    cleaned = _clean(raw)
+    sentences = _re.split(r'(?<=[.!?])\s+', cleaned)
+    sentences = [s for s in sentences if s.strip()]
+    if len(sentences) >= 2:
+        mid = max(1, len(sentences) // 2)
+        part1 = " ".join(sentences[:mid]).strip()
+        part2 = " ".join(sentences[mid:]).strip()
+        if part1 and part2:
+            logger.info(f"Thread split via sentence-boundary fallback for: {source_url}")
+            return [part1, part2]
+
+    logger.warning(f"Thread generation returned insufficient parts (expected 2) for: {source_url}")
     return None
 
 
