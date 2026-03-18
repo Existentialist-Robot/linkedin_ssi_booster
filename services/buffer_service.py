@@ -65,7 +65,6 @@ class BufferService:
                 id
                 name
                 service
-                serviceType
               }
             }
           }
@@ -81,13 +80,8 @@ class BufferService:
         """Find the LinkedIn personal profile channel ID."""
         channels = self.get_channels()
         for ch in channels:
-            if ch.get("service") == "linkedin" and ch.get("serviceType") == "profile":
-                logger.info(f"Found LinkedIn channel: {ch['name']} (id: {ch['id']})")
-                return ch["id"]
-        # Fallback: first linkedin channel
-        for ch in channels:
             if ch.get("service") == "linkedin":
-                logger.warning(f"Using LinkedIn channel: {ch['name']} (serviceType: {ch.get('serviceType')})")
+                logger.info(f"Found LinkedIn channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
         raise RuntimeError("No LinkedIn channel found in Buffer. Connect your LinkedIn profile first.")
 
@@ -95,13 +89,8 @@ class BufferService:
         """Find the X (Twitter) channel ID."""
         channels = self.get_channels()
         for ch in channels:
-            if ch.get("service") == "twitter" and ch.get("serviceType") == "profile":
-                logger.info(f"Found X channel: {ch['name']} (id: {ch['id']})")
-                return ch["id"]
-        # Fallback: first twitter channel regardless of serviceType
-        for ch in channels:
             if ch.get("service") == "twitter":
-                logger.warning(f"Using X channel: {ch['name']} (serviceType: {ch.get('serviceType')})")
+                logger.info(f"Found X channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
         raise RuntimeError("No X channel found in Buffer. Connect your X profile first.")
 
@@ -109,13 +98,8 @@ class BufferService:
         """Find the Bluesky channel ID."""
         channels = self.get_channels()
         for ch in channels:
-            if ch.get("service") == "bluesky" and ch.get("serviceType") == "profile":
-                logger.info(f"Found Bluesky channel: {ch['name']} (id: {ch['id']})")
-                return ch["id"]
-        # Fallback: first bluesky channel regardless of serviceType
-        for ch in channels:
             if ch.get("service") == "bluesky":
-                logger.warning(f"Using Bluesky channel: {ch['name']} (serviceType: {ch.get('serviceType')})")
+                logger.info(f"Found Bluesky channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
         raise RuntimeError("No Bluesky channel found in Buffer. Connect your Bluesky profile first.")
 

@@ -34,6 +34,35 @@ IMPORTANT: Output plain text only — no Markdown. Do not use **, ##, __, `, or 
 X_CHAR_LIMIT = 280  # Standard X character limit
 X_URL_CHARS  = 23   # Every URL on X counts as exactly 23 characters regardless of real length
 
+
+def _parse_thread_parts(raw: str, source_url: str) -> "Optional[list[str]]":
+    """Parse a 3-post thread from raw LLM output.
+    Tries multiple split strategies to handle models that don't follow the
+    '---' separator instruction exactly (common with smaller local models).
+    Returns a list of exactly 3 non-empty strings, or None on failure.
+    """
+    import re as _re
+
+    # Strategy 1: exact --- separator (intended format)
+    parts = [p.strip() for p in raw.split("---") if p.strip()]
+    if len(parts) >= 3:
+        return parts[:3]
+
+    # Strategy 2: numbered labels like "Post 1:", "1.", "1/3"
+    numbered = _re.split(r'\n(?:Post\s*\d+[:\.]?|Tweet\s*\d+[:\.]?|\d+[/\.]\d+\s*[\n:]|\d+\.\s)', raw, flags=_re.IGNORECASE)
+    numbered = [p.strip() for p in numbered if p.strip()]
+    if len(numbered) >= 3:
+        return numbered[:3]
+
+    # Strategy 3: double newline paragraph split
+    paras = [p.strip() for p in _re.split(r'\n{2,}', raw) if p.strip()]
+    if len(paras) >= 3:
+        return paras[:3]
+
+    logger.warning(f"Thread generation returned {len(parts)} parts (expected 3) for: {source_url}")
+    return None
+
+
 SSI_COMPONENT_INSTRUCTIONS: dict[str, str] = {
     "establish_brand": os.getenv(
         "SSI_ESTABLISH_BRAND",
@@ -196,11 +225,7 @@ Article:
         text_block = next(b for b in message.content if isinstance(b, TextBlock))
         raw = text_block.text.strip()
 
-        parts = [p.strip() for p in raw.split("---") if p.strip()]
-        if len(parts) < 3:
-            logger.warning(f"Thread generation returned {len(parts)} parts (expected 3) for: {source_url}")
-            return None
-        return parts[:3]
+        return _parse_thread_parts(raw, source_url)
 
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
         """
