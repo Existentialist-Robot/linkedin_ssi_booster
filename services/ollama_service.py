@@ -109,8 +109,8 @@ Do NOT include hashtags in your output — they will be appended automatically."
         channel: str = "x",
     ) -> "Optional[list[str]]":
         """
-        Generate a 3-post thread (X or Bluesky) from an article.
-        Returns a list of exactly 3 strings, or None if article_text is too short.
+        Generate a 2-post thread (X or Bluesky) from an article.
+        Returns a list of exactly 2 strings, or None if article_text is too short.
         Same signature as ClaudeService.generate_thread_posts.
         """
         if not article_text or len(article_text.strip()) < 100:
@@ -124,22 +124,20 @@ Do NOT include hashtags in your output — they will be appended automatically."
         github_user = os.getenv("GITHUB_USER", "")
         github_url = f"github.com/{github_user}" if github_user else "your GitHub profile"
 
-        prompt = f"""Generate a 3-post {platform} thread from the article below.
+        prompt = f"""Generate a 2-post {platform} thread from the article below.
 
-Return exactly three XML-tagged posts and nothing else:
+Return exactly two XML-tagged posts and nothing else:
 <post_1>Tweet 1 text here</post_1>
 <post_2>Tweet 2 text here</post_2>
-<post_3>Tweet 3 text here</post_3>
 
-Tweet 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
-Tweet 2 (insight) — your technical take or personal experience. Concrete details, no vague generalities. Max {char_limit} chars.
-Tweet 3 (close) — end with your GitHub link ({github_url}) and a call to action or key takeaway. Max {char_limit} chars.
+Post 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+Post 2 (insight + close) — your technical take or personal experience, then end with your GitHub link ({github_url}) and a call to action. Max {char_limit} chars.
 
 Rules:
 - PLAIN TEXT ONLY — absolutely no asterisks, no bold (**word**), no italics (*word*), no markdown of any kind
-- No hashtags in any tweet
-- No "1/3", "2/3", "3/3" thread numbering
-- Count characters carefully — stay under {char_limit} per tweet
+- No hashtags in either post
+- No "1/2", "2/2" thread numbering
+- Count characters carefully — stay under {char_limit} per post
 
 SSI optimisation goal:
 {ssi_instruction}

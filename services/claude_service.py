@@ -36,10 +36,10 @@ X_URL_CHARS  = 23   # Every URL on X counts as exactly 23 characters regardless 
 
 
 def _parse_thread_parts(raw: str, source_url: str) -> "Optional[list[str]]":
-    """Parse a 3-post thread from raw LLM output.
+    """Parse a 2-post thread from raw LLM output.
     Tries multiple split strategies to handle models that don't follow the
     XML-tag format exactly (common with smaller local models).
-    Returns a list of exactly 3 non-empty strings, or None on failure.
+    Returns a list of exactly 2 non-empty strings, or None on failure.
     """
     import re as _re
 
@@ -55,28 +55,28 @@ def _parse_thread_parts(raw: str, source_url: str) -> "Optional[list[str]]":
         return s.strip()
 
     # Strategy 0: XML tags <post_1>...</post_1> (preferred prompt format)
-    tagged = _re.findall(r'<post_[123]>(.*?)</post_[123]>', raw, _re.DOTALL | _re.IGNORECASE)
+    tagged = _re.findall(r'<post_[12]>(.*?)</post_[12]>', raw, _re.DOTALL | _re.IGNORECASE)
     tagged = [_clean(p) for p in tagged if p.strip()]
-    if len(tagged) >= 3:
-        return tagged[:3]
+    if len(tagged) >= 2:
+        return tagged[:2]
 
     # Strategy 1: exact --- separator (legacy format)
     parts = [_clean(p) for p in raw.split("---") if p.strip()]
-    if len(parts) >= 3:
-        return parts[:3]
+    if len(parts) >= 2:
+        return parts[:2]
 
-    # Strategy 2: numbered labels like "Post 1:", "1.", "1/3"
+    # Strategy 2: numbered labels like "Post 1:", "1.", "1/2"
     numbered = _re.split(r'\n(?:Post\s*\d+[:\.]?|Tweet\s*\d+[:\.]?|\d+[/\.]\d+\s*[\n:]|\d+\.\s)', raw, flags=_re.IGNORECASE)
     numbered = [_clean(p) for p in numbered if p.strip()]
-    if len(numbered) >= 3:
-        return numbered[:3]
+    if len(numbered) >= 2:
+        return numbered[:2]
 
     # Strategy 3: double newline paragraph split
     paras = [_clean(p) for p in _re.split(r'\n{2,}', raw) if p.strip()]
-    if len(paras) >= 3:
-        return paras[:3]
+    if len(paras) >= 2:
+        return paras[:2]
 
-    logger.warning(f"Thread generation returned {len(parts)} parts (expected 3) for: {source_url}")
+    logger.warning(f"Thread generation returned {len(parts)} parts (expected 2) for: {source_url}")
     return None
 
 
@@ -197,11 +197,10 @@ Do NOT include hashtags in your output — they will be appended automatically.
         channel: str = "x",
     ) -> Optional[list[str]]:
         """
-        Generate a 3-post thread (X or Bluesky) from an article.
-        Returns a list of exactly 3 strings:
+        Generate a 2-post thread (X or Bluesky) from an article.
+        Returns a list of exactly 2 strings:
           [0] Post 1: hook — bold claim or question
-          [1] Post 2: insight — technical take or experience
-          [2] Post 3: close — call to action (source URL appended by Buffer, not included here)
+          [1] Post 2: insight + call to action with GitHub link
         Returns None if article_text is too short.
         """
         if not article_text or len(article_text.strip()) < 100:
@@ -215,22 +214,20 @@ Do NOT include hashtags in your output — they will be appended automatically.
         github_user = os.getenv("GITHUB_USER", "")
         github_url = f"github.com/{github_user}" if github_user else "your GitHub profile"
 
-        prompt = f"""Generate a 3-post {platform} thread from the article below.
+        prompt = f"""Generate a 2-post {platform} thread from the article below.
 
-Return exactly three XML-tagged posts and nothing else:
+Return exactly two XML-tagged posts and nothing else:
 <post_1>Tweet 1 text here</post_1>
 <post_2>Tweet 2 text here</post_2>
-<post_3>Tweet 3 text here</post_3>
 
-Tweet 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
-Tweet 2 (insight) — your technical take or personal experience. Concrete details, no vague generalities. Max {char_limit} chars.
-Tweet 3 (close) — end with your GitHub link ({github_url}) and a call to action or key takeaway. Max {char_limit} chars.
+Post 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+Post 2 (insight + close) — your technical take or personal experience, then end with your GitHub link ({github_url}) and a call to action. Max {char_limit} chars.
 
 Rules:
 - PLAIN TEXT ONLY — absolutely no asterisks, no bold (**word**), no italics (*word*), no markdown of any kind
-- No hashtags in any tweet
-- No "1/3", "2/3", "3/3" thread numbering
-- Count characters carefully — stay under {char_limit} per tweet
+- No hashtags in either post
+- No "1/2", "2/2" thread numbering
+- Count characters carefully — stay under {char_limit} per post
 
 SSI optimisation goal:
 {ssi_instruction}
