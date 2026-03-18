@@ -233,6 +233,7 @@ class ContentCurator:
                             channel_id=channel_id,
                             text=thread_posts[0],
                             thread=thread_posts[1:],
+                            channel=channel,
                         )
                         self._save_published_title(article["title"])
                         created_ideas.append(post)
@@ -282,11 +283,11 @@ class ContentCurator:
                         )
                         if x_thread:
                             self.buffer.create_scheduled_post(
-                                self.buffer.get_x_channel_id(), x_thread[0], thread=x_thread[1:]
+                                self.buffer.get_x_channel_id(), x_thread[0], thread=x_thread[1:], channel="x"
                             )
                         if bsky_thread:
                             self.buffer.create_scheduled_post(
-                                self.buffer.get_bluesky_channel_id(), bsky_thread[0], thread=bsky_thread[1:]
+                                self.buffer.get_bluesky_channel_id(), bsky_thread[0], thread=bsky_thread[1:], channel="bluesky"
                             )
                         self._save_published_title(article["title"])
                         created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})

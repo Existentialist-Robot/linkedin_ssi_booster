@@ -146,9 +146,12 @@ class BufferService:
         text: str,
         thread: Optional[list[str]] = None,
         first_comment: Optional[str] = None,
+        channel: str = "linkedin",
     ) -> dict:
         """
         Schedule a post to the next available Buffer queue slot.
+        channel: 'linkedin' | 'x' | 'bluesky' — used to route thread into the
+                 correct service metadata (metadata.twitter.thread or metadata.bluesky.thread).
         thread: additional posts in the thread (X/Bluesky) — each item is the text of one reply post.
         first_comment: LinkedIn first comment text (placed in metadata.linkedin.firstComment).
         """
@@ -172,12 +175,19 @@ class BufferService:
             "channelId": channel_id,
             "text": text,
             "schedulingType": "automatic",
-            "mode": "queue",
+            "mode": "addToQueue",
         }
+        metadata: dict = {}
         if thread:
-            post_input["thread"] = [{"text": t} for t in thread]
+            threaded = [{"text": t} for t in thread]
+            if channel == "x":
+                metadata["twitter"] = {"thread": threaded}
+            elif channel == "bluesky":
+                metadata["bluesky"] = {"thread": threaded}
         if first_comment:
-            post_input["metadata"] = {"linkedin": {"firstComment": first_comment}}
+            metadata["linkedin"] = {"firstComment": first_comment}
+        if metadata:
+            post_input["metadata"] = metadata
 
         data = self._query(mutation, {"input": post_input})
         result = data.get("createPost", {})
