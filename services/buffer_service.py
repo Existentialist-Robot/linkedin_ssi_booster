@@ -112,11 +112,15 @@ class BufferService:
         mutation = """
         mutation CreatePost($input: CreatePostInput!) {
           createPost(input: $input) {
-            post {
-              id
-              text
-              status
-              scheduledAt
+            ... on PostActionSuccess {
+              post {
+                id
+                text
+                status
+              }
+            }
+            ... on MutationError {
+              message
             }
           }
         }
@@ -129,8 +133,11 @@ class BufferService:
             }
         }
         data = self._query(mutation, variables)
-        post = data.get("createPost", {}).get("post", {})
-        logger.info(f"Post created: id={post.get('id')} status={post.get('status')} scheduledAt={post.get('scheduledAt')}")
+        result = data.get("createPost", {})
+        if "message" in result:
+            raise RuntimeError(f"Buffer createPost error: {result['message']}")
+        post = result.get("post", {})
+        logger.info(f"Post created: id={post.get('id')} status={post.get('status')}")
         return post
 
     def create_scheduled_post(
@@ -153,7 +160,6 @@ class BufferService:
                 id
                 text
                 status
-                scheduledAt
               }
             }
             ... on MutationError {
@@ -178,7 +184,7 @@ class BufferService:
         if "message" in result:
             raise RuntimeError(f"Buffer createPost error: {result['message']}")
         post = result.get("post", {})
-        logger.info(f"Scheduled post: id={post.get('id')} status={post.get('status')} scheduledAt={post.get('scheduledAt')}")
+        logger.info(f"Scheduled post: id={post.get('id')} status={post.get('status')}")
         return post
 
     def create_idea(self, text: str, title: str = "") -> dict:
@@ -224,7 +230,7 @@ class BufferService:
                 node {
                   id
                   text
-                  scheduledAt
+                  dueAt
                   status
                 }
               }
