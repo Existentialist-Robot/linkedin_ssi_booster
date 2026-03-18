@@ -155,18 +155,20 @@ Do NOT include hashtags in your output — they will be appended automatically."
         char_limit = X_CHAR_LIMIT - X_URL_CHARS  # 257 chars — safe for both X and Bluesky
 
         prompt = f"""Generate a 3-post {platform} thread from the article below.
-Output ONLY the three posts separated by "---" on its own line. No labels, no numbering.
 
-Post 1 (hook): A bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
----
-Post 2 (insight): Your technical take or the key finding. Concrete details — no vague generalities. Max {char_limit} chars.
----
-Post 3 (close): A clear call to action or key takeaway. Do NOT include the source URL. Max {char_limit} chars.
+Return exactly three XML-tagged posts and nothing else:
+<post_1>first post text</post_1>
+<post_2>second post text</post_2>
+<post_3>third post text</post_3>
+
+Post 1 — hook: bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+Post 2 — insight: your technical take or the key finding. Concrete details — no vague generalities. Max {char_limit} chars.
+Post 3 — close: a clear call to action or key takeaway. Do NOT include the source URL. Max {char_limit} chars.
 
 Rules:
 - No hashtags in any post
 - No "1/3", "2/3", "3/3" thread numbering
-- No Markdown formatting — plain text only
+- Plain text only inside the tags — no Markdown formatting
 - Count characters carefully — stay under {char_limit} per post
 
 SSI optimisation goal:
