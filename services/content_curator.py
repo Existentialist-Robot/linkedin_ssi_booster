@@ -42,6 +42,31 @@ def _pick_ssi_component() -> str:
     weights    = list(_SSI_WEIGHTS.values())
     return random.choices(components, weights=weights, k=1)[0]
 
+
+def _extract_hashtags(text: str) -> tuple[str, str]:
+    """Split the AI-generated post body from the trailing hashtag line.
+    Returns (body, hashtags) where hashtags may be an empty string.
+    The last non-empty line is treated as hashtags if every word starts with '#'.
+    """
+    lines = text.rstrip().splitlines()
+    if lines and all(w.startswith('#') for w in lines[-1].split()):
+        return "\n".join(lines[:-1]).rstrip(), lines[-1]
+    return text, ""
+
+
+def _append_url_and_hashtags(text: str, url: str) -> str:
+    """Programmatically append source URL then hashtags to a LinkedIn post body.
+    Hashtags are extracted from the AI output, stripped from the body, and
+    re-appended after the URL so ordering is always: body → URL → hashtags.
+    """
+    body, hashtags = _extract_hashtags(text)
+    result = body.rstrip()
+    if url and url not in result:
+        result += f"\n\n{url}"
+    if hashtags:
+        result += f"\n\n{hashtags}"
+    return result
+
 # RSS feeds — override via CURATOR_RSS_FEEDS in .env as a JSON array:
 # [{"name": "My Blog", "url": "https://example.com/feed.xml"}, ...]
 _DEFAULT_RSS_FEEDS = [
@@ -228,9 +253,8 @@ class ContentCurator:
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
-                # Append source link to the post body
-                if article["link"] and article["link"] not in li_text:
-                    li_text = li_text.rstrip() + f"\n\n{article['link']}"
+                # Append URL then hashtags programmatically (order: body → URL → hashtags)
+                li_text = _append_url_and_hashtags(li_text, article["link"])
 
                 time.sleep(request_delay)
                 x_thread = self.claude.generate_thread_posts(article["summary"], article["link"], ssi_component, "x")
@@ -285,8 +309,10 @@ class ContentCurator:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
 
-                # Always append source link to the post body
-                if article["link"] and article["link"] not in post_text:
+                # Append URL then hashtags programmatically (order: body → URL → hashtags)
+                if effective_channel == "linkedin":
+                    post_text = _append_url_and_hashtags(post_text, article["link"])
+                elif article["link"] and article["link"] not in post_text:
                     post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:

@@ -197,7 +197,7 @@ Format (plain paragraphs, no dashes or bullets):
 1-2 sentence hook
 2-3 sentences summarising the key insight (in your own words, don't quote)
 1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
-Do NOT include hashtags.
+3-5 relevant hashtags on the last line
 Do NOT include the article URL — it will be appended automatically."""
         else:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.

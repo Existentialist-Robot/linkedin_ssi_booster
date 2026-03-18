@@ -116,7 +116,7 @@ python main.py --curate --dry-run
 python main.py --curate
 
 # Curate and schedule DIRECTLY to next available queue slot
-# LinkedIn → full post + first comment (source link + hashtags kept out of body)
+# LinkedIn → clean post body (no hashtags) with source URL appended
 python main.py --curate --type post --channel linkedin
 
 # X → 3-post thread: hook / insight / close
@@ -125,7 +125,7 @@ python main.py --curate --type post --channel x
 # Bluesky → 3-post thread: hook / insight / close
 python main.py --curate --type post --channel bluesky
 
-# All channels — LinkedIn post + first comment, X thread, Bluesky thread
+# All channels — LinkedIn post (URL appended), X thread, Bluesky thread
 python main.py --curate --type post --channel all
 
 # Curate ideas targeted at X audience (Ideas board)
@@ -142,8 +142,8 @@ python main.py --report
 | `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                        |
 | `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                      |
 | `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                     |
-| `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing                                                                                                                             |
-| `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: clean post body (no hashtags) with the source URL appended at the end. X and Bluesky: 3-post thread (hook / insight / close). |
+| `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing. LinkedIn: source URL and hashtags appended programmatically (body → URL → hashtags).                                       |
+| `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: source URL and hashtags appended programmatically after the post body. X and Bluesky: 3-post thread (hook / insight / close). |
 | `--channel linkedin` | Either                                                   | Target LinkedIn only (default)                                                                                                                                                                                       |
 | `--channel x`        | Either                                                   | Target X (Twitter) only — 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer                                                                                     |
 | `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                        |
@@ -151,7 +151,7 @@ python main.py --report
 
 **Why curate goes to Ideas by default:** The AI summarises articles it found today and adds your commentary, but you should review that commentary before it goes live. Buffer Ideas sit in a drafts inbox so you can edit, approve, or discard each one. Use `--type post` to skip the review step and schedule directly.
 
-**LinkedIn post body (`--type post`):** The post body contains only the commentary text and the source URL appended at the end — no hashtags. Keeping hashtags out of the body reduces visual clutter and lets the algorithm surface the post before readers hit the tag noise.
+**LinkedIn post structure:** For all LinkedIn curation (`--curate`), the final post is always assembled in this order: AI-generated commentary body → source URL → hashtags. The URL and hashtags are stripped from the AI response and re-appended by the code, so their position is guaranteed regardless of what the model outputs.
 
 ### How the curation pipeline works
 
