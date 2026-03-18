@@ -154,7 +154,7 @@ Article: {article_text[:3000]}"""
                     {"role": "user",   "content": prompt},
                 ],
             )
-            data = json.loads(response.message.content)
+            data = json.loads(response.message.content or "{}")
             return [clean_llm_text(data["post_1"]), clean_llm_text(data["post_2"])]
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"Ollama structured output parse failed ({e}): {source_url}")
