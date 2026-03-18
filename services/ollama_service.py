@@ -17,7 +17,8 @@ from typing import Optional
 
 import ollama
 
-from services.claude_service import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, _parse_thread_parts
+import json
+from services.shared import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +111,9 @@ Do NOT include hashtags in your output — they will be appended automatically."
     ) -> "Optional[list[str]]":
         """
         Generate a 2-post thread (X or Bluesky) from an article.
+        Uses Ollama structured JSON output (format schema) for reliable splitting —
+        no regex parsing required.
         Returns a list of exactly 2 strings, or None if article_text is too short.
-        Same signature as ClaudeService.generate_thread_posts.
         """
         if not article_text or len(article_text.strip()) < 100:
             logger.warning(f"Skipping thread generation — article text too short: {source_url}")
@@ -119,34 +121,44 @@ Do NOT include hashtags in your output — they will be appended automatically."
 
         ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(ssi_component, SSI_COMPONENT_INSTRUCTIONS["engage_with_insights"])
         platform = "Bluesky" if channel == "bluesky" else "X (Twitter)"
-        char_limit = X_CHAR_LIMIT - X_URL_CHARS  # 257 chars — safe for both X and Bluesky
+        char_limit = X_CHAR_LIMIT - X_URL_CHARS
 
         github_user = os.getenv("GITHUB_USER", "")
         github_url = f"github.com/{github_user}" if github_user else "your GitHub profile"
 
         prompt = f"""Generate a 2-post {platform} thread from the article below.
 
-Return exactly two XML-tagged posts and nothing else:
-<post_1>Tweet 1 text here</post_1>
-<post_2>Tweet 2 text here</post_2>
+post_1 (hook): bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+post_2 (insight + close): your technical take, ending with {github_url} and a CTA. Max {char_limit} chars.
 
-Post 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
-Post 2 (insight + close) — your technical take or personal experience, then end with your GitHub link ({github_url}) and a call to action. Max {char_limit} chars.
+Rules: plain text only, no hashtags, no markdown, no "1/2"/"2/2" numbering.
 
-Rules:
-- PLAIN TEXT ONLY — absolutely no asterisks, no bold (**word**), no italics (*word*), no markdown of any kind
-- No hashtags in either post
-- No "1/2", "2/2" thread numbering
-- Count characters carefully — stay under {char_limit} per post
+SSI goal: {ssi_instruction}
 
-SSI optimisation goal:
-{ssi_instruction}
+Article: {article_text[:3000]}"""
 
-Article:
-{article_text[:3000]}"""
-
-        raw = self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=600)
-        return _parse_thread_parts(raw, source_url)
+        try:
+            response = self.client.chat(
+                model=self.model,
+                options={"num_predict": 600},
+                format={
+                    "type": "object",
+                    "properties": {
+                        "post_1": {"type": "string"},
+                        "post_2": {"type": "string"},
+                    },
+                    "required": ["post_1", "post_2"],
+                },
+                messages=[
+                    {"role": "system", "content": PERSONA_SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt},
+                ],
+            )
+            data = json.loads(response.message.content)
+            return [clean_llm_text(data["post_1"]), clean_llm_text(data["post_2"])]
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Ollama structured output parse failed ({e}): {source_url}")
+            return None
 
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
         """

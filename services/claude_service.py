@@ -10,125 +10,15 @@ from anthropic.types import TextBlock
 import logging
 from typing import Optional
 
-from dotenv import load_dotenv
-load_dotenv()
+from services.shared import (
+    PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS,
+    X_CHAR_LIMIT, X_URL_CHARS, parse_xml_thread,
+)
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Configurable via .env — override any of these without touching code
-# ---------------------------------------------------------------------------
-
-PERSONA_SYSTEM_PROMPT: str = os.getenv(
-    "PERSONA_SYSTEM_PROMPT",
-    """You are a LinkedIn content strategist and ghostwriter for a senior professional.
-Your voice is technical but human: concise, direct, and occasionally contrarian. Posts feel written by someone who has actually shipped the thing.
-Never use: 'In the age of AI', 'Game changer', 'Exciting to share', 'Thrilled to announce', 'Delighted to', 'I am pleased to'.
-Never start a post with 'I'. Never use bullet points for the main body — write in short, punchy paragraphs.
-Avoid corporate jargon, passive voice, and hollow hype. Favour specifics over generalities.
-Set PERSONA_SYSTEM_PROMPT in your .env to customise this for a specific person and domain.
-IMPORTANT: Output plain text only — no Markdown. Do not use **, ##, __, `, or any other Markdown syntax. LinkedIn does not render Markdown."""
-)
-
-# X (Twitter) platform limits — enforced at the prompt level, not by truncation
-X_CHAR_LIMIT = 280  # Standard X character limit
-X_URL_CHARS  = 23   # Every URL on X counts as exactly 23 characters regardless of real length
 
 
-def _parse_thread_parts(raw: str, source_url: str) -> "Optional[list[str]]":
-    """Parse a 2-post thread from raw LLM output.
-    Tries multiple split strategies to handle models that don't follow the
-    XML-tag format exactly (common with smaller local models).
-    Returns a list of exactly 2 non-empty strings, or None on failure.
-    """
-    import re as _re
-
-    def _clean(s: str) -> str:
-        """Strip XML tags and any markdown formatting LLMs sneak in."""
-        s = _re.sub(r'</?post_\d+>', '', s, flags=_re.IGNORECASE)
-        s = _re.sub(r'\*\*(.*?)\*\*', r'\1', s)          # **bold**
-        s = _re.sub(r'__(.*?)__', r'\1', s)               # __bold__
-        s = _re.sub(r'\*(.*?)\*', r'\1', s)              # *italic*
-        s = _re.sub(r'_(.*?)_', r'\1', s)                 # _italic_
-        s = _re.sub(r'`(.*?)`', r'\1', s)                 # `code`
-        s = _re.sub(r'^#{1,6}\s+', '', s, flags=_re.MULTILINE)  # ## headings
-        return s.strip()
-
-    # Strategy 0: XML tags <post_1>...</post_1> (preferred prompt format)
-    tagged = _re.findall(r'<post_[12]>(.*?)</post_[12]>', raw, _re.DOTALL | _re.IGNORECASE)
-    tagged = [_clean(p) for p in tagged if p.strip()]
-    if len(tagged) >= 2:
-        return tagged[:2]
-
-    # Strategy 1: exact --- separator (legacy format)
-    parts = [_clean(p) for p in raw.split("---") if p.strip()]
-    if len(parts) >= 2:
-        return parts[:2]
-
-    # Strategy 2: numbered labels like "Post 1:", "1.", "1/2"
-    numbered = _re.split(r'\n(?:Post\s*\d+[:\.]?|Tweet\s*\d+[:\.]?|\d+[/\.]\d+\s*[\n:]|\d+\.\s)', raw, flags=_re.IGNORECASE)
-    numbered = [_clean(p) for p in numbered if p.strip()]
-    if len(numbered) >= 2:
-        return numbered[:2]
-
-    # Strategy 3: double newline paragraph split
-    paras = [_clean(p) for p in _re.split(r'\n{2,}', raw) if p.strip()]
-    if len(paras) >= 2:
-        return paras[:2]
-
-    # Strategy 4: sentence-boundary split — split a single blob roughly in half
-    cleaned = _clean(raw)
-    sentences = _re.split(r'(?<=[.!?])\s+', cleaned)
-    sentences = [s for s in sentences if s.strip()]
-    if len(sentences) >= 2:
-        mid = max(1, len(sentences) // 2)
-        part1 = " ".join(sentences[:mid]).strip()
-        part2 = " ".join(sentences[mid:]).strip()
-        if part1 and part2:
-            logger.info(f"Thread split via sentence-boundary fallback for: {source_url}")
-            return [part1, part2]
-
-    logger.warning(f"Thread generation returned insufficient parts (expected 2) for: {source_url}")
-    return None
-
-
-SSI_COMPONENT_INSTRUCTIONS: dict[str, str] = {
-    "establish_brand": os.getenv(
-        "SSI_ESTABLISH_BRAND",
-        """This post should ESTABLISH PROFESSIONAL BRAND.
-- Share something you built, learned, or solved
-- Demonstrate deep expertise in AI/RAG/search
-- Use specific technical details — not vague claims
-- End with a clear point of view or lesson learned
-- LinkedIn algorithm rewards posts that get saves and shares"""
-    ),
-    "find_right_people": os.getenv(
-        "SSI_FIND_RIGHT_PEOPLE",
-        """This post should help FIND THE RIGHT PEOPLE.
-- Mention specific tools, communities, or events relevant to your industry
-- Ask a question that invites replies from your target audience
-- Tag relevant communities or technologies (not people)
-- This drives profile visits from the right professionals"""
-    ),
-    "engage_with_insights": os.getenv(
-        "SSI_ENGAGE_WITH_INSIGHTS",
-        """This post should ENGAGE WITH INSIGHTS.
-- Reference or summarize a recent AI paper, article, or trend
-- Give YOUR take on it — don't just summarize
-- Make a bold or counterintuitive claim based on your experience
-- Invite discussion: 'What's your experience with this?'
-- This component rewards thoughtful engagement on others' content too"""
-    ),
-    "build_relationships": os.getenv(
-        "SSI_BUILD_RELATIONSHIPS",
-        """This post should BUILD RELATIONSHIPS.
-- Share a behind-the-scenes story or honest lesson from a project
-- Be specific about challenges you faced and how you solved them
-- Show personality — not just technical facts
-- Make it feel like a conversation, not a press release
-- End with something that invites comments and connection"""
-    ),
-}
 
 
 class ClaudeService:
@@ -256,7 +146,7 @@ Article:
         text_block = next(b for b in message.content if isinstance(b, TextBlock))
         raw = text_block.text.strip()
 
-        return _parse_thread_parts(raw, source_url)
+        return parse_xml_thread(raw, source_url)
 
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
         """

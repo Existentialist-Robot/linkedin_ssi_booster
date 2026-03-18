@@ -17,7 +17,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
 
-from services.claude_service import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, _parse_thread_parts
+from services.shared import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, parse_xml_thread
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ Article:
 {article_text[:3000]}"""
 
         raw = self._generate(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=600)
-        return _parse_thread_parts(raw, source_url)
+        return parse_xml_thread(raw, source_url)
 
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
         """

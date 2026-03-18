@@ -15,7 +15,8 @@ import requests
 import time
 from pathlib import Path
 from typing import Optional, Union
-from services.claude_service import ClaudeService, SSI_COMPONENT_INSTRUCTIONS  # noqa: E402 — run from project root
+from services.claude_service import ClaudeService  # noqa: E402 — run from project root
+from services.shared import SSI_COMPONENT_INSTRUCTIONS
 from services.gemini_service import GeminiService
 from services.ollama_service import OllamaService
 
@@ -229,6 +230,7 @@ class ContentCurator:
                             self.buffer.get_x_channel_id() if channel == "x"
                             else self.buffer.get_bluesky_channel_id()
                         )
+                        logger.info(f"Posting {len(thread_posts)}-part thread: post1={len(thread_posts[0])} chars, replies={[len(t) for t in thread_posts[1:]]}")
                         post = self.buffer.create_scheduled_post(
                             channel_id=channel_id,
                             text=thread_posts[0],
