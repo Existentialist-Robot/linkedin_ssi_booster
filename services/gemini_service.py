@@ -180,6 +180,8 @@ SSI optimisation goal:
 
 Article:
 {article_text[:3000]}"""
+
+        raw = self._generate(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=600)
         return _parse_thread_parts(raw, source_url)
 
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
