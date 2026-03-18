@@ -43,25 +43,36 @@ def _parse_thread_parts(raw: str, source_url: str) -> "Optional[list[str]]":
     """
     import re as _re
 
+    def _clean(s: str) -> str:
+        """Strip XML tags and any markdown formatting LLMs sneak in."""
+        s = _re.sub(r'</?post_\d+>', '', s, flags=_re.IGNORECASE)
+        s = _re.sub(r'\*\*(.*?)\*\*', r'\1', s)          # **bold**
+        s = _re.sub(r'__(.*?)__', r'\1', s)               # __bold__
+        s = _re.sub(r'\*(.*?)\*', r'\1', s)              # *italic*
+        s = _re.sub(r'_(.*?)_', r'\1', s)                 # _italic_
+        s = _re.sub(r'`(.*?)`', r'\1', s)                 # `code`
+        s = _re.sub(r'^#{1,6}\s+', '', s, flags=_re.MULTILINE)  # ## headings
+        return s.strip()
+
     # Strategy 0: XML tags <post_1>...</post_1> (preferred prompt format)
     tagged = _re.findall(r'<post_[123]>(.*?)</post_[123]>', raw, _re.DOTALL | _re.IGNORECASE)
-    tagged = [p.strip() for p in tagged if p.strip()]
+    tagged = [_clean(p) for p in tagged if p.strip()]
     if len(tagged) >= 3:
         return tagged[:3]
 
     # Strategy 1: exact --- separator (legacy format)
-    parts = [p.strip() for p in raw.split("---") if p.strip()]
+    parts = [_clean(p) for p in raw.split("---") if p.strip()]
     if len(parts) >= 3:
         return parts[:3]
 
     # Strategy 2: numbered labels like "Post 1:", "1.", "1/3"
     numbered = _re.split(r'\n(?:Post\s*\d+[:\.]?|Tweet\s*\d+[:\.]?|\d+[/\.]\d+\s*[\n:]|\d+\.\s)', raw, flags=_re.IGNORECASE)
-    numbered = [p.strip() for p in numbered if p.strip()]
+    numbered = [_clean(p) for p in numbered if p.strip()]
     if len(numbered) >= 3:
         return numbered[:3]
 
     # Strategy 3: double newline paragraph split
-    paras = [p.strip() for p in _re.split(r'\n{2,}', raw) if p.strip()]
+    paras = [_clean(p) for p in _re.split(r'\n{2,}', raw) if p.strip()]
     if len(paras) >= 3:
         return paras[:3]
 
@@ -201,22 +212,25 @@ Do NOT include hashtags in your output — they will be appended automatically.
         platform = "Bluesky" if channel == "bluesky" else "X (Twitter)"
         char_limit = X_CHAR_LIMIT - X_URL_CHARS  # 257 — safe for both X and Bluesky
 
+        github_user = os.getenv("GITHUB_USER", "")
+        github_url = f"github.com/{github_user}" if github_user else "your GitHub profile"
+
         prompt = f"""Generate a 3-post {platform} thread from the article below.
 
 Return exactly three XML-tagged posts and nothing else:
-<post_1>first post text</post_1>
-<post_2>second post text</post_2>
-<post_3>third post text</post_3>
+<post_1>Tweet 1 text here</post_1>
+<post_2>Tweet 2 text here</post_2>
+<post_3>Tweet 3 text here</post_3>
 
-Post 1 — hook: bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
-Post 2 — insight: your technical take or the key finding. Concrete details — no vague generalities. Max {char_limit} chars.
-Post 3 — close: a clear call to action or key takeaway. Do NOT include the source URL. Max {char_limit} chars.
+Tweet 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+Tweet 2 (insight) — your technical take or personal experience. Concrete details, no vague generalities. Max {char_limit} chars.
+Tweet 3 (close) — end with your GitHub link ({github_url}) and a call to action or key takeaway. Max {char_limit} chars.
 
 Rules:
-- No hashtags in any post
+- PLAIN TEXT ONLY — absolutely no asterisks, no bold (**word**), no italics (*word*), no markdown of any kind
+- No hashtags in any tweet
 - No "1/3", "2/3", "3/3" thread numbering
-- Plain text only inside the tags — no Markdown formatting
-- Count characters carefully — stay under {char_limit} per post
+- Count characters carefully — stay under {char_limit} per tweet
 
 SSI optimisation goal:
 {ssi_instruction}

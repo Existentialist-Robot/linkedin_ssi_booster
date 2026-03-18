@@ -9,6 +9,7 @@ Default model: gemini-2.0-flash (fast, generous free tier)
 """
 
 import logging
+import os
 import time
 from typing import Optional
 
@@ -154,30 +155,31 @@ Do NOT include hashtags in your output — they will be appended automatically."
         platform = "Bluesky" if channel == "bluesky" else "X (Twitter)"
         char_limit = X_CHAR_LIMIT - X_URL_CHARS  # 257 chars — safe for both X and Bluesky
 
+        github_user = os.getenv("GITHUB_USER", "")
+        github_url = f"github.com/{github_user}" if github_user else "your GitHub profile"
+
         prompt = f"""Generate a 3-post {platform} thread from the article below.
 
 Return exactly three XML-tagged posts and nothing else:
-<post_1>first post text</post_1>
-<post_2>second post text</post_2>
-<post_3>third post text</post_3>
+<post_1>Tweet 1 text here</post_1>
+<post_2>Tweet 2 text here</post_2>
+<post_3>Tweet 3 text here</post_3>
 
-Post 1 — hook: bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
-Post 2 — insight: your technical take or the key finding. Concrete details — no vague generalities. Max {char_limit} chars.
-Post 3 — close: a clear call to action or key takeaway. Do NOT include the source URL. Max {char_limit} chars.
+Tweet 1 (hook) — a bold claim, surprising stat, or sharp question that stops the scroll. Max {char_limit} chars.
+Tweet 2 (insight) — your technical take or personal experience. Concrete details, no vague generalities. Max {char_limit} chars.
+Tweet 3 (close) — end with your GitHub link ({github_url}) and a call to action or key takeaway. Max {char_limit} chars.
 
 Rules:
-- No hashtags in any post
+- PLAIN TEXT ONLY — absolutely no asterisks, no bold (**word**), no italics (*word*), no markdown of any kind
+- No hashtags in any tweet
 - No "1/3", "2/3", "3/3" thread numbering
-- Plain text only inside the tags — no Markdown formatting
-- Count characters carefully — stay under {char_limit} per post
+- Count characters carefully — stay under {char_limit} per tweet
 
 SSI optimisation goal:
 {ssi_instruction}
 
 Article:
 {article_text[:3000]}"""
-
-        raw = self._generate(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=600)
         return _parse_thread_parts(raw, source_url)
 
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
