@@ -107,9 +107,9 @@ def fetch_bluesky_stats(handle: str | None = None, password: str | None = None, 
 
 SSI_TARGETS = {
     "establish_brand":    {"current": 10.46, "target": 25.0, "max": 25.0},
-    "find_right_people":  {"current": 9.465, "target": 20.0, "max": 25.0},
+    "find_right_people":  {"current": 9.39, "target": 20.0, "max": 25.0},
     "engage_with_insights": {"current": 11.0, "target": 25.0, "max": 25.0},
-    "build_relationships":  {"current": 11.85, "target": 25.0, "max": 25.0},
+    "build_relationships":  {"current": 12.15, "target": 25.0, "max": 25.0},
 }
 
 SSI_ACTIONS = {
