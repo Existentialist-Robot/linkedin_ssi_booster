@@ -22,6 +22,20 @@ from services.ollama_service import OllamaService
 
 logger = logging.getLogger(__name__)
 
+
+def _truncate_at_sentence(text: str, budget: int) -> str:
+    """Truncate *text* to *budget* chars, preferring a sentence boundary."""
+    if len(text) <= budget:
+        return text
+    chunk = text[:budget]
+    # Look for last sentence-ending punctuation followed by a space (or end)
+    last_sent = max(chunk.rfind(". "), chunk.rfind("! "), chunk.rfind("? "))
+    if last_sent > budget // 2:
+        return chunk[:last_sent + 1]
+    # Fallback: word boundary
+    return chunk.rsplit(" ", 1)[0]
+
+
 CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
 IDEAS_CACHE_PATH = Path(os.getenv("IDEAS_CACHE_PATH", "published_ideas_cache.json"))
 
@@ -221,8 +235,7 @@ class ContentCurator:
                 x_post = self.claude.summarise_for_curation(article["summary"], article["link"], ssi_component, "x")
                 if x_post:
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
-                    if len(x_post) > x_budget:
-                        x_post = x_post[:x_budget].rsplit(" ", 1)[0]
+                    x_post = _truncate_at_sentence(x_post, x_budget)
                     if article["link"] and article["link"] not in x_post:
                         x_post = x_post.rstrip() + f"\n\n{article['link']}"
                 time.sleep(request_delay)
@@ -230,8 +243,7 @@ class ContentCurator:
                 if bsky_post:
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
                     bsky_budget = 300 - url_overhead
-                    if len(bsky_post) > bsky_budget:
-                        bsky_post = bsky_post[:bsky_budget].rsplit(" ", 1)[0]
+                    bsky_post = _truncate_at_sentence(bsky_post, bsky_budget)
                     if article["link"] and article["link"] not in bsky_post:
                         bsky_post = bsky_post.rstrip() + f"\n\n{article['link']}"
 
@@ -286,15 +298,13 @@ class ContentCurator:
                     post_text = _append_url_and_hashtags(post_text, article["link"])
                 elif effective_channel == "x":
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS
-                    if len(post_text) > x_budget:
-                        post_text = post_text[:x_budget].rsplit(" ", 1)[0]
+                    post_text = _truncate_at_sentence(post_text, x_budget)
                     if article["link"] and article["link"] not in post_text:
                         post_text = post_text.rstrip() + f"\n\n{article['link']}"
                 elif effective_channel == "bluesky":
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
                     bsky_budget = 300 - url_overhead
-                    if len(post_text) > bsky_budget:
-                        post_text = post_text[:bsky_budget].rsplit(" ", 1)[0]
+                    post_text = _truncate_at_sentence(post_text, bsky_budget)
                     if article["link"] and article["link"] not in post_text:
                         post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
