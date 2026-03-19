@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--schedule",  action="store_true", help="Push scheduled posts to Buffer")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
     parser.add_argument("--report",    action="store_true", help="Print SSI component report")
+    parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
     parser.add_argument("--local",     action="store_true", help="Use local Ollama instead of Claude")
@@ -94,6 +95,16 @@ def main():
 
     if args.report:
         tracker.print_report()
+        return
+
+    if args.bsky_stats:
+        from services.ssi_tracker import fetch_bluesky_stats
+        stats = fetch_bluesky_stats()
+        if stats:
+            print(f"\nBluesky stats for @{stats['handle']}")
+            print(f"  Followers : {stats['followers']}")
+            print(f"  Following : {stats['following']}")
+            print(f"  Posts     : {stats['posts']}")
         return
 
     if args.curate:

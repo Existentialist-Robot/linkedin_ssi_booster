@@ -12,6 +12,44 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+def fetch_bluesky_stats(handle: str | None = None, password: str | None = None) -> dict | None:
+    """Fetch live Bluesky profile stats via the AT Protocol public API.
+
+    handle   — Bluesky handle, e.g. 'samjd-zz.bsky.social'. Falls back to
+               BLUESKY_HANDLE env var, then BLUESKY_IDENTIFIER.
+    password — App password. Falls back to BLUESKY_APP_PASSWORD env var.
+
+    Returns a dict with keys: handle, followers, following, posts.
+    Returns None if credentials are missing or the request fails.
+    """
+    try:
+        from atproto import Client  # optional dependency
+    except ImportError:
+        logger.warning("atproto package not installed — run: pip install atproto")
+        return None
+
+    handle   = handle   or os.getenv("BLUESKY_HANDLE") or os.getenv("BLUESKY_IDENTIFIER")
+    password = password or os.getenv("BLUESKY_APP_PASSWORD")
+
+    if not handle or not password:
+        logger.warning("BLUESKY_HANDLE and BLUESKY_APP_PASSWORD are required for Bluesky stats")
+        return None
+
+    try:
+        client = Client()
+        client.login(handle, password)
+        profile = client.get_profile(handle)
+        return {
+            "handle":    profile.handle,
+            "followers": profile.followers_count or 0,
+            "following": profile.follows_count   or 0,
+            "posts":     profile.posts_count      or 0,
+        }
+    except Exception as e:
+        logger.warning(f"Could not fetch Bluesky stats: {e}")
+        return None
+
 SSI_TARGETS = {
     "establish_brand":    {"current": 10.46, "target": 25.0, "max": 25.0},
     "find_right_people":  {"current": 9.465, "target": 20.0, "max": 25.0},
