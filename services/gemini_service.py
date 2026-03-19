@@ -145,7 +145,6 @@ Do NOT include hashtags in your output — they will be appended automatically."
         """
         Generate a 2-post thread (X or Bluesky) from an article.
         Returns a list of exactly 2 strings, or None if article_text is too short.
-        Same signature as ClaudeService.generate_thread_posts.
         """
         if not article_text or len(article_text.strip()) < 100:
             logger.warning(f"Skipping thread generation — article text too short: {source_url}")
