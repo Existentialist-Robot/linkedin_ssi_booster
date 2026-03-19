@@ -52,7 +52,12 @@ def main():
                         help="Target channel(s) for scheduling/curation (default: linkedin)")
     parser.add_argument("--type",      choices=["idea", "post"], default="idea",
                         help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")
+    parser.add_argument("--debug",     action="store_true", help="Enable DEBUG-level logging (shows raw API payloads and responses)")
     args = parser.parse_args()
+
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("httpx").setLevel(logging.WARNING)  # suppress noisy HTTP client logs
 
     buffer_api_key = os.getenv("BUFFER_API_KEY")
     if not buffer_api_key:

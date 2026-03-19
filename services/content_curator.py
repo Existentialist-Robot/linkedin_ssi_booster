@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Optional, Union
 from services.claude_service import ClaudeService  # noqa: E402 — run from project root
-from services.shared import SSI_COMPONENT_INSTRUCTIONS
+from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
 from services.gemini_service import GeminiService
 from services.ollama_service import OllamaService
 
@@ -201,51 +201,9 @@ class ContentCurator:
             logger.info(f"Generating [{message_type}|{ssi_component}] for: {article['title'][:60]}...")
 
             # ----------------------------------------------------------------
-            # X / Bluesky thread mode
+            # "all" channels post mode — LinkedIn + X + Bluesky single posts
             # ----------------------------------------------------------------
-            if message_type == "post" and channel in ("x", "bluesky"):
-                thread_posts = self.claude.generate_thread_posts(
-                    article_text=article["summary"],
-                    source_url=article["link"],
-                    ssi_component=ssi_component,
-                    channel=channel,
-                )
-                if not thread_posts:
-                    logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
-                    continue
-
-                if dry_run:
-                    print(f"\n{'='*60}")
-                    print(f"SOURCE: {article['source']}")
-                    print(f"ARTICLE: {article['title']}")
-                    print(f"CHANNEL: {channel} (thread)")
-                    print(f"SSI COMPONENT: {ssi_component}")
-                    print("\nTHREAD POSTS:")
-                    for i, t in enumerate(thread_posts, 1):
-                        print(f"  Post {i} ({len(t)} chars): {t}")
-                    created_ideas.append({"dry_run": True, "title": article["title"], "thread": thread_posts, "ssi_component": ssi_component, "channel": channel})
-                else:
-                    if self.buffer:
-                        channel_id = (
-                            self.buffer.get_x_channel_id() if channel == "x"
-                            else self.buffer.get_bluesky_channel_id()
-                        )
-                        logger.info(f"Posting {len(thread_posts)}-part thread: post1={len(thread_posts[0])} chars, replies={[len(t) for t in thread_posts[1:]]}")
-                        post = self.buffer.create_scheduled_post(
-                            channel_id=channel_id,
-                            text=thread_posts[0],
-                            thread=thread_posts[1:],
-                            channel=channel,
-                        )
-                        self._save_published_title(article["title"])
-                        created_ideas.append(post)
-                    else:
-                        logger.warning("No buffer_service provided — skipping post creation")
-
-            # ----------------------------------------------------------------
-            # "all" channels post mode — LinkedIn + X thread + Bluesky thread
-            # ----------------------------------------------------------------
-            elif message_type == "post" and channel == "all":
+            if message_type == "post" and channel == "all":
                 li_text = self.claude.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
@@ -260,9 +218,21 @@ class ContentCurator:
                 li_text = _append_url_and_hashtags(li_text, article["link"])
 
                 time.sleep(request_delay)
-                x_thread = self.claude.generate_thread_posts(article["summary"], article["link"], ssi_component, "x")
+                x_post = self.claude.summarise_for_curation(article["summary"], article["link"], ssi_component, "x")
+                if x_post:
+                    x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
+                    if len(x_post) > x_budget:
+                        x_post = x_post[:x_budget].rsplit(" ", 1)[0]
+                    if article["link"] and article["link"] not in x_post:
+                        x_post = x_post.rstrip() + f"\n\n{article['link']}"
                 time.sleep(request_delay)
-                bsky_thread = self.claude.generate_thread_posts(article["summary"], article["link"], ssi_component, "bluesky")
+                bsky_post = self.claude.summarise_for_curation(article["summary"], article["link"], ssi_component, "bluesky")
+                if bsky_post:
+                    bsky_budget = 300 - X_URL_CHARS  # 277 — cap text before URL is added
+                    if len(bsky_post) > bsky_budget:
+                        bsky_post = bsky_post[:bsky_budget].rsplit(" ", 1)[0]
+                    if article["link"] and article["link"] not in bsky_post:
+                        bsky_post = bsky_post.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
                     print(f"\n{'='*60}")
@@ -271,25 +241,21 @@ class ContentCurator:
                     print(f"CHANNEL: all")
                     print(f"SSI COMPONENT: {ssi_component}")
                     print(f"\nLINKEDIN POST:\n{li_text}")
-                    print("\nX THREAD:")
-                    for i, t in enumerate(x_thread or [], 1):
-                        print(f"  Post {i}: {t}")
-                    print("\nBLUESKY THREAD:")
-                    for i, t in enumerate(bsky_thread or [], 1):
-                        print(f"  Post {i}: {t}")
+                    print(f"\nX POST:\n{x_post}")
+                    print(f"\nBLUESKY POST:\n{bsky_post}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                 else:
                     if self.buffer:
                         self.buffer.create_scheduled_post(
                             self.buffer.get_linkedin_channel_id(), li_text
                         )
-                        if x_thread:
+                        if x_post:
                             self.buffer.create_scheduled_post(
-                                self.buffer.get_x_channel_id(), x_thread[0], thread=x_thread[1:], channel="x"
+                                self.buffer.get_x_channel_id(), x_post, channel="x"
                             )
-                        if bsky_thread:
+                        if bsky_post:
                             self.buffer.create_scheduled_post(
-                                self.buffer.get_bluesky_channel_id(), bsky_thread[0], thread=bsky_thread[1:], channel="bluesky"
+                                self.buffer.get_bluesky_channel_id(), bsky_post, channel="bluesky"
                             )
                         self._save_published_title(article["title"])
                         created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
@@ -297,10 +263,10 @@ class ContentCurator:
                         logger.warning("No buffer_service provided — skipping post creation")
 
             # ----------------------------------------------------------------
-            # LinkedIn post mode  OR  idea mode (all channels)
+            # Single post mode (linkedin / x / bluesky) OR idea mode
             # ----------------------------------------------------------------
             else:
-                effective_channel = "linkedin" if message_type == "post" else channel
+                effective_channel = "linkedin" if (message_type == "post" and channel == "linkedin") else channel
                 post_text = self.claude.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
@@ -312,11 +278,23 @@ class ContentCurator:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
 
-                # Append URL then hashtags programmatically (order: body → URL → hashtags)
+                # Append URL then hashtags programmatically (order: body → URL → hashtags).
+                # For X/Bluesky: cap the LLM text first, THEN append URL so buffer_service
+                # never sees text+URL combined (which would truncate the URL).
                 if effective_channel == "linkedin":
                     post_text = _append_url_and_hashtags(post_text, article["link"])
-                elif article["link"] and article["link"] not in post_text:
-                    post_text = post_text.rstrip() + f"\n\n{article['link']}"
+                elif effective_channel == "x":
+                    x_budget = X_CHAR_LIMIT - X_URL_CHARS
+                    if len(post_text) > x_budget:
+                        post_text = post_text[:x_budget].rsplit(" ", 1)[0]
+                    if article["link"] and article["link"] not in post_text:
+                        post_text = post_text.rstrip() + f"\n\n{article['link']}"
+                elif effective_channel == "bluesky":
+                    bsky_budget = 300 - X_URL_CHARS
+                    if len(post_text) > bsky_budget:
+                        post_text = post_text[:bsky_budget].rsplit(" ", 1)[0]
+                    if article["link"] and article["link"] not in post_text:
+                        post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
                     print(f"\n{'='*60}")
@@ -329,8 +307,14 @@ class ContentCurator:
                 else:
                     if self.buffer:
                         if message_type == "post":
+                            if effective_channel == "x":
+                                channel_id = self.buffer.get_x_channel_id()
+                            elif effective_channel == "bluesky":
+                                channel_id = self.buffer.get_bluesky_channel_id()
+                            else:
+                                channel_id = self.buffer.get_linkedin_channel_id()
                             post = self.buffer.create_scheduled_post(
-                                self.buffer.get_linkedin_channel_id(), post_text
+                                channel_id, post_text, channel=effective_channel
                             )
                             self._save_published_title(article["title"])
                             created_ideas.append(post)

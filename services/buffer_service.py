@@ -26,10 +26,13 @@ class BufferService:
 
     def _query(self, query: str, variables: Optional[dict] = None) -> dict:
         """Execute a GraphQL query/mutation against Buffer API."""
+        import json as _json
         payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
+        logger.debug("Buffer API request variables: %s", _json.dumps(variables, indent=2))
         response = requests.post(BUFFER_API, headers=self.headers, json=payload)
+        logger.debug("Buffer API raw response [%s]: %s", response.status_code, response.text)
         if not response.ok:
             logger.error(f"Buffer API {response.status_code}: {response.text}")
             response.raise_for_status()
@@ -144,15 +147,12 @@ class BufferService:
         self,
         channel_id: str,
         text: str,
-        thread: Optional[list[str]] = None,
         first_comment: Optional[str] = None,
         channel: str = "linkedin",
     ) -> dict:
         """
         Schedule a post to the next available Buffer queue slot.
-        channel: 'linkedin' | 'x' | 'bluesky' — used to route thread into the
-                 correct service metadata (metadata.twitter.thread or metadata.bluesky.thread).
-        thread: additional posts in the thread (X/Bluesky) — each item is the text of one reply post.
+        channel: 'linkedin' | 'x' | 'bluesky' — used to apply per-platform char limits.
         first_comment: LinkedIn first comment text (placed in metadata.linkedin.firstComment).
         """
         mutation = """
@@ -171,46 +171,14 @@ class BufferService:
           }
         }
         """
-        # Hard-enforce per-platform character limits (LLMs don't always comply with the prompt).
-        # X: 280 chars total; a Buffer-appended URL counts as 23 chars, so cap text at 257.
-        # Bluesky: 300 chars total; same URL accounting → cap text at 277.
-        # Thread reply items never get a URL appended, so they use the full platform limit.
-        if channel == "x":
-            text_limit, reply_limit = 257, 280
-        elif channel == "bluesky":
-            text_limit, reply_limit = 277, 300
-        else:
-            text_limit, reply_limit = None, None  # LinkedIn — no hard limit enforced here
-
-        def _cap(s: str, limit: int) -> str:
-            if len(s) <= limit:
-                return s
-            truncated = s[:limit].rsplit(" ", 1)[0]
-            logger.warning(f"Truncated post from {len(s)} to {len(truncated)} chars (limit {limit})")
-            return truncated
-
-        if text_limit:
-            text = _cap(text, text_limit)
-        if thread and reply_limit:
-            thread = [_cap(t, reply_limit) for t in thread]
-
         post_input: dict = {
             "channelId": channel_id,
             "text": text,
             "schedulingType": "automatic",
             "mode": "addToQueue",
         }
-        metadata: dict = {}
-        if thread:
-            threaded = [{"text": t} for t in thread]
-            if channel == "x":
-                metadata["twitter"] = {"thread": threaded}
-            elif channel == "bluesky":
-                metadata["bluesky"] = {"thread": threaded}
         if first_comment:
-            metadata["linkedin"] = {"firstComment": first_comment}
-        if metadata:
-            post_input["metadata"] = metadata
+            post_input["metadata"] = {"linkedin": {"firstComment": first_comment}}
 
         data = self._query(mutation, {"input": post_input})
         result = data.get("createPost", {})
