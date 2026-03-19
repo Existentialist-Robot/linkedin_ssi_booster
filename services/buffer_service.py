@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 BUFFER_API = "https://api.buffer.com"
 
 
+class BufferQueueFullError(RuntimeError):
+    """Raised when the Buffer scheduled-post queue limit has been reached."""
+    pass
+
+
 class BufferService:
 
     def __init__(self, api_key: str):

@@ -19,6 +19,7 @@ from services.claude_service import ClaudeService  # noqa: E402 — run from pro
 from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
 from services.gemini_service import GeminiService
 from services.ollama_service import OllamaService
+from services.buffer_service import BufferQueueFullError
 
 logger = logging.getLogger(__name__)
 
@@ -269,19 +270,23 @@ class ContentCurator:
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                 else:
                     if self.buffer:
-                        self.buffer.create_scheduled_post(
-                            self.buffer.get_linkedin_channel_id(), li_text
-                        )
-                        if x_post:
+                        try:
                             self.buffer.create_scheduled_post(
-                                self.buffer.get_x_channel_id(), x_post, channel="x"
+                                self.buffer.get_linkedin_channel_id(), li_text
                             )
-                        if bsky_post:
-                            self.buffer.create_scheduled_post(
-                                self.buffer.get_bluesky_channel_id(), bsky_post, channel="bluesky"
-                            )
-                        self._save_published_title(article["title"])
-                        created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
+                            if x_post:
+                                self.buffer.create_scheduled_post(
+                                    self.buffer.get_x_channel_id(), x_post, channel="x"
+                                )
+                            if bsky_post:
+                                self.buffer.create_scheduled_post(
+                                    self.buffer.get_bluesky_channel_id(), bsky_post, channel="bluesky"
+                                )
+                            self._save_published_title(article["title"])
+                            created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
+                        except BufferQueueFullError as e:
+                            logger.warning(f"Buffer queue full — stopping: {e}")
+                            break
                     else:
                         logger.warning("No buffer_service provided — skipping post creation")
 
@@ -335,11 +340,15 @@ class ContentCurator:
                                 channel_id = self.buffer.get_bluesky_channel_id()
                             else:
                                 channel_id = self.buffer.get_linkedin_channel_id()
-                            post = self.buffer.create_scheduled_post(
-                                channel_id, post_text, channel=effective_channel
-                            )
-                            self._save_published_title(article["title"])
-                            created_ideas.append(post)
+                            try:
+                                post = self.buffer.create_scheduled_post(
+                                    channel_id, post_text, channel=effective_channel
+                                )
+                                self._save_published_title(article["title"])
+                                created_ideas.append(post)
+                            except BufferQueueFullError as e:
+                                logger.warning(f"Buffer queue full — stopping: {e}")
+                                break
                         else:
                             idea = self.buffer.create_idea(
                                 text=post_text,
