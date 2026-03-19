@@ -102,9 +102,21 @@ def main():
         stats = fetch_bluesky_stats()
         if stats:
             print(f"\nBluesky stats for @{stats['handle']}")
-            print(f"  Followers : {stats['followers']}")
-            print(f"  Following : {stats['following']}")
-            print(f"  Posts     : {stats['posts']}")
+            print(f"  Followers    : {stats['followers']}")
+            print(f"  Following    : {stats['following']}")
+            print(f"  Total posts  : {stats['posts']}")
+            print(f"\n  Last {stats['analysed']} posts (engagement)")
+            print(f"  Likes        : {stats['total_likes']}")
+            print(f"  Replies      : {stats['total_replies']}")
+            print(f"  Reposts      : {stats['total_reposts']}")
+            print(f"  Quotes       : {stats['total_quotes']}")
+            print(f"  Avg / post   : {stats['avg_engagement']}")
+            if stats.get("top_post"):
+                tp = stats["top_post"]
+                print(f"\n  Top post ({tp['likes']}L {tp['replies']}R {tp['reposts']}RT)")
+                print(f"  '{tp['text']}'")
+                if tp["url"]:
+                    print(f"  {tp['url']}")
         return
 
     if args.curate:

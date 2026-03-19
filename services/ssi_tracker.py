@@ -13,14 +13,18 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def fetch_bluesky_stats(handle: str | None = None, password: str | None = None) -> dict | None:
-    """Fetch live Bluesky profile stats via the AT Protocol public API.
+def fetch_bluesky_stats(handle: str | None = None, password: str | None = None, feed_limit: int = 20) -> dict | None:
+    """Fetch live Bluesky profile stats + engagement from recent posts.
 
-    handle   — Bluesky handle, e.g. 'samjd-zz.bsky.social'. Falls back to
-               BLUESKY_HANDLE env var, then BLUESKY_IDENTIFIER.
-    password — App password. Falls back to BLUESKY_APP_PASSWORD env var.
+    handle     — Bluesky handle, e.g. 'samjd-zz.bsky.social'. Falls back to
+                 BLUESKY_HANDLE env var, then BLUESKY_IDENTIFIER.
+    password   — App password. Falls back to BLUESKY_APP_PASSWORD env var.
+    feed_limit — Number of recent posts to analyse for engagement (default 20).
 
-    Returns a dict with keys: handle, followers, following, posts.
+    Returns a dict with keys:
+      handle, followers, following, posts,
+      total_likes, total_replies, total_reposts, total_quotes,
+      avg_engagement, top_post (dict with text/likes/replies/reposts/url)
     Returns None if credentials are missing or the request fails.
     """
     try:
@@ -40,11 +44,62 @@ def fetch_bluesky_stats(handle: str | None = None, password: str | None = None) 
         client = Client()
         client.login(handle, password)
         profile = client.get_profile(handle)
+
+        # Pull recent posts for engagement analysis
+        feed_resp = client.get_author_feed(actor=handle, limit=feed_limit, filter="posts_no_replies")
+        items = getattr(feed_resp, "feed", []) or []
+
+        total_likes = total_replies = total_reposts = total_quotes = 0
+        top_post: dict | None = None
+        top_score = -1
+
+        for item in items:
+            post = getattr(item, "post", None)
+            if post is None:
+                continue
+            likes    = getattr(post, "like_count",   0) or 0
+            replies  = getattr(post, "reply_count",  0) or 0
+            reposts  = getattr(post, "repost_count", 0) or 0
+            quotes   = getattr(post, "quote_count",  0) or 0
+            total_likes   += likes
+            total_replies += replies
+            total_reposts += reposts
+            total_quotes  += quotes
+            score = likes + replies + reposts + quotes
+            if score > top_score:
+                top_score = score
+                record = getattr(post, "record", None)
+                text   = getattr(record, "text", "") if record else ""
+                uri    = getattr(post, "uri", "") or ""
+                # Convert at:// URI → web URL: at://did:.../app.bsky.feed.post/rkey
+                url = ""
+                if uri.startswith("at://"):
+                    parts = uri.split("/")
+                    if len(parts) >= 5:
+                        url = f"https://bsky.app/profile/{handle}/post/{parts[-1]}"
+                top_post = {
+                    "text":     (text[:100] + "…") if len(text) > 100 else text,
+                    "likes":    likes,
+                    "replies":  replies,
+                    "reposts":  reposts,
+                    "url":      url,
+                }
+
+        analysed = len(items)
+        avg_engagement = round((total_likes + total_replies + total_reposts + total_quotes) / analysed, 1) if analysed else 0.0
+
         return {
-            "handle":    profile.handle,
-            "followers": profile.followers_count or 0,
-            "following": profile.follows_count   or 0,
-            "posts":     profile.posts_count      or 0,
+            "handle":         profile.handle,
+            "followers":      profile.followers_count or 0,
+            "following":      profile.follows_count   or 0,
+            "posts":          profile.posts_count      or 0,
+            "analysed":       analysed,
+            "total_likes":    total_likes,
+            "total_replies":  total_replies,
+            "total_reposts":  total_reposts,
+            "total_quotes":   total_quotes,
+            "avg_engagement": avg_engagement,
+            "top_post":       top_post,
         }
     except Exception as e:
         logger.warning(f"Could not fetch Bluesky stats: {e}")
