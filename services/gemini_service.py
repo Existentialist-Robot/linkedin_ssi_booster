@@ -229,11 +229,10 @@ Do NOT include the article URL — it will be appended automatically."""
             _url_overhead = 2 + len(source_url)
             _text_budget = 300 - _url_overhead
             format_instructions = f"""IMPORTANT — this post is for Bluesky, NOT LinkedIn:
-- Hard limit: {_text_budget} characters for your text (the URL adds {_url_overhead} chars, totalling 300)
-- Two or three short sentences maximum — no paragraphs, no bullet points
-- No hashtags
+- Write 2-3 punchy sentences (aim for roughly 200-250 characters of text)
+- No hashtags, no bullet points
 - Lead with your single sharpest take; skip throat-clearing entirely
-- End on a complete sentence — never trail off mid-thought
+- Every sentence must be complete — never trail off mid-thought
 Do NOT include the article URL — it will be appended automatically."""
         elif post_mode:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
