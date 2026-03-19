@@ -24,16 +24,26 @@ logger = logging.getLogger(__name__)
 
 
 def _truncate_at_sentence(text: str, budget: int) -> str:
-    """Truncate *text* to *budget* chars, preferring a sentence boundary."""
-    if len(text) <= budget:
-        return text
-    chunk = text[:budget]
-    # Look for last sentence-ending punctuation followed by a space (or end)
-    last_sent = max(chunk.rfind(". "), chunk.rfind("! "), chunk.rfind("? "))
-    if last_sent > budget // 2:
-        return chunk[:last_sent + 1]
+    """Ensure *text* fits within *budget* chars AND ends on a complete sentence.
+
+    Applied even when text is within budget — catches LLM responses that trail
+    off mid-sentence without exceeding the character limit.
+    """
+    if len(text) > budget:
+        text = text[:budget]
+    stripped = text.rstrip()
+    # Already ends cleanly
+    if stripped[-1:] in ".!?":
+        return stripped
+    # Find the last sentence-ending punctuation before any whitespace or end-of-string.
+    # Using regex so we catch "sentence.\nNext" (period before newline, not space).
+    last_match = None
+    for m in re.finditer(r"[.!?](?=\s|$)", stripped):
+        last_match = m
+    if last_match and last_match.end() > len(stripped) // 4:
+        return stripped[:last_match.end()]
     # Fallback: word boundary
-    return chunk.rsplit(" ", 1)[0]
+    return stripped.rsplit(" ", 1)[0]
 
 
 CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
