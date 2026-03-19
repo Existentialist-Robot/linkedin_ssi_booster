@@ -228,7 +228,8 @@ class ContentCurator:
                 time.sleep(request_delay)
                 bsky_post = self.claude.summarise_for_curation(article["summary"], article["link"], ssi_component, "bluesky")
                 if bsky_post:
-                    bsky_budget = 300 - X_URL_CHARS  # 277 — cap text before URL is added
+                    url_overhead = (2 + len(article["link"])) if article.get("link") else 0
+                    bsky_budget = 300 - url_overhead
                     if len(bsky_post) > bsky_budget:
                         bsky_post = bsky_post[:bsky_budget].rsplit(" ", 1)[0]
                     if article["link"] and article["link"] not in bsky_post:
@@ -290,7 +291,8 @@ class ContentCurator:
                     if article["link"] and article["link"] not in post_text:
                         post_text = post_text.rstrip() + f"\n\n{article['link']}"
                 elif effective_channel == "bluesky":
-                    bsky_budget = 300 - X_URL_CHARS
+                    url_overhead = (2 + len(article["link"])) if article.get("link") else 0
+                    bsky_budget = 300 - url_overhead
                     if len(post_text) > bsky_budget:
                         post_text = post_text[:bsky_budget].rsplit(" ", 1)[0]
                     if article["link"] and article["link"] not in post_text:
