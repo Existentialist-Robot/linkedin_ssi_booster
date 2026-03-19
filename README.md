@@ -90,6 +90,10 @@ cp .env.example .env
 #   ANTHROPIC_API_KEY → https://console.anthropic.com          (for --generate default)
 #   GEMINI_API_KEY    → https://aistudio.google.com/apikey     (for --gemini, free tier available)
 #
+# Optional — Bluesky stats (--bsky-stats):
+#   BLUESKY_HANDLE       → your handle, e.g. samjd-zz.bsky.social
+#   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords
+#
 # Optional — only needed for --local mode:
 #   OLLAMA_BASE_URL   → default: http://localhost:11434
 #   OLLAMA_MODEL      → default: llama3.2
@@ -116,16 +120,16 @@ python main.py --curate --dry-run
 python main.py --curate
 
 # Curate and schedule DIRECTLY to next available queue slot
-# LinkedIn → clean post body (no hashtags) with source URL appended
+# LinkedIn → post body + source URL + hashtags appended programmatically
 python main.py --curate --type post --channel linkedin
 
-# X → 3-post thread: hook / insight / close
+# X → single punchy post (280-char limit, no hashtags)
 python main.py --curate --type post --channel x
 
-# Bluesky → 3-post thread: hook / insight / close
+# Bluesky → single post (300-char limit, no hashtags)
 python main.py --curate --type post --channel bluesky
 
-# All channels — LinkedIn post (URL appended), X thread, Bluesky thread
+# All channels — one post per channel scheduled independently
 python main.py --curate --type post --channel all
 
 # Curate ideas targeted at X audience (Ideas board)
@@ -133,21 +137,24 @@ python main.py --curate --channel x
 
 # Print weekly SSI action report
 python main.py --report
+
+# Fetch live Bluesky profile + engagement stats
+python main.py --bsky-stats
 ```
 
 ### `--generate` vs `--curate` vs `--dry-run`
 
-| Flag                 | Source                                                   | What it does                                                                                                                                                                                                         |
-| -------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                        |
-| `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                      |
-| `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                     |
-| `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing. LinkedIn: source URL and hashtags appended programmatically (body → URL → hashtags).                                       |
-| `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: source URL and hashtags appended programmatically after the post body. X and Bluesky: 3-post thread (hook / insight / close). |
-| `--channel linkedin` | Either                                                   | Target LinkedIn only (default)                                                                                                                                                                                       |
-| `--channel x`        | Either                                                   | Target X (Twitter) only — 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer                                                                                     |
-| `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                        |
-| `--channel all`      | Either                                                   | Target LinkedIn, X, and Bluesky — each post is scheduled/created independently per channel                                                                                                                           |
+| Flag                 | Source                                                   | What it does                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                                                |
+| `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                                              |
+| `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                                             |
+| `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing. LinkedIn: source URL and hashtags appended programmatically (body → URL → hashtags).                                                               |
+| `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: source URL and hashtags appended after the post body. X: single post, 280-char limit, no hashtags. Bluesky: single post, 300-char limit, no hashtags. |
+| `--channel linkedin` | Either                                                   | Target LinkedIn only (default)                                                                                                                                                                                                               |
+| `--channel x`        | Either                                                   | Target X (Twitter) only — 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer                                                                                                             |
+| `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                                                |
+| `--channel all`      | Either                                                   | Target LinkedIn, X, and Bluesky — each post is scheduled/created independently per channel                                                                                                                                                   |
 
 **Why curate goes to Ideas by default:** The AI summarises articles it found today and adds your commentary, but you should review that commentary before it goes live. Buffer Ideas sit in a drafts inbox so you can edit, approve, or discard each one. Use `--type post` to skip the review step and schedule directly.
 
@@ -268,9 +275,9 @@ OLLAMA_MODEL=mistral python main.py --generate --week 1 --local --dry-run
 | Component            | Current | Target | Strategy                              |
 | -------------------- | ------- | ------ | ------------------------------------- |
 | Establish brand      | 10.46   | 25     | 3x/week posting via Buffer            |
-| Find right people    | 9.47    | 20     | Connect with commenters, join groups  |
+| Find right people    | 9.39    | 20     | Connect with commenters, join groups  |
 | Engage with insights | 11.00   | 25     | Curated posts + daily commenting      |
-| Build relationships  | 11.85   | 25     | Reply to all comments, DM connections |
+| Build relationships  | 12.15   | 25     | Reply to all comments, DM connections |
 | **Total**            | **43**  | **95** |                                       |
 
 ### Controlling post-type focus
@@ -311,6 +318,7 @@ linkedin_ssi_booster/
 - **Anthropic API key**: https://console.anthropic.com → API Keys
 - **Gemini API key** (free): https://aistudio.google.com/apikey
 - **Ollama models**: https://ollama.com/library
+- **Bluesky app password**: bsky.app → Settings → App Passwords (no extra permissions needed)
 - **Track your SSI**: https://linkedin.com/sales/ssi
 
 ## License
