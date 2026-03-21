@@ -203,28 +203,31 @@ Do NOT include the article URL — it will be appended automatically."""
             _url_overhead = 2 + len(source_url)  # "\n\n" + URL
             _text_budget = 300 - _url_overhead
             format_instructions = f"""IMPORTANT — this post is for Bluesky, NOT LinkedIn:
-- Write 2-3 punchy sentences (aim for roughly 200-250 characters of text)
+- Hard character limit: {_text_budget} characters for your text ({_url_overhead} chars reserved for the URL, total max = 300)
+- Write 1-2 short complete sentences. Target under {_text_budget - 40} characters — leave margin so nothing gets cut.
+- ONE RULE ABOVE ALL: every sentence MUST end with a period, exclamation mark, or question mark. Never end mid-thought.
 - No hashtags, no bullet points
-- Lead with your single sharpest take; skip throat-clearing entirely
-- Every sentence must be complete — never trail off mid-thought
+- Lead with your sharpest take on the article
 Do NOT include the article URL — it will be appended automatically."""
         elif post_mode:
             # LinkedIn direct-post: hashtags on last line so code can strip and re-append after the URL
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
-1-2 sentence hook
-2-3 sentences summarising the key insight (in your own words, don't quote)
-1-2 sentences of YOUR opinion — tie it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background). Only mention RAG if the article is actually about RAG.
+1-2 sentence hook — must reflect what the article is ACTUALLY about
+2-3 sentences summarising the key insight from the article (in your own words, don't quote)
+1-2 sentences of YOUR opinion — connect it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background) ONLY if there is a genuine connection. If there is no honest connection to a specific project, give your opinion as an engineer who has shipped production systems in this space.
+CRITICAL: Your post body must be about what this article covers. Do NOT pivot to a different topic. Do NOT write about RAG if the article is not about RAG. Do NOT write about search if the article is not about search.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL — it will be appended automatically."""
         else:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
-1-2 sentence hook
-2-3 sentences summarising the key insight (in your own words, don't quote)
-1-2 sentences of YOUR opinion — tie it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background). Only mention RAG if the article is actually about RAG.
+1-2 sentence hook — must reflect what the article is ACTUALLY about
+2-3 sentences summarising the key insight from the article (in your own words, don't quote)
+1-2 sentences of YOUR opinion — connect it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background) ONLY if there is a genuine connection. If there is no honest connection to a specific project, give your opinion as an engineer who has shipped production systems in this space.
+CRITICAL: Your post body must be about what this article covers. Do NOT pivot to a different topic. Do NOT write about RAG if the article is not about RAG. Do NOT write about search if the article is not about search.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL in your output — it will be appended automatically."""
 

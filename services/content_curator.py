@@ -27,10 +27,14 @@ logger = logging.getLogger(__name__)
 def _truncate_at_sentence(text: str, budget: int) -> str:
     """Ensure *text* fits within *budget* chars AND ends on a complete sentence.
 
-    Applied even when text is within budget — catches LLM responses that trail
-    off mid-sentence without exceeding the character limit.
+    If the text is already within budget, only cuts at a sentence boundary if
+    one exists — never removes words from within-budget text (that would make
+    a trailing incomplete sentence worse, not better).
+    If the text was over budget and had to be hard-cut, finds the last sentence
+    boundary; if none, removes the partial word at the cut point.
     """
-    if len(text) > budget:
+    was_over_budget = len(text) > budget
+    if was_over_budget:
         text = text[:budget]
     stripped = text.rstrip()
     # Already ends cleanly
@@ -43,8 +47,12 @@ def _truncate_at_sentence(text: str, budget: int) -> str:
         last_match = m
     if last_match and last_match.end() > len(stripped) // 4:
         return stripped[:last_match.end()]
-    # Fallback: word boundary
-    return stripped.rsplit(" ", 1)[0]
+    if was_over_budget:
+        # Remove partial word at the hard-cut point — at least end on a word boundary
+        return stripped.rsplit(" ", 1)[0]
+    # Text was within budget but AI didn't end cleanly — return as-is.
+    # The prompt is responsible for producing complete sentences.
+    return stripped
 
 
 CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
@@ -123,23 +131,31 @@ RSS_FEEDS: list = json.loads(_rss_env) if _rss_env.strip() else _DEFAULT_RSS_FEE
 
 # Keywords — override via CURATOR_KEYWORDS in .env as a comma-separated list
 _DEFAULT_KEYWORDS = [
-    "RAG", "retrieval augmented", "LLM", "language model",
-    "neo4j", "graph", "elasticsearch", "vector search",
-    "agent", "multi-agent", "MCP", "model context protocol",
-    "government AI", "GovTech", "regulatory", "compliance AI",
-    "Java AI", "Spring AI", "FastAPI",
-    "Spring Boot", "Spring Batch", "Java 21", "virtual thread",
-    "reinforcement learning", "scikit-learn", "embeddings", "BM25",
-    "Gymnasium", "Stable-Baselines", "reward function", "policy",
-    "Solr", "Lucene", "NLP", "sentence transformer", "context engineering",
-    "event-driven", "event broker", "Solace", "PubSub", "streaming",
-    "microservices", "Docker", "Groq", "OpenRouter", "Perplexity AI",
-    "Ollama", "Vaadin", "FastMCP", "kNN", "feature engineering",
-    "neural network", "agentic", "agentic AI", "Supabase",
-    "vector database", "knowledge graph",
+    # LLM / RAG / search — core domain
+    "RAG", "retrieval augmented", "LLM", "large language model", "language model",
+    "vector search", "hybrid search", "semantic search", "information retrieval",
+    "embeddings", "BM25", "kNN", "sentence transformer", "context engineering",
+    "elasticsearch", "Solr", "Lucene",
+    # Graph / knowledge
+    "neo4j", "knowledge graph", "graph database", "graph traversal",
+    "vector database",
+    # Agents / MCP / orchestration
+    "agent", "multi-agent", "MCP", "model context protocol", "FastMCP",
+    "agentic", "agentic AI", "tool calling", "function calling",
+    # GovTech / regulated AI
+    "government AI", "GovTech", "regulatory AI", "compliance AI", "public sector AI",
+    # Java / Spring ecosystem — specific, not generic
+    "Spring AI", "Spring Boot", "Spring Batch", "Java 21", "virtual thread",
+    "Java AI", "JMS", "message queue",
+    # Event-driven / messaging — Shawn's specific stack only
+    "Solace", "PubSub+", "event broker", "FastMCP",
+    # RL / ML engineering
+    "reinforcement learning", "Gymnasium", "Stable-Baselines", "reward function",
+    "scikit-learn", "feature engineering", "NLP", "neural network",
+    # Specific tools from Shawn's projects
+    "Ollama", "Groq", "OpenRouter", "Perplexity AI", "Vaadin", "Supabase",
     "ElevenLabs", "text to speech", "generative media",
-    "enterprise Java", "J2EE", "message queue", "JMS",
-    "hybrid search", "semantic search", "information retrieval",
+    "FastAPI",
 ]
 _kw_env = os.getenv("CURATOR_KEYWORDS", "")
 KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env.strip() else _DEFAULT_KEYWORDS
