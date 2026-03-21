@@ -239,7 +239,7 @@ Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn doe
 Format (plain paragraphs, no dashes or bullets):
 1-2 sentence hook
 2-3 sentences summarising the key insight (in your own words, don't quote)
-1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
+1-2 sentences of YOUR opinion — tie it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background). Only mention RAG if the article is actually about RAG.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL — it will be appended automatically."""
         else:
@@ -248,7 +248,7 @@ Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn doe
 Format (plain paragraphs, no dashes or bullets):
 1-2 sentence hook
 2-3 sentences summarising the key insight (in your own words, don't quote)
-1-2 sentences of YOUR opinion or how it relates to your work in RAG/AI
+1-2 sentences of YOUR opinion — tie it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background). Only mention RAG if the article is actually about RAG.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL in your output — it will be appended automatically."""
 

@@ -96,17 +96,26 @@ def _append_url_and_hashtags(text: str, url: str) -> str:
 # RSS feeds — override via CURATOR_RSS_FEEDS in .env as a JSON array:
 # [{"name": "My Blog", "url": "https://example.com/feed.xml"}, ...]
 _DEFAULT_RSS_FEEDS = [
+    # LLM / AI research — broad AI landscape
     {"name": "Anthropic Blog",              "url": "https://www.anthropic.com/rss.xml"},
     {"name": "Hugging Face Blog",           "url": "https://huggingface.co/blog/feed.xml"},
-    {"name": "Towards Data Science",        "url": "https://towardsdatascience.com/feed"},
     {"name": "The Batch (DeepLearning.AI)", "url": "https://www.deeplearning.ai/the-batch/feed/"},
-    {"name": "AWS Machine Learning",        "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
     {"name": "Google AI Blog",              "url": "https://blog.research.google/atom.xml"},
-    {"name": "Spring Blog",                 "url": "https://spring.io/blog.atom"},
+    {"name": "AWS Machine Learning",        "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
+    {"name": "LangChain Blog",              "url": "https://blog.langchain.dev/rss/"},
+    # Search / graph / data engineering — G7 GovAI, Elasticsearch, Neo4j work
     {"name": "Elastic Blog",                "url": "https://www.elastic.co/blog/feed"},
     {"name": "Neo4j Blog",                  "url": "https://neo4j.com/blog/feed/"},
+    # Java / Spring ecosystem — Answer42, Spring Batch, Java 21
+    {"name": "Spring Blog",                 "url": "https://spring.io/blog.atom"},
     {"name": "Inside Java",                 "url": "https://inside.java/feed.xml"},
-    {"name": "LangChain Blog",              "url": "https://blog.langchain.dev/rss/"},
+    {"name": "InfoQ",                       "url": "https://feed.infoq.com/"},
+    # Event-driven / messaging / multi-agent — S1gnal.Zero, Solace, FastMCP
+    {"name": "Solace Blog",                 "url": "https://solace.com/blog/feed/"},
+    # ML engineering & RL — RL Environments, scikit-learn, agent architectures
+    {"name": "Towards Data Science",        "url": "https://towardsdatascience.com/feed"},
+    {"name": "PyTorch Blog",                "url": "https://pytorch.org/blog/feed.xml"},
+    # GovTech / broader tech
     {"name": "The New Stack",               "url": "https://thenewstack.io/feed/"},
 ]
 _rss_env = os.getenv("CURATOR_RSS_FEEDS", "")
@@ -121,12 +130,16 @@ _DEFAULT_KEYWORDS = [
     "Java AI", "Spring AI", "FastAPI",
     "Spring Boot", "Spring Batch", "Java 21", "virtual thread",
     "reinforcement learning", "scikit-learn", "embeddings", "BM25",
+    "Gymnasium", "Stable-Baselines", "reward function", "policy",
     "Solr", "Lucene", "NLP", "sentence transformer", "context engineering",
     "event-driven", "event broker", "Solace", "PubSub", "streaming",
     "microservices", "Docker", "Groq", "OpenRouter", "Perplexity AI",
     "Ollama", "Vaadin", "FastMCP", "kNN", "feature engineering",
     "neural network", "agentic", "agentic AI", "Supabase",
     "vector database", "knowledge graph",
+    "ElevenLabs", "text to speech", "generative media",
+    "enterprise Java", "J2EE", "message queue", "JMS",
+    "hybrid search", "semantic search", "information retrieval",
 ]
 _kw_env = os.getenv("CURATOR_KEYWORDS", "")
 KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env.strip() else _DEFAULT_KEYWORDS
