@@ -106,10 +106,10 @@ def fetch_bluesky_stats(handle: str | None = None, password: str | None = None, 
         return None
 
 SSI_TARGETS = {
-    "establish_brand":    {"current": 10.49, "target": 25.0, "max": 25.0},
-    "find_right_people":  {"current": 9.69, "target": 20.0, "max": 25.0},
-    "engage_with_insights": {"current": 11.0, "target": 25.0, "max": 25.0},
-    "build_relationships":  {"current": 12.15, "target": 25.0, "max": 25.0},
+    "establish_brand":      {"target": 25.0, "max": 25.0},
+    "find_right_people":    {"target": 20.0, "max": 25.0},
+    "engage_with_insights": {"target": 25.0, "max": 25.0},
+    "build_relationships":  {"target": 25.0, "max": 25.0},
 }
 
 SSI_ACTIONS = {
@@ -174,8 +174,35 @@ class SSITracker:
         print(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print("="*60)
 
-        total_current = sum(v["current"] for v in SSI_TARGETS.values())
-        total_target  = sum(v["target"]  for v in SSI_TARGETS.values())
+        # Current values always come from the most recent history entry
+        latest: dict[str, float] = {}
+        if self.history:
+            last = self.history[-1]
+            latest = {
+                "establish_brand":      last.get("establish_brand", 0.0),
+                "find_right_people":    last.get("find_right_people", 0.0),
+                "engage_with_insights": last.get("engage_with_insights", 0.0),
+                "build_relationships":  last.get("build_relationships", 0.0),
+            }
+
+        if not latest:
+            print("\n  No SSI data saved yet. Run: python main.py --save-ssi <brand> <find> <engage> <build>\n")
+            print("=" * 60 + "\n")
+            return
+
+        # Previous entry for trend comparison
+        prev: dict[str, float] = {}
+        if len(self.history) >= 2:
+            p = self.history[-2]
+            prev = {
+                "establish_brand":      p.get("establish_brand", 0.0),
+                "find_right_people":    p.get("find_right_people", 0.0),
+                "engage_with_insights": p.get("engage_with_insights", 0.0),
+                "build_relationships":  p.get("build_relationships", 0.0),
+            }
+
+        total_current = sum(latest.values())
+        total_target  = sum(v["target"] for v in SSI_TARGETS.values())
 
         print(f"\n  OVERALL: {total_current:.2f} / 100  →  TARGET: {total_target:.0f} / 100")
         print(f"  Gap to close: {total_target - total_current:.2f} points\n")
@@ -187,20 +214,9 @@ class SSITracker:
             "build_relationships":  "Build relationships",
         }
 
-        # Build prev-week lookup from history (last saved entry)
-        prev: dict[str, float] = {}
-        if len(self.history) >= 1:
-            last = self.history[-1]
-            prev = {
-                "establish_brand":      last.get("establish_brand", 0),
-                "find_right_people":    last.get("find_right_people", 0),
-                "engage_with_insights": last.get("engage_with_insights", 0),
-                "build_relationships":  last.get("build_relationships", 0),
-            }
-
         for key, vals in SSI_TARGETS.items():
             label   = component_labels[key]
-            current = vals["current"]
+            current = latest[key]
             target  = vals["target"]
             gap     = target - current
             bar_filled = int((current / vals["max"]) * 20)
