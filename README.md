@@ -275,13 +275,31 @@ OLLAMA_MODEL=mistral python main.py --generate --week 1 --local --dry-run
 
 ## SSI Component Mapping
 
-| Component            | Current | Target | Strategy                              |
-| -------------------- | ------- | ------ | ------------------------------------- |
-| Establish brand      | 10.46   | 25     | 3x/week posting via Buffer            |
-| Find right people    | 9.39    | 20     | Connect with commenters, join groups  |
-| Engage with insights | 11.00   | 25     | Curated posts + daily commenting      |
-| Build relationships  | 12.15   | 25     | Reply to all comments, DM connections |
-| **Total**            | **43**  | **95** |                                       |
+Current scores are tracked in `ssi_history.json` (runtime file, gitignored). The table below shows targets only — run `--report` to see live scores with trend arrows.
+
+| Component            | Target | Strategy                              |
+| -------------------- | ------ | ------------------------------------- |
+| Establish brand      | 25     | 3x/week posting via Buffer            |
+| Find right people    | 20     | Connect with commenters, join groups  |
+| Engage with insights | 25     | Curated posts + daily commenting      |
+| Build relationships  | 25     | Reply to all comments, DM connections |
+| **Total**            | **95** |                                       |
+
+### Weekly SSI update workflow
+
+1. Check [linkedin.com/sales/ssi](https://www.linkedin.com/sales/ssi) for your latest four component scores
+2. Record them to history (this drives the report and trend arrows):
+   ```bash
+   python main.py --save-ssi <brand> <find> <engage> <build>
+   # Example:
+   python main.py --save-ssi 10.49 9.69 11.0 12.15
+   ```
+3. View your progress report:
+   ```bash
+   python main.py --report
+   ```
+
+The report shows progress bars toward each target, ↑/↓/↔ trend arrows vs the previous entry, and a history table of the last 5 weekly snapshots. No code edits needed — just `--save-ssi` + `--report`.
 
 ### Controlling post-type focus
 
