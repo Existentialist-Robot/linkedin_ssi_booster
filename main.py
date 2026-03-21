@@ -44,6 +44,8 @@ def main():
     parser.add_argument("--schedule",  action="store_true", help="Push scheduled posts to Buffer")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
     parser.add_argument("--report",    action="store_true", help="Print SSI component report")
+    parser.add_argument("--save-ssi",  nargs=4, metavar=("BRAND", "FIND", "ENGAGE", "BUILD"),
+                        type=float, help="Record today's SSI scores: --save-ssi 10.49 9.69 11.0 12.15")
     parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
@@ -95,6 +97,13 @@ def main():
 
     if args.report:
         tracker.print_report()
+        return
+
+    if args.save_ssi:
+        brand, find, engage, build = args.save_ssi
+        tracker.save_scores(establish=brand, find=find, engage=engage, build=build)
+        total = brand + find + engage + build
+        print(f"Saved SSI scores: brand={brand} find={find} engage={engage} build={build} total={total:.2f}")
         return
 
     if args.bsky_stats:
