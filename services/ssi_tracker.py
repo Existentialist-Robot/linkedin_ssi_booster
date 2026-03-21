@@ -177,8 +177,8 @@ class SSITracker:
         total_current = sum(v["current"] for v in SSI_TARGETS.values())
         total_target  = sum(v["target"]  for v in SSI_TARGETS.values())
 
-        print(f"\n  OVERALL: {total_current:.1f} / 100  →  TARGET: {total_target:.0f} / 100")
-        print(f"  Gap to close: {total_target - total_current:.1f} points\n")
+        print(f"\n  OVERALL: {total_current:.2f} / 100  →  TARGET: {total_target:.0f} / 100")
+        print(f"  Gap to close: {total_target - total_current:.2f} points\n")
 
         component_labels = {
             "establish_brand":      "Establish professional brand",
@@ -219,7 +219,7 @@ class SSITracker:
                 trend = ""
 
             print(f"  {label}{trend}")
-            print(f"  [{bar}] {current:.1f} → {target:.0f}  (gap: +{gap:.1f})")
+            print(f"  [{bar}] {current:.2f} → {target:.0f}  (gap: +{gap:.2f})")
             print(f"  Actions this week:")
             for action in SSI_ACTIONS[key]:
                 print(f"    • {action}")
