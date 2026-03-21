@@ -187,6 +187,17 @@ class SSITracker:
             "build_relationships":  "Build relationships",
         }
 
+        # Build prev-week lookup from history (last saved entry)
+        prev: dict[str, float] = {}
+        if len(self.history) >= 1:
+            last = self.history[-1]
+            prev = {
+                "establish_brand":      last.get("establish_brand", 0),
+                "find_right_people":    last.get("find_right_people", 0),
+                "engage_with_insights": last.get("engage_with_insights", 0),
+                "build_relationships":  last.get("build_relationships", 0),
+            }
+
         for key, vals in SSI_TARGETS.items():
             label   = component_labels[key]
             current = vals["current"]
@@ -195,11 +206,39 @@ class SSITracker:
             bar_filled = int((current / vals["max"]) * 20)
             bar = "█" * bar_filled + "░" * (20 - bar_filled)
 
-            print(f"  {label}")
+            # Week-over-week delta
+            if key in prev:
+                delta = current - prev[key]
+                if delta > 0:
+                    trend = f"  ↑ +{delta:.2f} since last entry"
+                elif delta < 0:
+                    trend = f"  ↓ {delta:.2f} since last entry"
+                else:
+                    trend = "  ↔ no change since last entry"
+            else:
+                trend = ""
+
+            print(f"  {label}{trend}")
             print(f"  [{bar}] {current:.1f} → {target:.0f}  (gap: +{gap:.1f})")
             print(f"  Actions this week:")
             for action in SSI_ACTIONS[key]:
                 print(f"    • {action}")
+            print()
+
+        # History summary table
+        if len(self.history) >= 2:
+            print("  SCORE HISTORY (last 5 entries)")
+            print(f"  {'Date':<12} {'Brand':>6} {'Find':>6} {'Engage':>7} {'Build':>6} {'Total':>7}")
+            print("  " + "-"*48)
+            for entry in self.history[-5:]:
+                print(
+                    f"  {entry['date']:<12}"
+                    f" {entry.get('establish_brand', 0):>6.2f}"
+                    f" {entry.get('find_right_people', 0):>6.2f}"
+                    f" {entry.get('engage_with_insights', 0):>7.2f}"
+                    f" {entry.get('build_relationships', 0):>6.2f}"
+                    f" {entry.get('total', 0):>7.2f}"
+                )
             print()
 
         print("  QUICK WINS (do these daily, 15 mins):")
@@ -207,4 +246,5 @@ class SSITracker:
         print("    2. Leave 3 meaningful comments on AI/GovTech posts")
         print("    3. Accept + message 2 new connection requests")
         print("    4. Check linkedin.com/sales/ssi — track your score")
+        print("    5. Run: python main.py --save-ssi <brand> <find> <engage> <build>")
         print("\n" + "="*60 + "\n")
