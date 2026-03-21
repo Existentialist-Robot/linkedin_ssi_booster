@@ -35,9 +35,11 @@ class GeminiService:
 
     # Retry delays longer than this indicate a quota exhaustion (daily/hourly limit),
     # not a per-minute rate limit. Fail fast rather than sleeping for hours.
-    _MAX_RETRY_SLEEP = 120
+    _MAX_RETRY_SLEEP = 300
+    # Minimum wait on any 429 — ensures the full 60s RPM/TPM window resets.
+    _MIN_RETRY_SLEEP = 65.0
 
-    def _generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024, _retries: int = 3) -> str:
+    def _generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024, _retries: int = 5) -> str:
         """Send a request to Gemini and return the response text.
         Automatically retries on 429 rate-limit errors with the suggested delay.
         Raises immediately with a clear message if a daily/hourly quota is exhausted.
@@ -54,34 +56,53 @@ class GeminiService:
             )
             return (response.text or "").strip()
         except ClientError as e:
-            if e.code == 429 and _retries > 0:
-                # Parse retry delay from the API response, fallback to 15s
-                retry_delay = 15.0
+            if e.code == 429:
+                # Check for daily quota exhaustion first — no amount of waiting fixes this.
                 try:
                     raw: dict = e.details  # type: ignore[assignment]
                     details = raw.get("error", {}).get("details", [])
                     for detail in details:
-                        if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
-                            delay_str = detail.get("retryDelay", "15s").rstrip("s")
-                            retry_delay = float(delay_str) + 2  # small buffer
-                            break
+                        if detail.get("@type") == "type.googleapis.com/google.rpc.QuotaFailure":
+                            for violation in detail.get("violations", []):
+                                if "PerDay" in violation.get("quotaId", ""):
+                                    quota_msg = getattr(e, "message", None) or str(e)
+                                    raise RuntimeError(
+                                        f"Gemini free-tier DAILY quota exhausted — retrying won't help.\n"
+                                        f"Quota resets at midnight Pacific time. Use --claude or --local until then.\n"
+                                        f"API message: {quota_msg}"
+                                    ) from e
+                except RuntimeError:
+                    raise
                 except Exception:
                     pass
-                if retry_delay > self._MAX_RETRY_SLEEP:
-                    # A long retry delay means a daily or hourly quota is exhausted —
-                    # sleeping for hours would just hang the process. Fail fast instead.
-                    quota_msg = getattr(e, "message", None) or str(e)
-                    raise RuntimeError(
-                        f"Gemini quota exhausted (retry suggested in {retry_delay:.0f}s). "
-                        f"You have likely hit the free-tier daily request or token limit. "
-                        f"Wait until the quota resets (usually midnight Pacific time) or "
-                        f"check https://aistudio.google.com/ for your usage. "
-                        f"API message: {quota_msg}"
-                    ) from e
-                logger.warning(f"Gemini rate limit hit — waiting {retry_delay:.0f}s then retrying ({_retries} left)")
-                time.sleep(retry_delay)
-                return self._generate(system_prompt, user_prompt, max_tokens, _retries - 1)
-            # For non-429 errors, include the API message for easier diagnosis
+
+                if _retries > 0:
+                    # Per-minute rate limit — parse suggested delay and wait for window to reset.
+                    retry_delay = self._MIN_RETRY_SLEEP
+                    try:
+                        raw: dict = e.details  # type: ignore[assignment]
+                        details = raw.get("error", {}).get("details", [])
+                        for detail in details:
+                            if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
+                                delay_str = detail.get("retryDelay", "65s").rstrip("s")
+                                retry_delay = float(delay_str) + 5  # buffer
+                                break
+                    except Exception:
+                        pass
+                    # Always wait at least _MIN_RETRY_SLEEP so the full RPM/TPM window resets
+                    retry_delay = max(retry_delay, self._MIN_RETRY_SLEEP)
+                    if retry_delay > self._MAX_RETRY_SLEEP:
+                        quota_msg = getattr(e, "message", None) or str(e)
+                        raise RuntimeError(
+                            f"Gemini quota exhausted (retry suggested in {retry_delay:.0f}s — too long to wait). "
+                            f"Check https://aistudio.google.com/ for your usage.\n"
+                            f"API message: {quota_msg}"
+                        ) from e
+                    logger.warning(f"Gemini rate limit hit — waiting {retry_delay:.0f}s then retrying ({_retries} left)")
+                    time.sleep(retry_delay)
+                    return self._generate(system_prompt, user_prompt, max_tokens, _retries - 1)
+
+            # For non-429 errors (or 429 with no retries left), include the API message
             api_msg = getattr(e, "message", None) or str(e)
             raise RuntimeError(f"Gemini API error {e.code} (model={self.model}): {api_msg}") from e
         except Exception as e:
