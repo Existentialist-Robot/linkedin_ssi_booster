@@ -35,7 +35,7 @@ class GeminiService:
 
     # Retry delays longer than this indicate a quota exhaustion (daily/hourly limit),
     # not a per-minute rate limit. Fail fast rather than sleeping for hours.
-    _MAX_RETRY_SLEEP = 90
+    _MAX_RETRY_SLEEP = 120
 
     def _generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024, _retries: int = 3) -> str:
         """Send a request to Gemini and return the response text.

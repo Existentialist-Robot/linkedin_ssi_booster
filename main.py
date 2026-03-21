@@ -130,7 +130,16 @@ def main():
 
     if args.curate:
         logger.info(f"Curating AI news sources (channel: {args.channel}, type: {args.type})...")
-        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type)
+        # Gemini free tier = 15 RPM. Use a longer inter-call delay to avoid 429s.
+        # 'all' channel makes 3 calls per article, so needs even more breathing room.
+        if args.gemini:
+            if args.channel == "all":
+                _request_delay = 20.0
+            else:
+                _request_delay = 8.0
+        else:
+            _request_delay = 5.0
+        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=_request_delay)
         logger.info(f"Created {len(ideas)} {'posts' if args.type == 'post' else 'ideas'} in Buffer")
         return
 
