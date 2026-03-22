@@ -7,3 +7,8 @@ feedparser>=6.0.10
 pytz>=2024.1
 APScheduler>=3.10.4
 atproto>=0.0.55
+
+# LinkedIn post analytics (--analyze flag) — grey area ToS, personal use only
+# Also requires: selenium chromedriver-autoinstaller
+# Install all three: pip install linkedin-scraper selenium chromedriver-autoinstaller
+linkedin-scraper>=2.11.4
