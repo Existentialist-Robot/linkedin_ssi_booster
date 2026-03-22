@@ -1,30 +1,31 @@
 """
 LinkedIn Analytics Service
-===========================
-Scrapes your own LinkedIn post engagement (reactions, comments) using
-the joeyism/linkedin_scraper library and your li_at session cookie.
+==========================
+Scrapes your own LinkedIn post engagement using joeyism/linkedin_scraper.
+
+This uses the current v3 Playwright-based API from the library:
+  - BrowserManager
+  - login_with_cookie
 
 Usage:
     python main.py --analyze
 
 Requirements:
-    pip install linkedin-scraper selenium chromedriver-autoinstaller
+    pip install -r requirements.txt
+    playwright install chromium
 
 Requires in .env:
     LINKEDIN_LI_AT=<your li_at cookie value>
-
-How to get your li_at cookie:
-  1. Log in to linkedin.com in Chrome
-  2. Open DevTools → Application → Cookies → https://www.linkedin.com
-  3. Copy the value of the 'li_at' cookie
-  4. Add it to .env as LINKEDIN_LI_AT=<value>
+    LINKEDIN_PROFILE_URL=https://www.linkedin.com/in/your-profile-slug
 
 ToS note: Scraping LinkedIn is against their Terms of Service.
-Use this for personal insight only — not commercial data collection.
+Use this for personal insight only.
 """
 
+import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -44,15 +45,105 @@ class PostAnalytics:
         return self.reactions + self.comments
 
 
+def _parse_count(value: object) -> int:
+    text = str(value or "").strip().replace(",", "")
+    if not text:
+        return 0
+
+    match = re.search(r"(\d+(?:\.\d+)?)([KkMm]?)", text)
+    if not match:
+        return 0
+
+    number = float(match.group(1))
+    suffix = match.group(2).lower()
+    if suffix == "k":
+        number *= 1000
+    elif suffix == "m":
+        number *= 1_000_000
+    return int(number)
+
+
+async def _fetch_post_analytics_async(li_at: str, linkedin_url: str, max_posts: int) -> list[PostAnalytics]:
+    try:
+        from linkedin_scraper import BrowserManager, login_with_cookie  # type: ignore[import]
+    except ImportError as exc:
+        raise RuntimeError(
+            "linkedin-scraper is not installed. Run `pip install -r requirements.txt`."
+        ) from exc
+
+    activity_url = linkedin_url.rstrip("/") + "/recent-activity/all/"
+    results: list[PostAnalytics] = []
+
+    # The upstream project recommends non-headless mode for LinkedIn compatibility.
+    async with BrowserManager(headless=False) as browser:
+        await login_with_cookie(browser.page, li_at)
+        await browser.page.goto(activity_url, wait_until="domcontentloaded")
+        await browser.page.wait_for_timeout(3000)
+
+        for _ in range(4):
+            await browser.page.mouse.wheel(0, 2500)
+            await browser.page.wait_for_timeout(1200)
+
+        posts_data = await browser.page.evaluate(
+            """(limit) => {
+                const nodes = Array.from(document.querySelectorAll('[data-urn^="urn:li:activity:"]'));
+                const seen = new Set();
+                const posts = [];
+
+                for (const el of nodes) {
+                    const urn = el.getAttribute('data-urn');
+                    if (!urn || seen.has(urn)) continue;
+                    seen.add(urn);
+
+                    const textEl = el.querySelector(
+                        '.feed-shared-update-v2__description, .update-components-text, .feed-shared-text, [data-test-id="main-feed-activity-card__commentary"]'
+                    );
+                    const text = (textEl?.innerText || '').trim();
+                    if (!text) continue;
+
+                    const reactionsEl = el.querySelector(
+                        'button[aria-label*="reaction"], [class*="social-details-social-counts__reactions"]'
+                    );
+                    const commentsEl = el.querySelector('button[aria-label*="comment"]');
+
+                    posts.push({
+                        urn,
+                        text,
+                        reactions: reactionsEl?.innerText || '',
+                        comments: commentsEl?.innerText || '',
+                    });
+
+                    if (posts.length >= limit) break;
+                }
+
+                return posts;
+            }""",
+            max_posts,
+        )
+
+        for post in posts_data:
+            urn = str(post.get("urn") or "")
+            activity_id = urn.replace("urn:li:activity:", "")
+            results.append(
+                PostAnalytics(
+                    title=str(post.get("text") or "")[:120],
+                    url=(
+                        f"https://www.linkedin.com/feed/update/urn:li:activity:{activity_id}/"
+                        if activity_id
+                        else ""
+                    ),
+                    reactions=_parse_count(post.get("reactions")),
+                    comments=_parse_count(post.get("comments")),
+                )
+            )
+
+    results.sort(key=lambda item: item.engagement, reverse=True)
+    logger.info("Scraped %s LinkedIn posts", len(results))
+    return results
+
+
 def fetch_post_analytics(li_at: str | None = None, max_posts: int = 20) -> list[PostAnalytics]:
-    """Scrape engagement data from your own LinkedIn posts.
-
-    li_at     — li_at session cookie. Falls back to LINKEDIN_LI_AT env var.
-    max_posts — How many recent posts to analyse (default: 20).
-
-    Returns a list of PostAnalytics sorted by engagement desc.
-    Raises RuntimeError if the scraper or headless Chrome cannot be loaded.
-    """
+    """Scrape engagement data from your own LinkedIn posts."""
     li_at = li_at or os.getenv("LINKEDIN_LI_AT")
     if not li_at:
         raise ValueError(
@@ -60,104 +151,22 @@ def fetch_post_analytics(li_at: str | None = None, max_posts: int = 20) -> list[
             "See services/linkedin_analytics.py for instructions."
         )
 
-    try:
-        from linkedin_scraper import Person  # type: ignore[import]
-    except ImportError:
-        raise RuntimeError(
-            "linkedin-scraper is not installed. Run:\n"
-            "  pip install linkedin-scraper selenium chromedriver-autoinstaller"
+    linkedin_url = os.getenv("LINKEDIN_PROFILE_URL", "").strip()
+    if not linkedin_url:
+        raise ValueError(
+            "LINKEDIN_PROFILE_URL is not set in .env.\n"
+            "Set it to your public LinkedIn profile URL, e.g.:\n"
+            "  LINKEDIN_PROFILE_URL=https://www.linkedin.com/in/shawn-jackson-dyck-52aa74358"
         )
 
     try:
-        import chromedriver_autoinstaller  # type: ignore[import]
-        chromedriver_autoinstaller.install()
-    except ImportError:
-        logger.debug("chromedriver-autoinstaller not found — assuming chromedriver is on PATH")
-
-    try:
-        from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-    except ImportError:
-        raise RuntimeError(
-            "selenium is not installed. Run:\n"
-            "  pip install selenium"
-        )
-
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-
-    driver = webdriver.Chrome(options=options)
-    try:
-        # Inject the li_at cookie so linkedin_scraper uses our session
-        driver.get("https://www.linkedin.com")
-        driver.add_cookie({"name": "li_at", "value": li_at, "domain": ".linkedin.com"})
-        driver.refresh()
-
-        linkedin_url = os.getenv("LINKEDIN_PROFILE_URL", "").strip()
-        if not linkedin_url:
-            raise ValueError(
-                "LINKEDIN_PROFILE_URL is not set in .env.\n"
-                "Set it to your public LinkedIn profile URL, e.g.:\n"
-                "  LINKEDIN_PROFILE_URL=https://www.linkedin.com/in/shawn-jackson-dyck-52aa74358"
-            )
-
-        logger.info(f"Scraping LinkedIn profile: {linkedin_url}")
-        person = Person(linkedin_url, driver=driver, scrape=True, close_on_complete=False)
-
-        results: list[PostAnalytics] = []
-
-        # The library exposes posts via person.posts or person.publications.
-        # Field names vary by library version — fall back gracefully.
-        raw_posts = getattr(person, "posts", None) or getattr(person, "activities", None) or []
-
-        if not raw_posts:
-            logger.warning(
-                "No posts returned by linkedin_scraper — the page structure may have changed "
-                "or your li_at cookie may be expired."
-            )
-            return results
-
-        for post in raw_posts[:max_posts]:
-            # Attribute names differ across joeyism/linkedin_scraper versions
-            title = (
-                getattr(post, "title", None)
-                or getattr(post, "text", None)
-                or getattr(post, "description", None)
-                or ""
-            )
-            url = (
-                getattr(post, "url", None)
-                or getattr(post, "link", None)
-                or ""
-            )
-            reactions = int(
-                getattr(post, "reactions_count", None)
-                or getattr(post, "likes", None)
-                or getattr(post, "num_reactions", None)
-                or 0
-            )
-            comments = int(
-                getattr(post, "comments_count", None)
-                or getattr(post, "num_comments", None)
-                or 0
-            )
-            results.append(PostAnalytics(
-                title=str(title)[:120],
-                url=str(url),
-                reactions=reactions,
-                comments=comments,
-            ))
-
-        results.sort(key=lambda p: p.engagement, reverse=True)
-        logger.info(f"Scraped {len(results)} posts from LinkedIn")
-        return results
-
-    finally:
-        driver.quit()
+        return asyncio.run(_fetch_post_analytics_async(li_at, linkedin_url, max_posts))
+    except RuntimeError as exc:
+        if "asyncio.run() cannot be called" in str(exc):
+            raise RuntimeError(
+                "LinkedIn analytics must be run from the CLI, not from an active event loop."
+            ) from exc
+        raise
 
 
 def print_analytics_report(posts: list[PostAnalytics], top_n: int = 10) -> None:
@@ -188,7 +197,7 @@ def print_analytics_report(posts: list[PostAnalytics], top_n: int = 10) -> None:
     print("  " + "-" * 56)
 
     for post in posts[:top_n]:
-        snippet = post.title[:50] + ("…" if len(post.title) > 50 else "")
+        snippet = post.title[:50] + ("..." if len(post.title) > 50 else "")
         print(f"  {post.reactions:>9}  {post.comments:>8}  {post.engagement:>6}  {snippet}")
         if post.url:
             print(f"  {' ':>9}  {' ':>8}  {' ':>6}  {post.url}")
@@ -199,8 +208,8 @@ def print_analytics_report(posts: list[PostAnalytics], top_n: int = 10) -> None:
     high   = [p for p in posts if p.engagement >= 10]
     medium = [p for p in posts if 3 <= p.engagement < 10]
     low    = [p for p in posts if p.engagement < 3]
-    print(f"  DISTRIBUTION  High(≥10): {len(high)}  Med(3-9): {len(medium)}  Low(<3): {len(low)}")
+    print(f"  DISTRIBUTION  High(>=10): {len(high)}  Med(3-9): {len(medium)}  Low(<3): {len(low)}")
     print()
-    print("  TIP: Posts with high engagement — reuse the format, topic, or opener style.")
-    print("  TIP: Low-engagement posts — review the hook (first line). That's where you lose people.")
+    print("  TIP: Posts with high engagement - reuse the format, topic, or opener style.")
+    print("  TIP: Low-engagement posts - review the hook (first line). That's where you lose people.")
     print("\n" + "=" * 60 + "\n")
