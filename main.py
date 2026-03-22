@@ -14,7 +14,6 @@ Usage:
   python main.py --schedule [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all]
   python main.py --curate               [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all] [--type idea|post]
   python main.py --report
-  python main.py --analyze [--top N]
 """
 
 import os
@@ -48,8 +47,6 @@ def main():
     parser.add_argument("--save-ssi",  nargs=4, metavar=("BRAND", "FIND", "ENGAGE", "BUILD"),
                         type=float, help="Record today's SSI scores: --save-ssi 10.49 9.69 11.0 12.15")
     parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
-    parser.add_argument("--analyze",   action="store_true", help="Scrape and report LinkedIn post engagement via li_at cookie")
-    parser.add_argument("--top",       type=int, default=10, metavar="N", help="How many top posts to show in --analyze report (default: 10)")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
     parser.add_argument("--local",     action="store_true", help="Use local Ollama instead of Claude")
@@ -107,18 +104,6 @@ def main():
         tracker.save_scores(establish=brand, find=find, engage=engage, build=build)
         total = brand + find + engage + build
         print(f"Saved SSI scores: brand={brand} find={find} engage={engage} build={build} total={total:.2f}")
-        return
-
-    if args.analyze:
-        from services.linkedin_analytics import fetch_post_analytics, print_analytics_report
-        li_at = os.getenv("LINKEDIN_LI_AT")
-        if not li_at:
-            raise ValueError(
-                "LINKEDIN_LI_AT is not set in .env.\n"
-                "Add your li_at cookie value — see services/linkedin_analytics.py for instructions."
-            )
-        posts = fetch_post_analytics(li_at=li_at)
-        print_analytics_report(posts, top_n=args.top)
         return
 
     if args.bsky_stats:

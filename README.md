@@ -84,9 +84,6 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Only needed for --analyze (linkedin_scraper v3 uses Playwright)
-playwright install chromium
-
 # Configure API keys
 cp .env.example .env
 # Edit .env and fill in ALL required values:
@@ -99,10 +96,6 @@ cp .env.example .env
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. samjd-zz.bsky.social
 #   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords
-#
-# Optional — LinkedIn analytics (--analyze):
-#   LINKEDIN_LI_AT       → your li_at cookie value
-#   LINKEDIN_PROFILE_URL → your public LinkedIn profile URL
 #
 # Optional — only needed for --local mode:
 #   OLLAMA_BASE_URL   → default: http://localhost:11434
@@ -150,10 +143,6 @@ python main.py --report
 
 # Fetch live Bluesky profile + engagement stats
 python main.py --bsky-stats
-
-# Scrape your recent LinkedIn post engagement using joeyism/linkedin_scraper
-python main.py --analyze
-python main.py --analyze --top 20
 ```
 
 ### `--generate` vs `--curate` vs `--dry-run`

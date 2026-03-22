@@ -7,7 +7,3 @@ feedparser>=6.0.10
 pytz>=2024.1
 APScheduler>=3.10.4
 atproto>=0.0.55
-
-# LinkedIn post analytics (--analyze flag) — grey area ToS, personal use only
-linkedin-scraper>=3.1.1
-playwright>=1.52.0
