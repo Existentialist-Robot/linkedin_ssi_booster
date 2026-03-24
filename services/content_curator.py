@@ -104,23 +104,23 @@ def _append_url_and_hashtags(text: str, url: str) -> str:
 # RSS feeds — override via CURATOR_RSS_FEEDS in .env as a JSON array:
 # [{"name": "My Blog", "url": "https://example.com/feed.xml"}, ...]
 _DEFAULT_RSS_FEEDS = [
-    # LLM / AI research — broad AI landscape
+    # LLM / AI research
     {"name": "Anthropic Blog",              "url": "https://www.anthropic.com/rss.xml"},
     {"name": "Hugging Face Blog",           "url": "https://huggingface.co/blog/feed.xml"},
     {"name": "The Batch (DeepLearning.AI)", "url": "https://www.deeplearning.ai/the-batch/feed/"},
     {"name": "Google AI Blog",              "url": "https://blog.research.google/atom.xml"},
     {"name": "AWS Machine Learning",        "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
     {"name": "LangChain Blog",              "url": "https://blog.langchain.dev/rss/"},
-    # Search / graph / data engineering — G7 GovAI, Elasticsearch, Neo4j work
+    # Search / graph / data engineering
     {"name": "Elastic Blog",                "url": "https://www.elastic.co/blog/feed"},
     {"name": "Neo4j Blog",                  "url": "https://neo4j.com/blog/feed/"},
-    # Java / Spring ecosystem — Answer42, Spring Batch, Java 21
+    # Java / Spring ecosystem
     {"name": "Spring Blog",                 "url": "https://spring.io/blog.atom"},
     {"name": "Inside Java",                 "url": "https://inside.java/feed.xml"},
     {"name": "InfoQ",                       "url": "https://feed.infoq.com/"},
-    # Event-driven / messaging / multi-agent — S1gnal.Zero, Solace, FastMCP
+    # Event-driven / messaging / multi-agent
     {"name": "Solace Blog",                 "url": "https://solace.com/blog/feed/"},
-    # ML engineering & RL — RL Environments, scikit-learn, agent architectures
+    # ML engineering & RL
     {"name": "Towards Data Science",        "url": "https://towardsdatascience.com/feed"},
     {"name": "PyTorch Blog",                "url": "https://pytorch.org/blog/feed.xml"},
     # GovTech / broader tech
@@ -144,15 +144,15 @@ _DEFAULT_KEYWORDS = [
     "agentic", "agentic AI", "tool calling", "function calling",
     # GovTech / regulated AI
     "government AI", "GovTech", "regulatory AI", "compliance AI", "public sector AI",
-    # Java / Spring ecosystem — specific, not generic
+    # Java / Spring ecosystem
     "Spring AI", "Spring Boot", "Spring Batch", "Java 21", "virtual thread",
     "Java AI", "JMS", "message queue",
-    # Event-driven / messaging — Shawn's specific stack only
+    # Event-driven / messaging
     "Solace", "PubSub+", "event broker", "FastMCP",
     # RL / ML engineering
     "reinforcement learning", "Gymnasium", "Stable-Baselines", "reward function",
     "scikit-learn", "feature engineering", "NLP", "neural network",
-    # Specific tools from Shawn's projects
+    # Additional AI / ML tooling
     "Ollama", "Groq", "OpenRouter", "Perplexity AI", "Vaadin", "Supabase",
     "ElevenLabs", "text to speech", "generative media",
     "FastAPI",
