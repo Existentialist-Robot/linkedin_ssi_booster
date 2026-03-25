@@ -1,13 +1,12 @@
 """
 Ollama Local LLM Service
 Generates LinkedIn posts using a locally-running Ollama model.
-Drop-in replacement for ClaudeService — identical public interface.
 
 Requires Ollama running at OLLAMA_BASE_URL (default: http://localhost:11434).
 Set OLLAMA_MODEL to choose the model (default: llama3.2).
 
 Start Ollama: ollama serve
-Pull a model: ollama pull llama3.2
+Pull a model: ollama pull qwen2.5:14b
 """
 
 import os
@@ -66,7 +65,6 @@ class OllamaService:
     ) -> str:
         """
         Generate a LinkedIn post optimised for a specific SSI component.
-        Same signature as ClaudeService.generate_linkedin_post.
         """
         ssi_instruction = SSI_COMPONENT_INSTRUCTIONS.get(
             ssi_component, SSI_COMPONENT_INSTRUCTIONS["establish_brand"]
@@ -163,7 +161,6 @@ Article: {article_text[:3000]}"""
     def generate_first_comment(self, post_text: str, source_url: str) -> str:
         """
         Generate a LinkedIn first comment with hashtags and source link.
-        Same signature as ClaudeService.generate_first_comment.
         """
         prompt = f"""Write a LinkedIn first comment for the post below.
 
@@ -187,7 +184,6 @@ Post:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
         Returns None if article_text is too short to be useful.
-        Same signature as ClaudeService.summarise_for_curation.
         post_mode=True: omits hashtags and URL from the body — both go in the first comment instead.
         """
         if not article_text or len(article_text.strip()) < 100:
@@ -199,9 +195,11 @@ Post:
             _text_budget = X_CHAR_LIMIT - X_URL_CHARS
             format_instructions = f"""IMPORTANT — this post is for X (Twitter), NOT LinkedIn:
 - Hard limit: {_text_budget} characters for your text (the source URL adds {X_URL_CHARS} chars, totalling {X_CHAR_LIMIT})
-- One or two very short sentences only — no paragraphs, no structure
-- No hashtags
-- Lead with your single sharpest take on the article; skip the summary entirely
+- Write 1-3 tight sentences — no paragraphs, no structure, no hashtags
+- Ground your take in something SPECIFIC from this article: a number, a technique, a concrete claim, or a decision. Do NOT write a generic AI observation.
+- Forbidden openers: "Everyone thinks", "Scaling AI", "AI is", "The future of", "Everyone knows" — be specific to what this article actually covers
+- Sound like someone who shipped it: direct, technical, occasionally contrarian
+- Do NOT start with a quotation mark character
 Do NOT include the article URL — it will be appended automatically."""
         elif channel == "bluesky":
             _url_overhead = 2 + len(source_url)
@@ -210,36 +208,42 @@ Do NOT include the article URL — it will be appended automatically."""
 - Hard character limit: {_text_budget} characters for your text ({_url_overhead} chars reserved for the URL, total max = 300)
 - Write 1-2 short complete sentences. Target under {_text_budget - 40} characters — leave margin so nothing gets cut.
 - ONE RULE ABOVE ALL: every sentence MUST end with a period, exclamation mark, or question mark. Never end mid-thought.
-- No hashtags, no bullet points
-- Lead with your sharpest take on the article
+- Ground your take in something SPECIFIC from this article — no generic AI observations
+- No hashtags, no bullet points, do NOT start with a quotation mark character
 Do NOT include the article URL — it will be appended automatically."""
         elif post_mode:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
-1-2 sentence hook — must reflect what the article is ACTUALLY about
-2-3 sentences summarising the key insight from the article (in your own words, don't quote)
-1-2 sentences of YOUR opinion — connect it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background) ONLY if there is a genuine connection. If there is no honest connection to a specific project, give your opinion as an engineer who has shipped production systems in this space.
-CRITICAL: Your post body must be about what this article covers. Do NOT pivot to a different topic. Do NOT write about RAG if the article is not about RAG. Do NOT write about search if the article is not about search.
+
+Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
+Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
+Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Only reference a project from your profile if it directly uses or is directly challenged by the article's exact subject — when in doubt, skip the project mention and just give your engineering view.
+
+CRITICAL: Every sentence must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL — it will be appended automatically."""
         else:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 Format (plain paragraphs, no dashes or bullets):
-1-2 sentence hook — must reflect what the article is ACTUALLY about
-2-3 sentences summarising the key insight from the article (in your own words, don't quote)
-1-2 sentences of YOUR opinion — connect it to the most relevant project from your profile (G7 GovAI, S1gnal.Zero, Answer42, RL Environments, Grizz-AI, or your Java/Elasticsearch background) ONLY if there is a genuine connection. If there is no honest connection to a specific project, give your opinion as an engineer who has shipped production systems in this space.
-CRITICAL: Your post body must be about what this article covers. Do NOT pivot to a different topic. Do NOT write about RAG if the article is not about RAG. Do NOT write about search if the article is not about search.
+
+Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
+Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
+Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Only reference a project from your profile if it directly uses or is directly challenged by the article's exact subject — when in doubt, skip the project mention and just give your engineering view.
+
+CRITICAL: Every sentence must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL in your output — it will be appended automatically."""
 
-        prompt = f"""{format_instructions}
+        prompt = f"""READ THIS ARTICLE CAREFULLY — your post must be grounded in it, not in your profile:
+---
+{article_text[:3000]}
+---
+
+{format_instructions}
 
 SSI optimisation goal for this post:
-{ssi_instruction}
+{ssi_instruction}"""
 
-Article:
-{article_text[:3000]}"""
-
-        return self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=512)
+        return clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=512))

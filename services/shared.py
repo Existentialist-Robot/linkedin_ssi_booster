@@ -2,8 +2,7 @@
 Shared constants and utilities for all LLM service backends.
 
 Import platform limits, persona, SSI instructions, and text helpers from here.
-Individual service modules (claude_service, gemini_service, ollama_service)
-own their own API logic — nothing in here should import from those modules.
+The ollama_service module owns API logic — nothing in here should import from it.
 """
 
 import os
@@ -92,13 +91,13 @@ def clean_llm_text(s: str) -> str:
     s = re.sub(r'_(.*?)_', r'\1', s)                           # _italic_
     s = re.sub(r'`(.*?)`', r'\1', s)                           # `code`
     s = re.sub(r'^#{1,6}\s+', '', s, flags=re.MULTILINE)       # ## headings
+    s = re.sub(r'^"+', '', s)                                   # leading " LLMs wrap output in
     return s.strip()
 
 
 def parse_xml_thread(raw: str, source_url: str) -> Optional[list[str]]:
     """Extract a 2-post thread from <post_1>…</post_1> tagged LLM output.
 
-    Used by Claude and Gemini — both reliably produce this format when prompted.
     Returns exactly 2 clean strings, or None if the tags are missing/malformed.
     """
     parts = re.findall(r'<post_[12]>(.*?)</post_[12]>', raw, re.DOTALL | re.IGNORECASE)

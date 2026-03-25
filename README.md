@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version: alpha-0.0.0.3](https://img.shields.io/badge/version-alpha--0.0.0.3-orange.svg)]()
 
-Automates LinkedIn post generation and scheduling via Claude AI, Google Gemini, or local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
+Automates LinkedIn post generation and scheduling via local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
 
 ## What is the LinkedIn SSI?
 
@@ -36,7 +36,7 @@ You still review and approve curated posts before they go live. The tool removes
 ## How it works
 
 1. **Content calendar** — 4 weeks of topics mapped to your 4 SSI components
-2. **AI generation** — Claude, Gemini, or Ollama generates posts as plain text, personalised to you (see below)
+2. **AI generation** — Ollama generates posts as plain text, personalised to you (see below)
 3. **Buffer API** — schedules those text posts to LinkedIn at Tue/Wed/Fri 4 PM EST
 4. **Content curator** — fetches AI/GovTech news and creates ideas for curation posts
 5. **SSI tracker** — weekly report with specific actions per component
@@ -56,8 +56,8 @@ A detailed persona loaded into every AI call, covering:
 - Target audience, voice guidance, and forbidden phrases
 - **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
 
-**3. Writing rules (configurable via `.env`, shared by all AI backends)**  
-Per-pillar instructions injected into every AI call. All four are overridable in `.env` without touching code (`SSI_ESTABLISH_BRAND`, `SSI_FIND_RIGHT_PEOPLE`, `SSI_ENGAGE_WITH_INSIGHTS`, `SSI_BUILD_RELATIONSHIPS`). The defaults live in `claude_service.py` and are imported by the Gemini and Ollama backends too. Built-in rules:
+**3. Writing rules (configurable via `.env`, loaded by `ollama_service.py`)**  
+Per-pillar instructions injected into every AI call. All four are overridable in `.env` without touching code (`SSI_ESTABLISH_BRAND`, `SSI_FIND_RIGHT_PEOPLE`, `SSI_ENGAGE_WITH_INSIGHTS`, `SSI_BUILD_RELATIONSHIPS`). The defaults live in `services/shared.py`. Built-in rules:
 
 - Never start with "I"
 - Never use filler phrases ("Game changer", "Excited to share", "landscape", "leverage", etc.)
@@ -87,26 +87,21 @@ pip install -r requirements.txt
 # Configure API keys
 cp .env.example .env
 # Edit .env and fill in ALL required values:
-#   PROFILE_CONTEXT   → your name, role, projects (see template in .env.example)
+#   PROFILE_CONTEXT       → your name, role, projects (see template in .env.example)
 #   PERSONA_SYSTEM_PROMPT → your voice/persona (template in .env.example)
-#   BUFFER_API_KEY    → https://publish.buffer.com/settings/api
-#   ANTHROPIC_API_KEY → https://console.anthropic.com          (for --generate default)
-#   GEMINI_API_KEY    → https://aistudio.google.com/apikey     (for --gemini, free tier available)
+#   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
+#   OLLAMA_BASE_URL       → default: http://localhost:11434
+#   OLLAMA_MODEL          → default: llama3.2 (qwen2.5:14b recommended)
 #
 # Optional — Bluesky stats (--bsky-stats):
-#   BLUESKY_HANDLE       → your handle, e.g. samjd-zz.bsky.social
+#   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social
 #   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords
-#
-# Optional — only needed for --local mode:
-#   OLLAMA_BASE_URL   → default: http://localhost:11434
-#   OLLAMA_MODEL      → default: llama3.2
-#   GEMINI_MODEL      → default: gemini-2.0-flash
 ```
 
 ## Usage
 
 ```bash
-# Generate + preview week 1 posts with Claude (dry run — no Buffer calls)
+# Generate + preview week 1 posts (dry run — no Buffer calls)
 python main.py --generate --week 1 --dry-run
 
 # Generate + schedule week 1 posts to Buffer (LinkedIn, default)
@@ -205,73 +200,34 @@ CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss
 
 Leave either variable unset to use the built-in defaults (6 AI/ML feeds + 19 niche keywords).
 
-## Choosing an AI backend
+## AI Backend
 
-| Flag       | Backend                     | Cost                | Quality | Best for                    |
-| ---------- | --------------------------- | ------------------- | ------- | --------------------------- |
-| _(none)_   | Claude (`claude-opus-4-6`)  | Pay-per-token       | Best    | Final posts to publish      |
-| `--gemini` | Gemini (`gemini-2.0-flash`) | Free tier available | Great   | Daily use without API costs |
-| `--local`  | Ollama (local model)        | Free                | Good    | Drafting, offline, privacy  |
-
-```bash
-# Claude (default)
-python main.py --generate --week 1 --dry-run
-
-# Gemini — free tier, no Anthropic key needed
-python main.py --generate --week 1 --gemini --dry-run
-python main.py --curate --gemini --dry-run
-
-# Ollama — fully local, no internet needed
-python main.py --generate --week 1 --local --dry-run
-python main.py --curate --local --dry-run
-python main.py --curate --local --channel x --dry-run
-
-# All flags compose freely — e.g. Gemini + X channel + dry-run
-python main.py --curate --gemini --channel x --dry-run
-```
-
-## Local generation with Ollama (free, offline)
-
-Use the `--local` flag to generate posts with a locally-running Ollama model
-instead of calling any cloud API. Useful for drafting, testing, or keeping
-data fully local.
+All post generation uses **Ollama** — a locally-running LLM server. No cloud AI keys required.
 
 ```bash
 # 1. Install Ollama
-#    Linux (WSL included):
+#    Linux/WSL:
 curl -fsSL https://ollama.com/install.sh | sh
-#    macOS: download from https://ollama.com/download
-#    Windows: download from https://ollama.com/download
+#    macOS/Windows: https://ollama.com/download
 
-# 2. Start the server (Linux/WSL — runs in background)
+# 2. Start the server
 ollama serve &
 
-# 3. Pull a model (one-time)
-ollama pull llama3.2          # fast, good quality (~2 GB)
-# ollama pull mistral         # alternative
-# ollama pull llama3.1:8b    # larger / higher quality
+# 3. Pull a model (one-time) — qwen2.5:14b recommended
+ollama pull qwen2.5:14b
+# Smaller/faster alternatives:
+# ollama pull llama3.2        (~2 GB)
+# ollama pull mistral-nemo    (12b)
 
-# 4. Generate posts locally
-python main.py --generate --week 1 --local --dry-run
+# 4. Set the model in .env
+OLLAMA_MODEL=qwen2.5:14b
 
-# 5. Curate AI news locally — LinkedIn (default)
-python main.py --curate --local --dry-run
-python main.py --curate --local
-
-# 6. Curate AI news locally — X (280-char mode, no hashtags)
-python main.py --curate --local --channel x --dry-run
-python main.py --curate --local --channel x
-
-# 7. Schedule locally-generated posts to Buffer
-python main.py --generate --schedule --week 1 --local
-
-# 8. Override the model without editing .env
-OLLAMA_MODEL=mistral python main.py --generate --week 1 --local --dry-run
+# Override model for a single run
+OLLAMA_MODEL=llama3.2 python main.py --curate --dry-run
 ```
 
-> **Tip:** Claude produces the best LinkedIn copy. Gemini (`--gemini`) is a great
-> free middle ground. Use Ollama (`--local`) for fast offline drafting, then
-> regenerate with Claude or Gemini before scheduling.
+> **Tip:** `qwen2.5:14b` produces strong instruction-following. `llama3.2` (3b) is fastest
+> but lower quality. `mistral-nemo` (12b) is a solid middle ground.
 
 ## SSI Component Mapping
 
@@ -325,9 +281,8 @@ linkedin_ssi_booster/
 ├── .env.example               # Template — copy to .env and fill in keys/persona
 └── services/
     ├── buffer_service.py      # Buffer GraphQL API client
-    ├── claude_service.py      # Anthropic API — post generation + SSI instructions
-    ├── gemini_service.py      # Google Gemini API — drop-in Claude replacement
-    ├── ollama_service.py      # Local Ollama — drop-in Claude replacement
+    ├── ollama_service.py      # Ollama local LLM — post generation + SSI instructions
+    ├── shared.py              # Shared constants, persona prompt, SSI instructions
     ├── content_curator.py     # RSS feed scraper + summariser; guaranteed link append
     ├── github_service.py      # Live GitHub profile enrichment (pinned repos, languages)
     └── ssi_tracker.py         # SSI report + action items
@@ -336,8 +291,6 @@ linkedin_ssi_booster/
 ## Get your API keys
 
 - **Buffer API key**: https://publish.buffer.com/settings/api → Generate API Key
-- **Anthropic API key**: https://console.anthropic.com → API Keys
-- **Gemini API key** (free): https://aistudio.google.com/apikey
 - **Ollama models**: https://ollama.com/library
 - **Bluesky app password**: bsky.app → Settings → App Passwords (no extra permissions needed)
 - **Track your SSI**: https://linkedin.com/sales/ssi

@@ -14,11 +14,9 @@ import re
 import requests
 import time
 from pathlib import Path
-from typing import Optional, Union
-from services.claude_service import ClaudeService  # noqa: E402 — run from project root
-from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
-from services.gemini_service import GeminiService
+from typing import Optional
 from services.ollama_service import OllamaService
+from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
 from services.buffer_service import BufferQueueFullError
 
 logger = logging.getLogger(__name__)
@@ -163,8 +161,8 @@ KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env
 
 class ContentCurator:
 
-    def __init__(self, claude_service: Union[ClaudeService, GeminiService, OllamaService], buffer_service=None):
-        self.claude = claude_service
+    def __init__(self, ai_service: OllamaService, buffer_service=None):
+        self.ai = ai_service
         self.buffer = buffer_service
 
     def _load_published_titles(self) -> set:
@@ -258,7 +256,7 @@ class ContentCurator:
             # "all" channels post mode — LinkedIn + X + Bluesky single posts
             # ----------------------------------------------------------------
             if message_type == "post" and channel == "all":
-                li_text = self.claude.summarise_for_curation(
+                li_text = self.ai.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
                     ssi_component=ssi_component,
@@ -272,14 +270,14 @@ class ContentCurator:
                 li_text = _append_url_and_hashtags(li_text, article["link"])
 
                 time.sleep(request_delay)
-                x_post = self.claude.summarise_for_curation(article["summary"], article["link"], ssi_component, "x")
+                x_post = self.ai.summarise_for_curation(article["summary"], article["link"], ssi_component, "x")
                 if x_post:
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
                     x_post = _truncate_at_sentence(x_post, x_budget)
                     if article["link"] and article["link"] not in x_post:
                         x_post = x_post.rstrip() + f"\n\n{article['link']}"
                 time.sleep(request_delay)
-                bsky_post = self.claude.summarise_for_curation(article["summary"], article["link"], ssi_component, "bluesky")
+                bsky_post = self.ai.summarise_for_curation(article["summary"], article["link"], ssi_component, "bluesky")
                 if bsky_post:
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
                     bsky_budget = 300 - url_overhead
@@ -324,7 +322,7 @@ class ContentCurator:
             # ----------------------------------------------------------------
             else:
                 effective_channel = "linkedin" if (message_type == "post" and channel == "linkedin") else channel
-                post_text = self.claude.summarise_for_curation(
+                post_text = self.ai.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
                     ssi_component=ssi_component,

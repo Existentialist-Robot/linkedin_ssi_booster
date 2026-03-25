@@ -4,15 +4,12 @@ LinkedIn SSI Booster — main entrypoint
 Generates and schedules LinkedIn posts via the Buffer API to improve
 Social Selling Index (SSI) across all four components.
 
-AI backends (mutually exclusive flags):
-  (default)  Anthropic Claude  — requires ANTHROPIC_API_KEY
-  --gemini   Google Gemini     — requires GEMINI_API_KEY
-  --local    Ollama (local)    — requires Ollama running on OLLAMA_BASE_URL
+AI backend: Ollama (local) — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-  python main.py --generate [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all]
-  python main.py --schedule [--week N] [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all]
-  python main.py --curate               [--dry-run] [--local | --gemini] [--channel linkedin|x|bluesky|all] [--type idea|post]
+  python main.py --generate [--week N] [--dry-run] [--channel linkedin|x|bluesky|all]
+  python main.py --schedule [--week N] [--dry-run] [--channel linkedin|x|bluesky|all]
+  python main.py --curate               [--dry-run] [--channel linkedin|x|bluesky|all] [--type idea|post]
   python main.py --report
 """
 
@@ -23,8 +20,6 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
-from services.claude_service import ClaudeService
-from services.gemini_service import GeminiService
 from services.ollama_service import OllamaService
 from services.buffer_service import BufferService
 from services.content_curator import ContentCurator
@@ -49,8 +44,6 @@ def main():
     parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
-    parser.add_argument("--local",     action="store_true", help="Use local Ollama instead of Claude")
-    parser.add_argument("--gemini",    action="store_true", help="Use Google Gemini instead of Claude")
     parser.add_argument("--channel",   choices=["linkedin", "x", "bluesky", "all"], default="linkedin",
                         help="Target channel(s) for scheduling/curation (default: linkedin)")
     parser.add_argument("--type",      choices=["idea", "post"], default="idea",
@@ -67,32 +60,12 @@ def main():
         raise ValueError("BUFFER_API_KEY environment variable is required")
     buffer = BufferService(api_key=buffer_api_key)
 
-    if args.local:
-        ai = OllamaService(
-            model=os.getenv("OLLAMA_MODEL", "llama3.2"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        )
-        logger.info(f"Using local Ollama model: {ai.model}")
-    elif args.gemini:
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
-        ai = GeminiService(
-            api_key=gemini_api_key,
-            model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-        )
-        logger.info(f"Using Gemini model: {ai.model}")
-    else:
-        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable is required")
-        ai = ClaudeService(
-            api_key=anthropic_api_key,
-            model=os.getenv("CLAUDE_MODEL", "claude-opus-4-6"),
-        )
-        logger.info(f"Using Claude model: {ai.model}")
-    claude  = ai  # keep existing variable name for compatibility
-    curator = ContentCurator(claude_service=ai, buffer_service=buffer)
+    ai = OllamaService(
+        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    )
+    logger.info(f"Using Ollama model: {ai.model}")
+    curator = ContentCurator(ai_service=ai, buffer_service=buffer)
     tracker = SSITracker()
 
     if args.report:
@@ -130,16 +103,7 @@ def main():
 
     if args.curate:
         logger.info(f"Curating AI news sources (channel: {args.channel}, type: {args.type})...")
-        # Gemini free tier = 15 RPM. Use a longer inter-call delay to avoid 429s.
-        # 'all' channel makes 3 calls per article, so needs even more breathing room.
-        if args.gemini:
-            if args.channel == "all":
-                _request_delay = 20.0
-            else:
-                _request_delay = 8.0
-        else:
-            _request_delay = 5.0
-        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=_request_delay)
+        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0)
         logger.info(f"Created {len(ideas)} {'posts' if args.type == 'post' else 'ideas'} in Buffer")
         return
 
@@ -154,7 +118,7 @@ def main():
 
         for topic in week_topics:
             logger.info(f"  Generating: {topic['title']}")
-            post = claude.generate_linkedin_post(
+            post = ai.generate_linkedin_post(
                 title=topic["title"],
                 angle=topic["angle"],
                 ssi_component=topic["ssi_component"],
