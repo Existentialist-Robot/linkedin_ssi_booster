@@ -143,7 +143,10 @@ class BufferService:
         data = self._query(mutation, variables)
         result = data.get("createPost", {})
         if "message" in result:
-            raise RuntimeError(f"Buffer createPost error: {result['message']}")
+            msg = result["message"]
+            if "limit reached" in msg.lower() or "scheduled posts limit" in msg.lower():
+                raise BufferQueueFullError(msg)
+            raise RuntimeError(f"Buffer createPost error: {msg}")
         post = result.get("post", {})
         logger.info(f"Post created: id={post.get('id')} status={post.get('status')}")
         return post
@@ -188,7 +191,10 @@ class BufferService:
         data = self._query(mutation, {"input": post_input})
         result = data.get("createPost", {})
         if "message" in result:
-            raise RuntimeError(f"Buffer createPost error: {result['message']}")
+            msg = result["message"]
+            if "limit reached" in msg.lower() or "scheduled posts limit" in msg.lower():
+                raise BufferQueueFullError(msg)
+            raise RuntimeError(f"Buffer createPost error: {msg}")
         post = result.get("post", {})
         logger.info(f"Scheduled post: id={post.get('id')} status={post.get('status')}")
         return post

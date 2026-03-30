@@ -19,9 +19,12 @@ import argparse
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+from colorama import Fore, Style, init as _colorama_init
+
+_colorama_init(autoreset=True)
 
 from services.ollama_service import OllamaService
-from services.buffer_service import BufferService
+from services.buffer_service import BufferService, BufferQueueFullError
 from services.content_curator import ContentCurator
 from services.ssi_tracker import SSITracker
 from services.github_service import build_github_profile_context
@@ -29,7 +32,24 @@ from scheduler import PostScheduler
 from content_calendar import CONTENT_CALENDAR
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# ── Coloured log formatter ─────────────────────────────────────────────────
+class _ColourFormatter(logging.Formatter):
+    _LEVEL = {
+        logging.DEBUG:    Fore.CYAN    + "DEBUG"    + Style.RESET_ALL,
+        logging.INFO:     Fore.GREEN   + "INFO"     + Style.RESET_ALL,
+        logging.WARNING:  Fore.YELLOW  + "WARN"     + Style.RESET_ALL,
+        logging.ERROR:    Fore.RED     + "ERROR"    + Style.RESET_ALL,
+        logging.CRITICAL: Fore.RED + Style.BRIGHT + "CRITICAL" + Style.RESET_ALL,
+    }
+    def format(self, record: logging.LogRecord) -> str:
+        record = logging.makeLogRecord(record.__dict__)
+        record.levelname = self._LEVEL.get(record.levelno, record.levelname)
+        return super().format(record)
+
+_handler = logging.StreamHandler()
+_handler.setFormatter(_ColourFormatter("%(asctime)s [%(levelname)s] %(message)s"))
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 
 
@@ -76,35 +96,40 @@ def main():
         brand, find, engage, build = args.save_ssi
         tracker.save_scores(establish=brand, find=find, engage=engage, build=build)
         total = brand + find + engage + build
-        print(f"Saved SSI scores: brand={brand} find={find} engage={engage} build={build} total={total:.2f}")
+        print(Fore.GREEN + f"✅  Saved SSI scores: brand={brand} find={find} engage={engage} build={build} total={total:.2f}" + Style.RESET_ALL)
         return
 
     if args.bsky_stats:
         from services.ssi_tracker import fetch_bluesky_stats
         stats = fetch_bluesky_stats()
         if stats:
-            print(f"\nBluesky stats for @{stats['handle']}")
-            print(f"  Followers    : {stats['followers']}")
-            print(f"  Following    : {stats['following']}")
-            print(f"  Total posts  : {stats['posts']}")
-            print(f"\n  Last {stats['analysed']} posts (engagement)")
-            print(f"  Likes        : {stats['total_likes']}")
-            print(f"  Replies      : {stats['total_replies']}")
-            print(f"  Reposts      : {stats['total_reposts']}")
-            print(f"  Quotes       : {stats['total_quotes']}")
-            print(f"  Avg / post   : {stats['avg_engagement']}")
+            print(Fore.CYAN + Style.BRIGHT + f"\n📊 Bluesky stats for @{stats['handle']}" + Style.RESET_ALL)
+            print(f"  👥 Followers    : {Fore.WHITE}{stats['followers']}{Style.RESET_ALL}")
+            print(f"  ➡️  Following    : {stats['following']}")
+            print(f"  📝 Total posts  : {stats['posts']}")
+            print(Fore.CYAN + f"\n  Last {stats['analysed']} posts (engagement)" + Style.RESET_ALL)
+            print(f"  ❤️  Likes        : {stats['total_likes']}")
+            print(f"  💬 Replies      : {stats['total_replies']}")
+            print(f"  🔁 Reposts      : {stats['total_reposts']}")
+            print(f"  🗨️  Quotes       : {stats['total_quotes']}")
+            print(f"  📈 Avg / post   : {stats['avg_engagement']}")
             if stats.get("top_post"):
                 tp = stats["top_post"]
-                print(f"\n  Top post ({tp['likes']}L {tp['replies']}R {tp['reposts']}RT)")
+                print(Fore.YELLOW + f"\n  🏆 Top post ({tp['likes']}L {tp['replies']}R {tp['reposts']}RT)" + Style.RESET_ALL)
                 print(f"  '{tp['text']}'")
                 if tp["url"]:
                     print(f"  {tp['url']}")
         return
 
     if args.curate:
-        logger.info(f"Curating AI news sources (channel: {args.channel}, type: {args.type})...")
-        ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0)
-        logger.info(f"Created {len(ideas)} {'posts' if args.type == 'post' else 'ideas'} in Buffer")
+        logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
+        try:
+            ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0)
+        except BufferQueueFullError as e:
+            print(Fore.YELLOW + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + Style.RESET_ALL)
+            return
+        noun = "posts" if args.type == "post" else "ideas"
+        print(Fore.GREEN + f"\n✅  Created {len(ideas)} {noun} in Buffer ({args.channel})" + Style.RESET_ALL)
         return
 
     if args.generate or args.schedule:
@@ -113,7 +138,7 @@ def main():
             logger.error(f"No content found for week {args.week}")
             return
 
-        logger.info(f"Generating {len(week_topics)} posts for week {args.week}...")
+        logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week}...")
         posts = []
 
         for topic in week_topics:
@@ -134,15 +159,15 @@ def main():
             posts.append({**topic, "generated_text": post})
 
             if args.dry_run:
-                print(f"\n{'='*60}")
-                print(f"TOPIC: {topic['title']}")
-                print(f"SSI COMPONENT: {topic['ssi_component']}")
+                print(Fore.CYAN + f"\n{'='*60}" + Style.RESET_ALL)
+                print(Fore.WHITE + Style.BRIGHT + f"📝 TOPIC: {topic['title']}" + Style.RESET_ALL)
+                print(Fore.CYAN + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + Style.RESET_ALL)
                 print(f"\n{post}\n")
 
         if args.schedule and not args.dry_run:
             scheduler = PostScheduler(buffer_service=buffer)
             scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)
-            logger.info(f"Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully")
+            print(Fore.GREEN + f"\n✅  Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully" + Style.RESET_ALL)
 
 
 # ---------------------------------------------------------------------------

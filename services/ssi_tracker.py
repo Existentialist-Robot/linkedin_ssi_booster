@@ -9,6 +9,7 @@ import os
 import logging
 from datetime import datetime, date
 from pathlib import Path
+from colorama import Fore, Style
 
 logger = logging.getLogger(__name__)
 
@@ -169,10 +170,10 @@ class SSITracker:
 
     def print_report(self):
         """Print a weekly SSI action report to the console."""
-        print("\n" + "="*60)
-        print("  LINKEDIN SSI WEEKLY REPORT")
+        print("\n" + Fore.CYAN + Style.BRIGHT + "="*60 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "  📊 LINKEDIN SSI WEEKLY REPORT" + Style.RESET_ALL)
         print(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        print("="*60)
+        print(Fore.CYAN + Style.BRIGHT + "="*60 + Style.RESET_ALL)
 
         # Current values always come from the most recent history entry
         latest: dict[str, float] = {}
@@ -186,8 +187,8 @@ class SSITracker:
             }
 
         if not latest:
-            print("\n  No SSI data saved yet. Run: python main.py --save-ssi <brand> <find> <engage> <build>\n")
-            print("=" * 60 + "\n")
+            print(Fore.YELLOW + "\n  ⚠️  No SSI data saved yet. Run: python main.py --save-ssi <brand> <find> <engage> <build>\n" + Style.RESET_ALL)
+            print(Fore.CYAN + "=" * 60 + Style.RESET_ALL + "\n")
             return
 
         # Previous entry for trend comparison
@@ -204,8 +205,8 @@ class SSITracker:
         total_current = sum(latest.values())
         total_target  = sum(v["target"] for v in SSI_TARGETS.values())
 
-        print(f"\n  OVERALL: {total_current:.2f} / 100  →  TARGET: {total_target:.0f} / 100")
-        print(f"  Gap to close: {total_target - total_current:.2f} points\n")
+        print(Fore.WHITE + Style.BRIGHT + f"\n  OVERALL: {total_current:.2f} / 100  →  TARGET: {total_target:.0f} / 100" + Style.RESET_ALL)
+        print(f"  Gap to close: {Fore.YELLOW}{total_target - total_current:.2f}{Style.RESET_ALL} points\n")
 
         component_labels = {
             "establish_brand":      "Establish professional brand",
@@ -220,22 +221,32 @@ class SSITracker:
             target  = vals["target"]
             gap     = target - current
             bar_filled = int((current / vals["max"]) * 20)
-            bar = "█" * bar_filled + "░" * (20 - bar_filled)
+            bar_empty  = 20 - bar_filled
+
+            # Colour the progress bar based on progress toward target
+            pct = current / target if target else 0
+            if pct >= 0.85:
+                bar_colour = Fore.GREEN
+            elif pct >= 0.6:
+                bar_colour = Fore.YELLOW
+            else:
+                bar_colour = Fore.RED
+            bar = bar_colour + "█" * bar_filled + Fore.WHITE + "░" * bar_empty + Style.RESET_ALL
 
             # Week-over-week delta
             if key in prev:
                 delta = current - prev[key]
                 if delta > 0:
-                    trend = f"  ↑ +{delta:.2f} since last entry"
+                    trend = Fore.GREEN + f"  ↑ +{delta:.2f} since last entry" + Style.RESET_ALL
                 elif delta < 0:
-                    trend = f"  ↓ {delta:.2f} since last entry"
+                    trend = Fore.RED + f"  ↓ {delta:.2f} since last entry" + Style.RESET_ALL
                 else:
-                    trend = "  ↔ no change since last entry"
+                    trend = Fore.YELLOW + "  ↔ no change since last entry" + Style.RESET_ALL
             else:
                 trend = ""
 
-            print(f"  {label}{trend}")
-            print(f"  [{bar}] {current:.2f} → {target:.0f}  (gap: +{gap:.2f})")
+            print(Fore.WHITE + Style.BRIGHT + f"  {label}" + Style.RESET_ALL + trend)
+            print(f"  [{bar}] {bar_colour}{current:.2f}{Style.RESET_ALL} → {target:.0f}  (gap: +{gap:.2f})")
             print(f"  Actions this week:")
             for action in SSI_ACTIONS[key]:
                 print(f"    • {action}")
@@ -243,9 +254,9 @@ class SSITracker:
 
         # History summary table
         if len(self.history) >= 2:
-            print("  SCORE HISTORY (last 5 entries)")
+            print(Fore.CYAN + "  SCORE HISTORY (last 5 entries)" + Style.RESET_ALL)
             print(f"  {'Date':<12} {'Brand':>6} {'Find':>6} {'Engage':>7} {'Build':>6} {'Total':>7}")
-            print("  " + "-"*48)
+            print("  " + Fore.CYAN + "-"*48 + Style.RESET_ALL)
             for entry in self.history[-5:]:
                 print(
                     f"  {entry['date']:<12}"
@@ -257,10 +268,10 @@ class SSITracker:
                 )
             print()
 
-        print("  QUICK WINS (do these daily, 15 mins):")
+        print(Fore.CYAN + Style.BRIGHT + "  QUICK WINS (do these daily, 15 mins):" + Style.RESET_ALL)
         print("    1. Check Buffer queue — confirm 3 posts scheduled this week")
         print("    2. Leave 3 meaningful comments on AI/GovTech posts")
         print("    3. Accept + message 2 new connection requests")
         print("    4. Check linkedin.com/sales/ssi — track your score")
         print("    5. Run: python main.py --save-ssi <brand> <find> <engage> <build>")
-        print("\n" + "="*60 + "\n")
+        print("\n" + Fore.CYAN + Style.BRIGHT + "="*60 + Style.RESET_ALL + "\n")

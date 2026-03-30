@@ -13,6 +13,7 @@ import random
 import re
 import requests
 import time
+from colorama import Fore, Style
 from pathlib import Path
 from typing import Optional
 from services.ollama_service import OllamaService
@@ -286,14 +287,14 @@ class ContentCurator:
                         bsky_post = bsky_post.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
-                    print(f"\n{'='*60}")
-                    print(f"SOURCE: {article['source']}")
-                    print(f"ARTICLE: {article['title']}")
-                    print(f"CHANNEL: all")
-                    print(f"SSI COMPONENT: {ssi_component}")
-                    print(f"\nLINKEDIN POST:\n{li_text}")
-                    print(f"\nX POST:\n{x_post}")
-                    print(f"\nBLUESKY POST:\n{bsky_post}")
+                    print(Fore.CYAN + f"\n{'='*60}" + Style.RESET_ALL)
+                    print(Fore.WHITE + Style.BRIGHT + f"📰 SOURCE: {article['source']}" + Style.RESET_ALL)
+                    print(Fore.WHITE + Style.BRIGHT + f"📄 ARTICLE: {article['title']}" + Style.RESET_ALL)
+                    print(Fore.CYAN + "📡 CHANNEL: all" + Style.RESET_ALL)
+                    print(Fore.CYAN + f"🎯 SSI COMPONENT: {ssi_component}" + Style.RESET_ALL)
+                    print(Fore.GREEN + f"\n🔵 LINKEDIN POST:" + Style.RESET_ALL + f"\n{li_text}")
+                    print(Fore.BLUE + f"\n𝕏  X POST:" + Style.RESET_ALL + f"\n{x_post}")
+                    print(Fore.MAGENTA + f"\n🦋 BLUESKY POST:" + Style.RESET_ALL + f"\n{bsky_post}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                 else:
                     if self.buffer:
@@ -312,7 +313,10 @@ class ContentCurator:
                             self._save_published_title(article["title"])
                             created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
                         except BufferQueueFullError as e:
-                            logger.warning(f"Buffer queue full — stopping: {e}")
+                            logger.warning(
+                                Fore.YELLOW + f"⚠️  Buffer queue is full — stopping early. "
+                                f"Free up slots at https://publish.buffer.com before running again. ({e})" + Style.RESET_ALL
+                            )
                             break
                     else:
                         logger.warning("No buffer_service provided — skipping post creation")
@@ -351,12 +355,12 @@ class ContentCurator:
                         post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
-                    print(f"\n{'='*60}")
-                    print(f"SOURCE: {article['source']}")
-                    print(f"ARTICLE: {article['title']}")
-                    print(f"CHANNEL: {channel}")
-                    print(f"SSI COMPONENT: {ssi_component}")
-                    print(f"\nGENERATED POST:\n{post_text}")
+                    print(Fore.CYAN + f"\n{'='*60}" + Style.RESET_ALL)
+                    print(Fore.WHITE + Style.BRIGHT + f"📰 SOURCE: {article['source']}" + Style.RESET_ALL)
+                    print(Fore.WHITE + Style.BRIGHT + f"📄 ARTICLE: {article['title']}" + Style.RESET_ALL)
+                    print(Fore.CYAN + f"📡 CHANNEL: {channel}" + Style.RESET_ALL)
+                    print(Fore.CYAN + f"🎯 SSI COMPONENT: {ssi_component}" + Style.RESET_ALL)
+                    print(Fore.GREEN + f"\n✍️  GENERATED POST:" + Style.RESET_ALL + f"\n{post_text}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
                 else:
                     if self.buffer:
@@ -374,7 +378,10 @@ class ContentCurator:
                                 self._save_published_title(article["title"])
                                 created_ideas.append(post)
                             except BufferQueueFullError as e:
-                                logger.warning(f"Buffer queue full — stopping: {e}")
+                                logger.warning(
+                                    Fore.YELLOW + f"⚠️  Buffer queue is full — stopping early. "
+                                    f"Free up slots at https://publish.buffer.com before running again. ({e})" + Style.RESET_ALL
+                                )
                                 break
                         else:
                             idea = self.buffer.create_idea(
