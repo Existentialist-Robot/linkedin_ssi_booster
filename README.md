@@ -29,15 +29,31 @@ This tool handles the repeatable parts:
 - **Consistent cadence** — 3 posts/week scheduled to Buffer at proven engagement times (Tue/Wed/Fri 4 PM EST)
 - **On-brand content** — every post is grounded in your real projects, real numbers, and real technical voice via a detailed persona prompt
 - **All four SSI pillars** — the content calendar and curator rotate across all four components so no single pillar is neglected
-- **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary for you to review in Buffer Ideas before publishing
+- **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary that you can either:
+  - push to Buffer Ideas for review and manual approval (default), or
+  - schedule directly as posts to your Buffer queue (using `--type post`)
 
-You still review and approve curated posts before they go live. The tool removes the blank-page problem, not your judgment.
+You control whether curated content is reviewed before publishing or scheduled directly. The tool removes the blank-page problem, but you decide what goes live.
 
 ## How it works
 
-1. **Content calendar** — 4 weeks of topics mapped to your 4 SSI components
+1. **Content calendar** — 4 weeks of topics, each mapped to a specific SSI component and angle, ensuring balanced coverage and unique perspectives
+   - The calendar is defined in `content_calendar.py` as a dictionary with `week_1` to `week_4`, each containing a list of post topics.
+   - Each topic includes:
+     - `title`: The main subject of the post
+     - `angle`: A unique perspective or story for that topic (prevents generic/rehash content)
+     - `ssi_component`: One of `establish_brand`, `find_right_people`, `engage_with_insights`, or `build_relationships` — ensuring every post directly supports a specific SSI pillar
+     - `hashtags`: A list of relevant hashtags (used for LinkedIn posts)
+   - The calendar is designed to:
+     - Rotate through all four SSI components over four weeks, so no pillar is neglected
+     - Draw topics from real projects, technical wins, and lessons learned, not generic AI content
+     - Provide a distinct "angle" for each post, so every week’s content feels fresh and specific
+
 2. **AI generation** — Ollama generates posts as plain text, personalised to you (see below)
-3. **Buffer API** — schedules those text posts to LinkedIn at Tue/Wed/Fri 4 PM EST
+3. **Post scheduling** — The scheduler distributes posts from the calendar to Buffer at optimal times (Tue/Wed/Fri 4 PM EST, matching proven engagement windows). Each week, up to 3 posts are scheduled per channel.
+   - The scheduler uses your `.env` SSI focus weights to determine how many posts per week should target each SSI component (e.g., if `establish_brand` is set to 40%, it will get more posts that week).
+   - If there are not enough posts for a component, the scheduler fills remaining slots with available topics, always ensuring variety.
+   - Posts are never repeated within a week, and the order within each component is preserved.
 4. **Content curator** — fetches AI/GovTech news and creates ideas for curation posts
 5. **SSI tracker** — weekly report with specific actions per component
 
@@ -66,8 +82,11 @@ Per-pillar instructions injected into every AI call. All four are overridable in
 
 The writing rules draw on **Neuro-Linguistic Programming (NLP)** principles — specifically pattern interrupts (scroll-stopping first lines), presupposition (assuming the reader already cares), and anchoring (pairing your name with specific technical outcomes so readers associate _you_ with the domain). The forbidden-phrases list functions as a negative anchor removal layer: stripping hollow corporate phrases forces the model toward concrete, specific language that builds credibility. For the theoretical underpinning, see [_Monsters and Magical Sticks_ by Steven Heller & Terry Steele](https://www.amazon.com/Monsters-Magical-Sticks-Hypnosis-Really/dp/1561840181) — an accessible introduction to how language patterns shape perception.
 
-**4. Per-post angle (`content_calendar.py`)**  
-Each topic has a specific `angle` field (e.g. _"contrast AI-TDD with vibe coding"_) so every post has a distinct point of view rather than rehashing the same generic take.
+**4. Per-post angle and SSI mapping (`content_calendar.py`)**  
+Each topic in the calendar has:
+
+- a specific `angle` (e.g. _"contrast AI-TDD with vibe coding"_) so every post has a distinct point of view
+- an explicit `ssi_component` so the system can guarantee all four SSI pillars are covered over time
 
 For curated posts (`--curate`), `content_curator.py` filters RSS feeds by your niche keywords (RAG, Neo4j, GovTech, MCP, Spring AI…) so only domain-relevant articles are ever posted — not random tech news.
 
@@ -243,6 +262,20 @@ Current scores are tracked in `ssi_history.json` (runtime file, gitignored). The
 | Engage with insights | 25     | Curated posts + daily commenting      |
 | Build relationships  | 25     | Reply to all comments, DM connections |
 | **Total**            | **95** |                                       |
+
+### How the content calendar and scheduling work together
+
+1. **Calendar structure:**
+   - The calendar (`content_calendar.py`) is a 4-week plan, with each week containing 3 topics. Each topic is mapped to an SSI component and has a unique angle.
+2. **Scheduling logic:**
+   - When you run `python main.py --generate --schedule --week N`, the scheduler:
+     - Loads the topics for week N
+     - Uses your `.env` SSI focus weights to allocate posts per component (e.g., if `engage_with_insights` is set to 40%, it will try to schedule more posts from that pillar)
+     - Ensures no component is neglected, and fills any gaps with available topics
+     - Schedules posts for Tue/Wed/Fri at 4 PM EST (Buffer queue)
+     - Never repeats a topic within a week
+3. **Result:**
+   - Over 4 weeks, all four SSI pillars are covered in a balanced, data-driven way, with each post having a clear purpose and unique perspective.
 
 ### Weekly SSI update workflow
 

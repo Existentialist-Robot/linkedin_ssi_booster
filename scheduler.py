@@ -1,3 +1,4 @@
+from services.shared import get_ssi_focus_weights
 """
 Post Scheduler
 Pushes generated posts to Buffer with optimal scheduling.
@@ -74,6 +75,7 @@ class PostScheduler:
         Schedule a week of posts to Buffer.
         Posts are distributed Tue/Wed/Fri at 4 PM EST.
         Max 3 posts per week per channel (matches your free plan queue rhythm).
+        Posts are selected according to SSI focus weights from the environment.
         channel: 'linkedin' | 'x' | 'all'
         """
         channel_ids = self._resolve_channel_ids(channel)
@@ -84,9 +86,50 @@ class PostScheduler:
         if week_number > 1:
             reference = reference + timedelta(weeks=week_number - 1)
 
+        # Compute how many posts per SSI component this week
+        ssi_weights = get_ssi_focus_weights()
+        total_posts = min(3, len(posts))
+        # Sort posts by SSI component for selection
+        posts_by_ssi = {k: [] for k in ssi_weights}
+        for post in posts:
+            comp = post.get("ssi_component")
+            if comp in posts_by_ssi:
+                posts_by_ssi[comp].append(post)
+
+        # Calculate how many posts per component (rounded, at least 1 if weight > 0 and enough posts)
+        import math
+        allocation = {k: 0 for k in ssi_weights}
+        remaining = total_posts
+        # First pass: floor division
+        for k, w in ssi_weights.items():
+            n = int(math.floor(w * total_posts))
+            allocation[k] = min(n, len(posts_by_ssi[k]))
+            remaining -= allocation[k]
+        # Second pass: distribute remaining slots by descending fractional part, but only if posts available
+        if remaining > 0:
+            # Compute fractional parts
+            fracs = sorted(((k, (ssi_weights[k]*total_posts)%1) for k in ssi_weights), key=lambda x: -x[1])
+            for k, _ in fracs:
+                if remaining == 0:
+                    break
+                if allocation[k] < len(posts_by_ssi[k]) and ssi_weights[k] > 0:
+                    allocation[k] += 1
+                    remaining -= 1
+
+        # Now select posts in allocation order, preserving original order within each component
+        selected_posts = []
+        for k in allocation:
+            selected_posts.extend(posts_by_ssi[k][:allocation[k]])
+        # If not enough posts, fill with any remaining posts
+        if len(selected_posts) < total_posts:
+            used_ids = {id(p) for p in selected_posts}
+            for post in posts:
+                if id(post) not in used_ids and len(selected_posts) < total_posts:
+                    selected_posts.append(post)
+
         scheduled = []
         for channel_id in channel_ids:
-            for i, post in enumerate(posts[:3]):
+            for i, post in enumerate(selected_posts):
                 day_name     = days[i % 3]
                 scheduled_at = self._next_slot(day_name, reference=reference)
                 text         = post.get("generated_text", "")
@@ -100,7 +143,7 @@ class PostScheduler:
                     text=text,
                     scheduled_at=scheduled_at
                 )
-                logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(posts[:3])} → {day_name} {scheduled_at}")
+                logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → {day_name} {scheduled_at}")
                 scheduled.append(result)
 
         logger.info(f"Week {week_number}: {len(scheduled)} posts scheduled to Buffer ({channel})")

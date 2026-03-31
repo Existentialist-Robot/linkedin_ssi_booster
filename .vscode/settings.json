@@ -9,20 +9,26 @@
   "python.venvPath": "${workspaceFolder}",
   "editor.formatOnSave": true,
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
+    // "editor.defaultFormatter": "ms-python.black-formatter", // Not a valid value for [python] block
     "editor.tabSize": 4,
     "editor.insertSpaces": true
   },
-  "python.analysis.include": [
-    "${workspaceFolder}"
-  ],
+  "python.analysis.include": ["${workspaceFolder}"],
   "python.analysis.exclude": [
     "**/__pycache__",
-    "**/.venv"
+    "**/.venv",
+    "**/.git",
+    "**/.hg",
+    "**/.svn",
+    "**/.mypy_cache",
+    "**/.tox",
+    "**/.DS_Store",
+    "**/node_modules",
+    "**/.*"
   ],
   "files.exclude": {
     "**/__pycache__": true,
     "**/*.pyc": true
-},
-"python-envs.defaultEnvManager": "ms-python.python:system"
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:venv"
 }

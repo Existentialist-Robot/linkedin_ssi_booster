@@ -1,3 +1,16 @@
+def get_ssi_focus_weights() -> dict:
+    """Return SSI focus weights from environment as a normalized dict."""
+    weights = {
+        "establish_brand": int(os.getenv("SSI_FOCUS_ESTABLISH_BRAND", 0)),
+        "find_right_people": int(os.getenv("SSI_FOCUS_FIND_RIGHT_PEOPLE", 0)),
+        "engage_with_insights": int(os.getenv("SSI_FOCUS_ENGAGE_WITH_INSIGHTS", 0)),
+        "build_relationships": int(os.getenv("SSI_FOCUS_BUILD_RELATIONSHIPS", 0)),
+    }
+    total = sum(weights.values())
+    if total == 0:
+        raise ValueError("SSI focus weights sum to zero; check your .env config.")
+    # Normalize to proportions (0-1)
+    return {k: v / total for k, v in weights.items()}
 """
 Shared constants and utilities for all LLM service backends.
 

@@ -287,14 +287,14 @@ class ContentCurator:
                         bsky_post = bsky_post.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
-                    print(Fore.CYAN + f"\n{'='*60}" + Style.RESET_ALL)
-                    print(Fore.WHITE + Style.BRIGHT + f"📰 SOURCE: {article['source']}" + Style.RESET_ALL)
-                    print(Fore.WHITE + Style.BRIGHT + f"📄 ARTICLE: {article['title']}" + Style.RESET_ALL)
-                    print(Fore.CYAN + "📡 CHANNEL: all" + Style.RESET_ALL)
-                    print(Fore.CYAN + f"🎯 SSI COMPONENT: {ssi_component}" + Style.RESET_ALL)
-                    print(Fore.GREEN + f"\n🔵 LINKEDIN POST:" + Style.RESET_ALL + f"\n{li_text}")
-                    print(Fore.BLUE + f"\n𝕏  X POST:" + Style.RESET_ALL + f"\n{x_post}")
-                    print(Fore.MAGENTA + f"\n🦋 BLUESKY POST:" + Style.RESET_ALL + f"\n{bsky_post}")
+                    print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + "📡 CHANNEL: all" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.GREEN) + f"\n🔵 LINKEDIN POST:" + str(Style.RESET_ALL) + f"\n{li_text}")
+                    print(str(Fore.BLUE) + f"\n𝕏  X POST:" + str(Style.RESET_ALL) + f"\n{x_post}")
+                    print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                 else:
                     if self.buffer:
@@ -314,8 +314,8 @@ class ContentCurator:
                             created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
                         except BufferQueueFullError as e:
                             logger.warning(
-                                Fore.YELLOW + f"⚠️  Buffer queue is full — stopping early. "
-                                f"Free up slots at https://publish.buffer.com before running again. ({e})" + Style.RESET_ALL
+                                str(Fore.YELLOW) + f"⚠️  Buffer queue is full — stopping early. "
+                                f"Free up slots at https://publish.buffer.com before running again. ({e})" + str(Style.RESET_ALL)
                             )
                             break
                     else:
@@ -355,12 +355,12 @@ class ContentCurator:
                         post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
                 if dry_run:
-                    print(Fore.CYAN + f"\n{'='*60}" + Style.RESET_ALL)
-                    print(Fore.WHITE + Style.BRIGHT + f"📰 SOURCE: {article['source']}" + Style.RESET_ALL)
-                    print(Fore.WHITE + Style.BRIGHT + f"📄 ARTICLE: {article['title']}" + Style.RESET_ALL)
-                    print(Fore.CYAN + f"📡 CHANNEL: {channel}" + Style.RESET_ALL)
-                    print(Fore.CYAN + f"🎯 SSI COMPONENT: {ssi_component}" + Style.RESET_ALL)
-                    print(Fore.GREEN + f"\n✍️  GENERATED POST:" + Style.RESET_ALL + f"\n{post_text}")
+                    print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"📡 CHANNEL: {channel}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
                 else:
                     if self.buffer:
@@ -379,8 +379,8 @@ class ContentCurator:
                                 created_ideas.append(post)
                             except BufferQueueFullError as e:
                                 logger.warning(
-                                    Fore.YELLOW + f"⚠️  Buffer queue is full — stopping early. "
-                                    f"Free up slots at https://publish.buffer.com before running again. ({e})" + Style.RESET_ALL
+                                    str(Fore.YELLOW) + f"⚠️  Buffer queue is full — stopping early. "
+                                    f"Free up slots at https://publish.buffer.com before running again. ({e})" + str(Style.RESET_ALL)
                                 )
                                 break
                         else:
