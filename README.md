@@ -328,7 +328,7 @@ linkedin_ssi_booster/
 
 - **Buffer API key**: https://publish.buffer.com/settings/api → Generate API Key
 - **Ollama models**: https://ollama.com/library
-- **Bluesky app password**: bsky.app → Settings → App Passwords (no extra permissions needed)
+- **Bluesky handle/app password** (optional, only if using Bluesky integration): bsky.app → Settings → App Passwords (no extra permissions needed)
 - **Track your SSI**: https://linkedin.com/sales/ssi
 
 ## License
