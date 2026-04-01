@@ -113,8 +113,8 @@ cp .env.example .env
 #   OLLAMA_MODEL          → default: llama3.2 (qwen2.5:14b recommended)
 #
 # Optional — Bluesky stats (--bsky-stats):
-#   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social
-#   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords
+#   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
+#   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords (optional, only if using Bluesky integration)
 ```
 
 ## Usage
