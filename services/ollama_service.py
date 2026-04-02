@@ -230,6 +230,11 @@ Do NOT include the article URL — it will be appended automatically."""
 - Ground your take in something SPECIFIC from this article — no generic AI observations
 - No hashtags, no bullet points, do NOT start with a quotation mark character
 Do NOT include the article URL — it will be appended automatically."""
+        elif channel == "youtube":
+            format_instructions = f"""{YOUTUBE_SHORT_SYSTEM_PROMPT}
+CRITICAL HARD LIMIT: your entire response MUST be 500 characters or fewer — count every character before you output.
+Do NOT include hashtags, URLs, or any markdown.
+If you are close to 500 characters, stop at the last complete sentence that fits."""
         elif post_mode:
             format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
 Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.

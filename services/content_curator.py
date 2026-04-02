@@ -342,6 +342,9 @@ class ContentCurator:
                 # never sees text+URL combined (which would truncate the URL).
                 if effective_channel == "linkedin":
                     post_text = _append_url_and_hashtags(post_text, article["link"])
+                elif effective_channel == "youtube":
+                    # Hard cap — model frequently ignores char limits; enforce here
+                    post_text = _truncate_at_sentence(post_text, 500)
                 elif effective_channel == "x":
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS
                     post_text = _truncate_at_sentence(post_text, x_budget)
