@@ -111,7 +111,7 @@ cp .env.example .env
 #   PERSONA_SYSTEM_PROMPT → your voice/persona (template in .env.example)
 #   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
 #   OLLAMA_BASE_URL       → default: http://localhost:11434
-#   OLLAMA_MODEL          → default: llama3.2 (qwen2.5:14b recommended)
+#   OLLAMA_MODEL          → default: llama3.2 (gemma4:26b recommended)
 #
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
@@ -253,21 +253,23 @@ curl -fsSL https://ollama.com/install.sh | sh
 # 2. Start the server
 ollama serve &
 
-# 3. Pull a model (one-time) — qwen2.5:14b recommended
-ollama pull qwen2.5:14b
+# 3. Pull a model (one-time) — gemma4:26b recommended
+ollama pull gemma4:26b
 # Smaller/faster alternatives:
+# ollama pull qwen2.5:14b     (~9 GB, strong fallback)
 # ollama pull llama3.2        (~2 GB)
 # ollama pull mistral-nemo    (12b)
 
 # 4. Set the model in .env
-OLLAMA_MODEL=qwen2.5:14b
+OLLAMA_MODEL=gemma4:26b
 
 # Override model for a single run
 OLLAMA_MODEL=llama3.2 python main.py --curate --dry-run
 ```
 
-> **Tip:** `qwen2.5:14b` produces strong instruction-following. `llama3.2` (3b) is fastest
-> but lower quality. `mistral-nemo` (12b) is a solid middle ground.
+> **Tip:** `gemma4:26b` (MoE — 3.8B active params) gives the best post quality: native system role support,
+> configurable thinking mode, and strong instruction-following across long prompts. `qwen2.5:14b` is a solid
+> fallback if you're VRAM-constrained (~9 GB). `llama3.2` (3b) is fastest but lower quality.
 
 ## SSI Component Mapping
 
