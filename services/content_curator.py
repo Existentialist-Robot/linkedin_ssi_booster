@@ -369,6 +369,8 @@ class ContentCurator:
                                 channel_id = self.buffer.get_x_channel_id()
                             elif effective_channel == "bluesky":
                                 channel_id = self.buffer.get_bluesky_channel_id()
+                            elif effective_channel == "youtube":
+                                channel_id = self.buffer.get_youtube_channel_id()
                             else:
                                 channel_id = self.buffer.get_linkedin_channel_id()
                             try:
