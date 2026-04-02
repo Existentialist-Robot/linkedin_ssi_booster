@@ -104,7 +104,7 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure API keys
+# Configure API keys and persona
 cp .env.example .env
 # Edit .env and fill in ALL required values:
 #   PROFILE_CONTEXT       → your name, role, projects (see template in .env.example)
@@ -116,6 +116,14 @@ cp .env.example .env
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
 #   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords (optional, only if using Bluesky integration)
+
+# Set up your personal content calendar (gitignored — keeps your strategy private)
+cp content_calendar.example.py content_calendar.py
+# Edit content_calendar.py and replace the placeholder topics with your own:
+#   title    → post headline
+#   angle    → the specific take or story you'll tell
+#   ssi_component → establish_brand | find_right_people | engage_with_insights | build_relationships
+#   hashtags → list of relevant hashtags
 ```
 
 ## Usage
