@@ -39,6 +39,18 @@ X_URL_CHARS  = 23   # Every URL on X counts as exactly 23 characters
 # Persona — configurable via .env
 # ---------------------------------------------------------------------------
 
+YOUTUBE_SHORT_SYSTEM_PROMPT: str = os.getenv(
+    "YOUTUBE_SHORT_SYSTEM_PROMPT",
+    """IMPORTANT — this is a YouTube Short spoken script for a lipsync.video avatar:
+- Write entirely in the avatar's voice, first-person.
+- Target: 100-150 words maximum (60-second Short) — do NOT exceed 150 words
+- Spoken word only — natural contractions, conversational cadence, no jargon walls
+- No hashtags, no markdown, no bullet points, no stage directions
+- Structure: hook (1-2 sentences) → insight or story (3-4 sentences) → subscribe CTA
+- Every sentence must be speakable aloud naturally
+Set YOUTUBE_SHORT_SYSTEM_PROMPT in your .env to customise this for your avatar persona."""
+)
+
 PERSONA_SYSTEM_PROMPT: str = os.getenv(
     "PERSONA_SYSTEM_PROMPT",
     """You are a LinkedIn content strategist and ghostwriter for a senior technical professional.

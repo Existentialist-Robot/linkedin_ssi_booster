@@ -17,7 +17,7 @@ from typing import Optional
 import ollama
 
 import json
-from services.shared import PERSONA_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text
+from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text
 
 logger = logging.getLogger(__name__)
 
@@ -82,13 +82,7 @@ class OllamaService:
 """
         elif channel == "youtube":
             max_length = 500
-            _platform_block = """\nIMPORTANT — this is a YouTube community post / description:
-- Hard limit: 500 characters total — do NOT exceed this under any circumstances
-- Write a single punchy paragraph that stands alone
-- No hashtags, no markdown, no bullet points
-- End at a complete sentence — never cut mid-sentence
-- Every word must earn its place
-"""
+            _platform_block = f"\n{YOUTUBE_SHORT_SYSTEM_PROMPT}"
         else:
             _platform_block = ""
 
@@ -121,7 +115,7 @@ Do NOT include hashtags in your output — they will be appended automatically."
                 # No sentence boundary found — cut at last word boundary
                 truncated = truncated[: truncated.rfind(" ")].rstrip()
             text = truncated
-            logger.debug(f"YouTube post truncated to {len(text)} chars")
+            logger.debug(f"YouTube Short script truncated to {len(text)} chars")
 
         return text
 
