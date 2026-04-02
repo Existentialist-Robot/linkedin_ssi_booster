@@ -80,6 +80,15 @@ class OllamaService:
 - No 'Read more' or filler CTAs — the post must stand completely alone
 - Every word must earn its place; cut ruthlessly until it fits
 """
+        elif channel == "youtube":
+            max_length = 500
+            _platform_block = """\nIMPORTANT — this is a YouTube community post / description:
+- Hard limit: 500 characters total — do NOT exceed this under any circumstances
+- Write a single punchy paragraph that stands alone
+- No hashtags, no markdown, no bullet points
+- End at a complete sentence — never cut mid-sentence
+- Every word must earn its place
+"""
         else:
             _platform_block = ""
 
@@ -98,7 +107,23 @@ The post should feel authentic to someone who actually built this, not generic A
 Use a hook in the first line that stops the scroll — a surprising stat, a bold claim, or a short story.
 Do NOT include hashtags in your output — they will be appended automatically."""
 
-        return self._chat(system_prompt, user_prompt, max_tokens=512)
+        text = self._chat(system_prompt, user_prompt, max_tokens=512)
+
+        if channel == "youtube" and len(text) > 500:
+            # Hard cap: truncate to last complete sentence at or before 500 chars
+            truncated = text[:500]
+            for sep in (".", "!", "?"):
+                idx = truncated.rfind(sep)
+                if idx != -1:
+                    truncated = truncated[: idx + 1]
+                    break
+            else:
+                # No sentence boundary found — cut at last word boundary
+                truncated = truncated[: truncated.rfind(" ")].rstrip()
+            text = truncated
+            logger.debug(f"YouTube post truncated to {len(text)} chars")
+
+        return text
 
     def generate_thread_posts(
         self,

@@ -7,9 +7,9 @@ Social Selling Index (SSI) across all four components.
 AI backend: Ollama (local) — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-  python main.py --generate [--week N] [--dry-run] [--channel linkedin|x|bluesky|all]
-  python main.py --schedule [--week N] [--dry-run] [--channel linkedin|x|bluesky|all]
-  python main.py --curate               [--dry-run] [--channel linkedin|x|bluesky|all] [--type idea|post]
+  python main.py --generate [--week N] [--dry-run] [--channel linkedin|x|bluesky|youtube|all]
+  python main.py --schedule [--week N] [--dry-run] [--channel linkedin|x|bluesky|youtube|all]
+  python main.py --curate               [--dry-run] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
   python main.py --report
 """
 
@@ -64,7 +64,7 @@ def main():
     parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
-    parser.add_argument("--channel",   choices=["linkedin", "x", "bluesky", "all"], default="linkedin",
+    parser.add_argument("--channel",   choices=["linkedin", "x", "bluesky", "youtube", "all"], default="linkedin",
                         help="Target channel(s) for scheduling/curation (default: linkedin)")
     parser.add_argument("--type",      choices=["idea", "post"], default="idea",
                         help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")

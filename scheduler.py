@@ -41,13 +41,16 @@ class PostScheduler:
             return [self.buffer.get_x_channel_id()]
         elif channel == "bluesky":
             return [self.buffer.get_bluesky_channel_id()]
+        elif channel == "youtube":
+            return [self.buffer.get_youtube_channel_id()]
         elif channel == "all":
             ids = [self.buffer.get_linkedin_channel_id()]
             ids.append(self.buffer.get_x_channel_id())
             ids.append(self.buffer.get_bluesky_channel_id())
+            ids.append(self.buffer.get_youtube_channel_id())
             return ids
         else:
-            raise ValueError(f"Unknown channel {channel!r}. Use 'linkedin', 'x', 'bluesky', or 'all'.")
+            raise ValueError(f"Unknown channel {channel!r}. Use 'linkedin', 'x', 'bluesky', 'youtube', or 'all'.")
 
     def _next_slot(self, day_name: str, reference: Optional[datetime] = None) -> str:
         """Calculate the next occurrence of a given weekday posting slot."""
