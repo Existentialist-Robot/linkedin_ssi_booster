@@ -365,12 +365,30 @@ class ContentCurator:
                 else:
                     if self.buffer:
                         if message_type == "post":
-                            if effective_channel == "x":
+                            if effective_channel == "youtube":
+                                # Buffer YouTube requires a video file — can't post text-only.
+                                # Write the script to yt-vid-data/ for use with lipsync.video.
+                                yt_dir = Path("yt-vid-data")
+                                yt_dir.mkdir(exist_ok=True)
+                                safe_title = re.sub(r"[^\w\-]", "_", article["title"][:60]).strip("_")
+                                from datetime import datetime as _dt
+                                timestamp = _dt.now().strftime("%Y%m%d_%H%M%S")
+                                script_path = yt_dir / f"{timestamp}_{safe_title}.txt"
+                                script_content = f"TITLE: {article['title']}\nSSI COMPONENT: {ssi_component}\nSOURCE: {article['link']}\n\n{post_text}\n"
+                                script_path.write_text(script_content, encoding="utf-8")
+                                print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT (copy to lipsync.video):" + str(Style.RESET_ALL))
+                                print(str(Fore.WHITE) + f"📄 TITLE:  {article['title']}" + str(Style.RESET_ALL))
+                                print(str(Fore.CYAN) + f"🎯 SSI:    {ssi_component}" + str(Style.RESET_ALL))
+                                print(f"\n{post_text}\n")
+                                print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
+                                print(str(Fore.YELLOW) + "⚠️  Buffer YouTube requires a video — script not pushed to Buffer.\n   Render with lipsync.video, then upload the video manually." + str(Style.RESET_ALL))
+                                self._save_published_title(article["title"])
+                                created_ideas.append({"title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": "youtube", "script_path": str(script_path)})
+                                continue
+                            elif effective_channel == "x":
                                 channel_id = self.buffer.get_x_channel_id()
                             elif effective_channel == "bluesky":
                                 channel_id = self.buffer.get_bluesky_channel_id()
-                            elif effective_channel == "youtube":
-                                channel_id = self.buffer.get_youtube_channel_id()
                             else:
                                 channel_id = self.buffer.get_linkedin_channel_id()
                             try:

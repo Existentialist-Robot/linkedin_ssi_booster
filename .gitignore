@@ -2,6 +2,10 @@
 .env
 *.env
 
+# YouTube Short scripts (local only — render with lipsync.video then upload manually)
+yt-vid-data/*
+!yt-vid-data/.gitkeep
+
 # Python
 __pycache__/
 *.py[cod]
