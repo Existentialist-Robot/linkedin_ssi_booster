@@ -115,6 +115,7 @@ cp .env.example .env
 #
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
+
 #   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords (optional, only if using Bluesky integration)
 
 # Set up your personal content calendar (gitignored — keeps your strategy private)
@@ -163,7 +164,7 @@ python main.py --curate --type post --channel bluesky
 # Buffer push is skipped (YouTube requires a video file) — render with lipsync.video then upload manually
 python main.py --curate --type post --channel youtube
 
-# All channels — one post per channel scheduled independently
+# All channels — LinkedIn/X/Bluesky scheduled independently; YouTube script printed and saved to yt-vid-data/
 python main.py --curate --type post --channel all
 
 # Curate ideas targeted at X audience (Ideas board)
@@ -192,7 +193,7 @@ python main.py --bsky-stats
 | `--channel x`        | Either                                                   | Target X (Twitter) only — 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer                                                                                                                                                                                                               |
 | `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                                                                                                                                                  |
 | `--channel youtube`  | Either                                                   | Generates a **spoken Short script** (500-char / ~100–150 words) for use with lipsync.video or similar avatar tools; persona controlled by `YOUTUBE_SHORT_SYSTEM_PROMPT` in `.env`; script is printed to screen and saved to `yt-vid-data/<timestamp>_<title>.txt` — **not pushed to Buffer** (Buffer requires a video file)                    |
-| `--channel all`      | Either                                                   | Target LinkedIn, X, Bluesky, and YouTube — each post is scheduled/created independently per channel. If Bluesky is not connected in Buffer, it is skipped with a warning (no crash).                                                                                                                                                           |
+| `--channel all`      | Either                                                   | Target LinkedIn, X, Bluesky, and YouTube in one run. LinkedIn/X/Bluesky are scheduled independently; YouTube is generated as a local script (printed + saved to `yt-vid-data/`) because Buffer YouTube requires a video upload. If Bluesky is not connected in Buffer, it is skipped with a warning (no crash).                                |
 
 **YouTube Short workflow:** The `--channel youtube` output is a **spoken script** for a lipsync.video avatar (or similar tool), targeting ~100–150 words (500-char hard cap). The script is printed to the terminal and saved to `yt-vid-data/<timestamp>_<title>.txt` for you to copy into lipsync.video. Buffer is **not** used — YouTube requires a video file, which must be uploaded manually after rendering. The avatar persona (name, intro line, subscribe CTA) is fully configurable via `YOUTUBE_SHORT_SYSTEM_PROMPT` in your `.env`.
 

@@ -286,6 +286,26 @@ class ContentCurator:
                     if article["link"] and article["link"] not in bsky_post:
                         bsky_post = bsky_post.rstrip() + f"\n\n{article['link']}"
 
+                time.sleep(request_delay)
+                yt_script = self.ai.summarise_for_curation(article["summary"], article["link"], ssi_component, "youtube", post_mode=True)
+                if yt_script:
+                    yt_script = _truncate_at_sentence(yt_script, 500)
+
+                yt_script_path = None
+                if yt_script and not dry_run:
+                    yt_dir = Path("yt-vid-data")
+                    yt_dir.mkdir(exist_ok=True)
+                    safe_title = re.sub(r"[^\w\-]", "_", article["title"][:60]).strip("_")
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    yt_script_path = yt_dir / f"{timestamp}_{safe_title}.txt"
+                    script_content = (
+                        f"TITLE: {article['title']}\n"
+                        f"SSI COMPONENT: {ssi_component}\n"
+                        f"SOURCE: {article['link']}\n\n"
+                        f"{yt_script}\n"
+                    )
+                    yt_script_path.write_text(script_content, encoding="utf-8")
+
                 if dry_run:
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
@@ -295,6 +315,8 @@ class ContentCurator:
                     print(str(Fore.GREEN) + f"\n🔵 LINKEDIN POST:" + str(Style.RESET_ALL) + f"\n{li_text}")
                     print(str(Fore.BLUE) + f"\n𝕏  X POST:" + str(Style.RESET_ALL) + f"\n{x_post}")
                     print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
+                    if yt_script:
+                        print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                 else:
                     if self.buffer:
@@ -317,6 +339,14 @@ class ContentCurator:
                                         + f"⚠️  Bluesky channel is not configured — skipping Bluesky post in all-channel mode. ({e})"
                                         + str(Style.RESET_ALL)
                                     )
+                            if yt_script:
+                                print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT (all-channel mode):" + str(Style.RESET_ALL))
+                                print(str(Fore.WHITE) + f"📄 TITLE:  {article['title']}" + str(Style.RESET_ALL))
+                                print(str(Fore.CYAN) + f"🎯 SSI:    {ssi_component}" + str(Style.RESET_ALL))
+                                print(f"\n{yt_script}\n")
+                                if yt_script_path:
+                                    print(str(Fore.GREEN) + f"💾 Saved to: {yt_script_path}" + str(Style.RESET_ALL))
+                                print(str(Fore.YELLOW) + "⚠️  YouTube script was generated locally only — Buffer YouTube requires a video upload." + str(Style.RESET_ALL))
                             self._save_published_title(article["title"])
                             created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
                         except BufferQueueFullError as e:
