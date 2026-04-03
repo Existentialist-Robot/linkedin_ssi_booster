@@ -307,9 +307,16 @@ class ContentCurator:
                                     self.buffer.get_x_channel_id(), x_post, channel="x"
                                 )
                             if bsky_post:
-                                self.buffer.create_scheduled_post(
-                                    self.buffer.get_bluesky_channel_id(), bsky_post, channel="bluesky"
-                                )
+                                try:
+                                    self.buffer.create_scheduled_post(
+                                        self.buffer.get_bluesky_channel_id(), bsky_post, channel="bluesky"
+                                    )
+                                except RuntimeError as e:
+                                    logger.warning(
+                                        str(Fore.YELLOW)
+                                        + f"⚠️  Bluesky channel is not configured — skipping Bluesky post in all-channel mode. ({e})"
+                                        + str(Style.RESET_ALL)
+                                    )
                             self._save_published_title(article["title"])
                             created_ideas.append({"title": article["title"], "channel": "all", "ssi_component": ssi_component})
                         except BufferQueueFullError as e:

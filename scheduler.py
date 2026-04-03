@@ -46,7 +46,10 @@ class PostScheduler:
         elif channel == "all":
             ids = [self.buffer.get_linkedin_channel_id()]
             ids.append(self.buffer.get_x_channel_id())
-            ids.append(self.buffer.get_bluesky_channel_id())
+            try:
+                ids.append(self.buffer.get_bluesky_channel_id())
+            except RuntimeError as e:
+                logger.warning(f"Bluesky channel not configured; skipping in all-channel mode. ({e})")
             ids.append(self.buffer.get_youtube_channel_id())
             return ids
         else:
