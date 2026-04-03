@@ -17,7 +17,9 @@ import os
 import json
 import argparse
 import logging
+import re
 from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from colorama import Fore, Style, init as _colorama_init
 
@@ -140,6 +142,8 @@ def main():
 
         logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week}...")
         posts = []
+        if args.channel == "youtube" and not args.dry_run:
+            Path("yt-vid-data").mkdir(exist_ok=True)
 
         for topic in week_topics:
             logger.info(f"  Generating: {topic['title']}")
@@ -151,20 +155,60 @@ def main():
                 profile_context=PROFILE_CONTEXT,
                 channel=args.channel,
             )
-            # Hashtags eat too many chars on X — only append for LinkedIn
-            if args.channel != "x":
+            # Hashtags are only appended for LinkedIn-style posts.
+            if args.channel not in ("x", "youtube"):
                 hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))
                 if hashtag_str and hashtag_str not in post:
                     post = post.rstrip() + f"\n\n{hashtag_str}"
+
+            if args.channel == "youtube":
+                if len(post) > 500:
+                    # Absolute safety cap for YouTube scripts.
+                    truncated = post[:500]
+                    for sep in (".", "!", "?"):
+                        idx = truncated.rfind(sep)
+                        if idx != -1:
+                            truncated = truncated[: idx + 1]
+                            break
+                    else:
+                        truncated = truncated[: truncated.rfind(" ")].rstrip()
+                    post = truncated
+                    logger.warning(f"YouTube generate script exceeded 500 chars; truncated to {len(post)}")
+
+                safe_title = re.sub(r"[^\w\-]", "_", topic["title"][:60]).strip("_")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                script_path = Path("yt-vid-data") / f"{timestamp}_{safe_title}.txt"
+                script_content = (
+                    f"TITLE: {topic['title']}\n"
+                    f"SSI COMPONENT: {topic['ssi_component']}\n\n"
+                    f"{post}\n"
+                )
+                if not args.dry_run:
+                    script_path.write_text(script_content, encoding="utf-8")
+                print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL))
+                print(str(Fore.WHITE) + f"📄 TITLE:  {topic['title']}" + str(Style.RESET_ALL))
+                print(str(Fore.CYAN) + f"🎯 SSI:    {topic['ssi_component']}" + str(Style.RESET_ALL))
+                print(f"\n{post}\n")
+                if not args.dry_run:
+                    print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
             posts.append({**topic, "generated_text": post})
 
-            if args.dry_run:
+            if args.dry_run and args.channel != "youtube":
                 print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                 print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']}" + str(Style.RESET_ALL))
                 print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))
                 print(f"\n{post}\n")
 
         if args.schedule and not args.dry_run:
+            if args.channel == "youtube":
+                print(
+                    str(Fore.YELLOW)
+                    + "\n⚠️  YouTube scripts were generated and saved locally, but not scheduled to Buffer.\n"
+                    + "   Buffer YouTube scheduling requires a video file upload (title/category/video).\n"
+                    + "   Render with lipsync.video, then upload manually."
+                    + str(Style.RESET_ALL)
+                )
+                return
             scheduler = PostScheduler(buffer_service=buffer)
             scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)
             print(str(Fore.GREEN) + f"\n✅  Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully" + str(Style.RESET_ALL))

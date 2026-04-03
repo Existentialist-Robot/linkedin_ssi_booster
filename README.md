@@ -141,7 +141,8 @@ python main.py --generate --schedule --week 1 --channel x
 # Schedule to LinkedIn, X, Bluesky, and YouTube simultaneously
 python main.py --generate --schedule --week 1 --channel all
 
-# Schedule to YouTube only — generates a 500-char spoken Short script for lipsync.video SAM avatar
+# Generate YouTube Short scripts (hard-capped at 500 chars), print to screen, and save to yt-vid-data/
+# Buffer scheduling is skipped because YouTube requires a video file upload
 python main.py --generate --schedule --week 1 --channel youtube
 
 # Curate AI news and push as Buffer Ideas (default — review before publishing)
