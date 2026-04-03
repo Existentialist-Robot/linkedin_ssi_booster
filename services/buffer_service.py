@@ -19,6 +19,11 @@ class BufferQueueFullError(RuntimeError):
     pass
 
 
+class BufferRateLimitError(RuntimeError):
+  """Raised when Buffer API responds with HTTP 429 rate limiting."""
+  pass
+
+
 class BufferService:
 
     def __init__(self, api_key: str):
@@ -40,6 +45,22 @@ class BufferService:
         logger.debug("Buffer API raw response [%s]: %s", response.status_code, response.text)
         if not response.ok:
             logger.error(f"Buffer API {response.status_code}: {response.text}")
+            if response.status_code == 429:
+                retry_window = ""
+                detail = "Too many requests from this client. Please try again later."
+                try:
+                    err_data = response.json()
+                    errs = err_data.get("errors") or []
+                    if errs:
+                        first = errs[0]
+                        detail = first.get("message", detail)
+                        retry_window = first.get("extensions", {}).get("window", "")
+                except ValueError:
+                    # Non-JSON body; keep default detail.
+                    pass
+                if retry_window:
+                    raise BufferRateLimitError(f"{detail} Retry window: {retry_window}.")
+                raise BufferRateLimitError(detail)
             response.raise_for_status()
         data = response.json()
         if "errors" in data:

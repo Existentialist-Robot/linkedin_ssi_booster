@@ -26,7 +26,7 @@ from colorama import Fore, Style, init as _colorama_init
 _colorama_init(autoreset=True)
 
 from services.ollama_service import OllamaService
-from services.buffer_service import BufferService, BufferQueueFullError
+from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError
 from services.content_curator import ContentCurator
 from services.ssi_tracker import SSITracker
 from services.github_service import build_github_profile_context
@@ -130,6 +130,14 @@ def main():
         except BufferQueueFullError as e:
             print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
             return
+        except BufferRateLimitError as e:
+            print(
+                str(Fore.YELLOW)
+                + f"\n⚠️  Buffer API rate limit reached.\n   {e}\n"
+                + "   Wait for the retry window, then run the command again."
+                + str(Style.RESET_ALL)
+            )
+            return
         noun = "posts" if args.type == "post" else "ideas"
         print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({args.channel})" + str(Style.RESET_ALL))
         return
@@ -210,7 +218,16 @@ def main():
                 )
                 return
             scheduler = PostScheduler(buffer_service=buffer)
-            scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)
+            try:
+                scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)
+            except BufferRateLimitError as e:
+                print(
+                    str(Fore.YELLOW)
+                    + f"\n⚠️  Buffer API rate limit reached while scheduling.\n   {e}\n"
+                    + "   Wait for the retry window, then rerun the schedule command."
+                    + str(Style.RESET_ALL)
+                )
+                return
             print(str(Fore.GREEN) + f"\n✅  Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully" + str(Style.RESET_ALL))
 
 
