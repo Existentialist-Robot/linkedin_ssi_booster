@@ -24,6 +24,11 @@ class BufferRateLimitError(RuntimeError):
   pass
 
 
+class BufferChannelNotConnectedError(RuntimeError):
+  """Raised when a requested social channel is not connected in Buffer."""
+  pass
+
+
 class BufferService:
 
     def __init__(self, api_key: str):
@@ -112,7 +117,7 @@ class BufferService:
             if ch.get("service") == "linkedin":
                 logger.info(f"Found LinkedIn channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
-        raise RuntimeError("No LinkedIn channel found in Buffer. Connect your LinkedIn profile first.")
+        raise BufferChannelNotConnectedError("No LinkedIn channel found in Buffer. Connect your LinkedIn profile first.")
 
     def get_x_channel_id(self) -> Optional[str]:
         """Find the X (Twitter) channel ID."""
@@ -121,7 +126,7 @@ class BufferService:
             if ch.get("service") == "twitter":
                 logger.info(f"Found X channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
-        raise RuntimeError("No X channel found in Buffer. Connect your X profile first.")
+        raise BufferChannelNotConnectedError("No X channel found in Buffer. Connect your X profile first.")
 
     def get_bluesky_channel_id(self) -> Optional[str]:
         """Find the Bluesky channel ID."""
@@ -130,7 +135,7 @@ class BufferService:
             if ch.get("service") == "bluesky":
                 logger.info(f"Found Bluesky channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
-        raise RuntimeError("No Bluesky channel found in Buffer. Connect your Bluesky profile first.")
+        raise BufferChannelNotConnectedError("No Bluesky channel found in Buffer. Connect your Bluesky profile first.")
 
     def get_youtube_channel_id(self) -> Optional[str]:
         """Find the YouTube channel ID."""
@@ -139,7 +144,7 @@ class BufferService:
             if ch.get("service") == "youtube":
                 logger.info(f"Found YouTube channel: {ch['name']} (id: {ch['id']})")
                 return ch["id"]
-        raise RuntimeError("No YouTube channel found in Buffer. Connect your YouTube channel first.")
+        raise BufferChannelNotConnectedError("No YouTube channel found in Buffer. Connect your YouTube channel first.")
 
     def create_post(self, channel_id: str, text: str, scheduled_at: Optional[str] = None) -> dict:
         """

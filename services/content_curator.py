@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional
 from services.ollama_service import OllamaService
 from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
-from services.buffer_service import BufferQueueFullError
+from services.buffer_service import BufferQueueFullError, BufferChannelNotConnectedError
 
 logger = logging.getLogger(__name__)
 
@@ -325,15 +325,22 @@ class ContentCurator:
                                 self.buffer.get_linkedin_channel_id(), li_text
                             )
                             if x_post:
-                                self.buffer.create_scheduled_post(
-                                    self.buffer.get_x_channel_id(), x_post, channel="x"
-                                )
+                                try:
+                                    self.buffer.create_scheduled_post(
+                                        self.buffer.get_x_channel_id(), x_post, channel="x"
+                                    )
+                                except BufferChannelNotConnectedError as e:
+                                    logger.warning(
+                                        str(Fore.YELLOW)
+                                        + f"⚠️  X channel is not configured — skipping X post in all-channel mode. ({e})"
+                                        + str(Style.RESET_ALL)
+                                    )
                             if bsky_post:
                                 try:
                                     self.buffer.create_scheduled_post(
                                         self.buffer.get_bluesky_channel_id(), bsky_post, channel="bluesky"
                                     )
-                                except RuntimeError as e:
+                                except BufferChannelNotConnectedError as e:
                                     logger.warning(
                                         str(Fore.YELLOW)
                                         + f"⚠️  Bluesky channel is not configured — skipping Bluesky post in all-channel mode. ({e})"

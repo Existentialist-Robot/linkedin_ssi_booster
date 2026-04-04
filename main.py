@@ -26,7 +26,7 @@ from colorama import Fore, Style, init as _colorama_init
 _colorama_init(autoreset=True)
 
 from services.ollama_service import OllamaService
-from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError
+from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
 from services.content_curator import ContentCurator
 from services.ssi_tracker import SSITracker
 from services.github_service import build_github_profile_context
@@ -138,6 +138,14 @@ def main():
                 + str(Style.RESET_ALL)
             )
             return
+        except BufferChannelNotConnectedError as e:
+            print(
+                str(Fore.YELLOW)
+                + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
+                + "   Connect the channel in Buffer or run with a different --channel value."
+                + str(Style.RESET_ALL)
+            )
+            return
         noun = "posts" if args.type == "post" else "ideas"
         print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({args.channel})" + str(Style.RESET_ALL))
         return
@@ -225,6 +233,14 @@ def main():
                     str(Fore.YELLOW)
                     + f"\n⚠️  Buffer API rate limit reached while scheduling.\n   {e}\n"
                     + "   Wait for the retry window, then rerun the schedule command."
+                    + str(Style.RESET_ALL)
+                )
+                return
+            except BufferChannelNotConnectedError as e:
+                print(
+                    str(Fore.YELLOW)
+                    + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
+                    + "   Connect the channel in Buffer or run with a different --channel value."
                     + str(Style.RESET_ALL)
                 )
                 return
