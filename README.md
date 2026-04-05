@@ -1,7 +1,7 @@
 # LinkedIn SSI Booster — Buffer API Integration
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version: alpha-0.0.0.8](https://img.shields.io/badge/version-alpha--0.0.0.8-orange.svg)]()
+[![Version: alpha-0.0.0.9](https://img.shields.io/badge/version-alpha--0.0.0.9-orange.svg)]()
 
 Automates LinkedIn post generation and scheduling via local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
 
