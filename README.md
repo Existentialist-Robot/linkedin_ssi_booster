@@ -65,6 +65,22 @@ Every generated post is plain text — there's no audio or special format involv
 **1. Your profile (`PROFILE_CONTEXT` in `.env`)**  
 Injected into every prompt: your name, role, location, specialties, and real project outcomes. Stored in `.env` (gitignored) so it stays private and out of source control. The profile is also enriched at startup with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
+GitHub enrichment details:
+
+- Source data: public repo name, description, primary language, topics, stars, and optional README summary text
+- README handling: markdown is cleaned to plain text, then clipped to sentence boundaries for compact prompt injection
+- Caching: repo metadata is cached in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` (24h TTL)
+- Filtering: use `GITHUB_REPO_FILTER` to include only selected repos
+- Context budgeting: GitHub context is assembled with hard caps so prompts stay stable and fast
+
+GitHub context controls in `.env`:
+
+- `GITHUB_INCLUDE_README_SUMMARIES` (default `true`)
+- `GITHUB_REPO_MAX_COUNT` (default `12`)
+- `GITHUB_README_MAX_CHARS` (default `1200`)
+- `GITHUB_CONTEXT_MAX_CHARS` (default `30000`)
+- `PROFILE_CONTEXT_MAX_CHARS` (default `120000`)
+
 **2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)**  
 A detailed persona loaded into every AI call, covering:
 
