@@ -63,7 +63,7 @@ Every generated post is plain text — there's no audio or special format involv
 "Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
 
 **1. Your profile (`PROFILE_CONTEXT` in `.env`)**  
-Injected into every prompt: your name, role, location, specialties, and real project outcomes. Stored in `.env` (gitignored) so it stays private and out of source control. The profile is also enriched at startup with live GitHub data via `services/github_service.py` — pinned repos, languages, and recent activity so the model has current project context.
+Injected into every prompt: your name, role, location, specialties, and real project outcomes. Stored in `.env` (gitignored) so it stays private and out of source control. The profile is also enriched at startup with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
 **2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)**  
 A detailed persona loaded into every AI call, covering:
@@ -117,6 +117,16 @@ cp .env.example .env
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
 
 #   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords (optional, only if using Bluesky integration)
+
+# Optional — GitHub context enrichment and prompt budget tuning:
+#   GITHUB_USER                  → GitHub username (enables repo enrichment)
+#   GITHUB_TOKEN                 → optional token (higher API limits)
+#   GITHUB_REPO_FILTER           → comma-separated repo names to include
+#   GITHUB_INCLUDE_README_SUMMARIES → true/false (default true)
+#   GITHUB_REPO_MAX_COUNT        → max repos included (default 12)
+#   GITHUB_README_MAX_CHARS      → max chars per README summary (default 1200)
+#   GITHUB_CONTEXT_MAX_CHARS     → max GitHub-derived context block size (default 30000)
+#   PROFILE_CONTEXT_MAX_CHARS    → max total profile context after assembly (default 120000)
 
 # Set up your personal content calendar (gitignored — keeps your strategy private)
 cp content_calendar.example.py content_calendar.py
@@ -343,7 +353,7 @@ linkedin_ssi_booster/
     ├── ollama_service.py      # Ollama local LLM — post generation + SSI instructions
     ├── shared.py              # Shared constants, persona prompt, SSI instructions
     ├── content_curator.py     # RSS feed scraper + summariser; guaranteed link append
-    ├── github_service.py      # Live GitHub profile enrichment (pinned repos, languages)
+   ├── github_service.py      # Live GitHub profile enrichment (repo metadata + README summaries)
     └── ssi_tracker.py         # SSI report + action items
 ```
 

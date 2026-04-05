@@ -258,9 +258,50 @@ if not _PROFILE_CONTEXT_BASE:
         "Copy the example from .env.example and fill in your details."
     )
 
-_github_block = build_github_profile_context()
-PROFILE_CONTEXT = _PROFILE_CONTEXT_BASE + (
-    f"\n\n{_github_block}" if _github_block else ""
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _assemble_profile_context(base_context: str, github_block: str, max_chars: int) -> str:
+    """Assemble profile context with deterministic section priority and hard budget."""
+    context = base_context.strip()
+    if not github_block:
+        return context[:max_chars]
+
+    remaining = max_chars - len(context)
+    if remaining <= 0:
+        return context[:max_chars]
+
+    separator = "\n\n"
+    budget_for_github = max(0, remaining - len(separator))
+    trimmed_github = github_block[:budget_for_github].rstrip()
+    if not trimmed_github:
+        return context[:max_chars]
+
+    return (context + separator + trimmed_github)[:max_chars]
+
+
+PROFILE_CONTEXT_MAX_CHARS = _env_int("PROFILE_CONTEXT_MAX_CHARS", 120000)
+GITHUB_CONTEXT_MAX_CHARS = _env_int("GITHUB_CONTEXT_MAX_CHARS", 30000)
+
+_github_block = build_github_profile_context(max_chars=GITHUB_CONTEXT_MAX_CHARS)
+PROFILE_CONTEXT = _assemble_profile_context(
+    _PROFILE_CONTEXT_BASE,
+    _github_block,
+    PROFILE_CONTEXT_MAX_CHARS,
+)
+
+logger.debug(
+    "Profile context assembled: base=%s chars, github=%s chars, final=%s chars",
+    len(_PROFILE_CONTEXT_BASE),
+    len(_github_block),
+    len(PROFILE_CONTEXT),
 )
 
 
