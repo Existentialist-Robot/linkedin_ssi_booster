@@ -50,11 +50,15 @@ You control whether curated content is reviewed before publishing or scheduled d
      - Provide a distinct "angle" for each post, so every week’s content feels fresh and specific
 
 2. **AI generation** — Ollama generates posts as plain text, personalised to you (see below)
-3. **Post scheduling** — The scheduler distributes posts from the calendar to Buffer at optimal times (Tue/Wed/Fri 4 PM EST, matching proven engagement windows). Each week, up to 3 posts are scheduled per channel.
+
+3. **Post scheduling** — The scheduler distributes posts from the calendar to Buffer at configured weekdays/times (default: Tue/Wed/Fri 4 PM Toronto time). Each week, max posts per channel equals the number of configured scheduler slots.
+   - Scheduling is CLI-triggered (`python main.py --generate --schedule --week N`) — there is no always-running local background scheduler process in this repo.
    - The scheduler uses your `.env` SSI focus weights to determine how many posts per week should target each SSI component (e.g., if `establish_brand` is set to 40%, it will get more posts that week).
    - If there are not enough posts for a component, the scheduler fills remaining slots with available topics, always ensuring variety.
    - Posts are never repeated within a week, and the order within each component is preserved.
+
 4. **Content curator** — fetches AI/GovTech news and creates ideas for curation posts
+
 5. **SSI tracker** — weekly report with specific actions per component
 
 ## How post personalisation works
@@ -412,16 +416,57 @@ Current scores are tracked in `ssi_history.json` (runtime file, gitignored). The
 3. **Result:**
    - Over 4 weeks, all four SSI pillars are covered in a balanced, data-driven way, with each post having a clear purpose and unique perspective.
 
+### Customising scheduler.py behavior
+
+The scheduler logic lives in `scheduler.py` and is driven by `.env` values.
+
+Key controls:
+
+- `SCHEDULER_TIMEZONE`  
+   Local timezone used when calculating weekday/time slots before conversion to UTC for Buffer.
+
+- `SCHEDULER_POSTING_SLOTS`  
+   Comma-separated slot list in `day@HH:MM` format. Example: `tuesday@16:00,wednesday@16:00,friday@16:00`.
+
+Rules for `SCHEDULER_POSTING_SLOTS`:
+
+- Valid days: `monday`..`sunday` (lowercase recommended).
+- Time uses 24-hour format (`HH:MM`).
+- Slot order is preserved and used as posting order.
+- Number of slots determines the max scheduled posts per week per channel.
+
+Examples:
+
+```ini
+# Keep default 3-post cadence
+SCHEDULER_TIMEZONE=America/Toronto
+SCHEDULER_POSTING_SLOTS=tuesday@16:00,wednesday@16:00,friday@16:00
+
+# 4-post cadence with custom times
+SCHEDULER_TIMEZONE=America/Toronto
+SCHEDULER_POSTING_SLOTS=monday@09:30,tuesday@16:00,thursday@11:00,friday@16:00
+```
+
+Important runtime behavior:
+
+- Scheduling runs only when you execute `--generate --schedule`.
+- The app computes future timestamps and writes them to Buffer.
+- Buffer performs the actual publish at those scheduled times.
+- There is no daemon/cron loop in this repo that continuously schedules in the background.
+
 ### Weekly SSI update workflow
 
 1. Check [linkedin.com/sales/ssi](https://www.linkedin.com/sales/ssi) for your latest four component scores
 2. Record them to history (this drives the report and trend arrows):
+
    ```bash
    python main.py --save-ssi <brand> <find> <engage> <build>
    # Example:
    python main.py --save-ssi 10.49 9.69 11.0 12.15
    ```
+
 3. View your progress report:
+
    ```bash
    python main.py --report
    ```
@@ -455,7 +500,7 @@ linkedin_ssi_booster/
     ├── ollama_service.py      # Ollama local LLM — post generation + SSI instructions
     ├── shared.py              # Shared constants, persona prompt, SSI instructions
     ├── content_curator.py     # RSS feed scraper + summariser; guaranteed link append
-   ├── github_service.py      # Live GitHub profile enrichment (repo metadata + README summaries)
+    ├── github_service.py      # Live GitHub profile enrichment (repo metadata + README summaries)
     └── ssi_tracker.py         # SSI report + action items
 ```
 

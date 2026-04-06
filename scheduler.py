@@ -7,32 +7,97 @@ Targets: Tue/Wed/Fri 4:00 PM EST — matching your Buffer posting windows.
 """
 
 import logging
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, tzinfo
 from typing import Optional
 import pytz
 
 logger = logging.getLogger(__name__)
 
-# Your Buffer posting schedule (from setup)
-POSTING_SCHEDULE = {
+DEFAULT_POSTING_SCHEDULE = {
     "tuesday":   {"hour": 16, "minute": 0},
     "wednesday": {"hour": 16, "minute": 0},
     "friday":    {"hour": 16, "minute": 0},
 }
 
 WEEKDAY_MAP = {
+    "monday":    0,
     "tuesday":   1,
     "wednesday": 2,
+    "thursday":  3,
     "friday":    4,
+    "saturday":  5,
+    "sunday":    6,
 }
 
-TIMEZONE = pytz.timezone("America/Toronto")  # Ottawa EST
+
+def _load_timezone() -> tzinfo:
+    tz_name = os.getenv("SCHEDULER_TIMEZONE", "America/Toronto").strip() or "America/Toronto"
+    try:
+        return pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        logger.warning(f"Invalid SCHEDULER_TIMEZONE={tz_name!r}; falling back to America/Toronto")
+        return pytz.timezone("America/Toronto")
+
+
+def _load_posting_schedule() -> dict[str, dict[str, int]]:
+    """Parse posting slots from env.
+
+    Env format:
+      SCHEDULER_POSTING_SLOTS=tuesday@16:00,wednesday@16:00,friday@16:00
+    """
+    raw = os.getenv("SCHEDULER_POSTING_SLOTS", "").strip()
+    if not raw:
+        return dict(DEFAULT_POSTING_SCHEDULE)
+
+    parsed: dict[str, dict[str, int]] = {}
+    for part in raw.split(","):
+        token = part.strip()
+        if not token:
+            continue
+        if "@" not in token:
+            logger.warning(f"Invalid scheduler slot token {token!r}; expected day@HH:MM")
+            return dict(DEFAULT_POSTING_SCHEDULE)
+
+        day_name, time_part = token.split("@", 1)
+        day_name = day_name.strip().lower()
+        time_part = time_part.strip()
+
+        if day_name not in WEEKDAY_MAP:
+            logger.warning(f"Invalid scheduler day {day_name!r}; using default schedule")
+            return dict(DEFAULT_POSTING_SCHEDULE)
+
+        if ":" not in time_part:
+            logger.warning(f"Invalid scheduler time {time_part!r}; expected HH:MM")
+            return dict(DEFAULT_POSTING_SCHEDULE)
+
+        hour_raw, minute_raw = time_part.split(":", 1)
+        if not (hour_raw.isdigit() and minute_raw.isdigit()):
+            logger.warning(f"Invalid scheduler time {time_part!r}; expected HH:MM")
+            return dict(DEFAULT_POSTING_SCHEDULE)
+
+        hour = int(hour_raw)
+        minute = int(minute_raw)
+        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+            logger.warning(f"Out-of-range scheduler time {time_part!r}; using default schedule")
+            return dict(DEFAULT_POSTING_SCHEDULE)
+
+        parsed[day_name] = {"hour": hour, "minute": minute}
+
+    if not parsed:
+        logger.warning("SCHEDULER_POSTING_SLOTS produced no valid slots; using default schedule")
+        return dict(DEFAULT_POSTING_SCHEDULE)
+
+    return parsed
 
 
 class PostScheduler:
 
     def __init__(self, buffer_service):
         self.buffer = buffer_service
+        self.timezone = _load_timezone()
+        self.posting_schedule = _load_posting_schedule()
+        self.weekday_map = {k: WEEKDAY_MAP[k] for k in self.posting_schedule}
 
     def _resolve_channel_ids(self, channel: str) -> list[str]:
         """Return a list of Buffer channel IDs for the given channel selector."""
@@ -62,10 +127,10 @@ class PostScheduler:
     def _next_slot(self, day_name: str, reference: Optional[datetime] = None) -> str:
         """Calculate the next occurrence of a given weekday posting slot."""
         if reference is None:
-            reference = datetime.now(TIMEZONE)
+            reference = datetime.now(self.timezone)
 
-        target_weekday = WEEKDAY_MAP[day_name]
-        slot = POSTING_SCHEDULE[day_name]
+        target_weekday = self.weekday_map[day_name]
+        slot = self.posting_schedule[day_name]
 
         days_ahead = target_weekday - reference.weekday()
         if days_ahead < 0:
@@ -83,14 +148,14 @@ class PostScheduler:
     def schedule_week(self, posts: list, week_number: int = 1, channel: str = "linkedin"):
         """
         Schedule a week of posts to Buffer.
-        Posts are distributed Tue/Wed/Fri at 4 PM EST.
-        Max 3 posts per week per channel (matches your free plan queue rhythm).
+        Posts are distributed across configured posting slots.
+        Max posts/week per channel = number of configured slots.
         Posts are selected according to SSI focus weights from the environment.
-        channel: 'linkedin' | 'x' | 'all'
+        channel: 'linkedin' | 'x' | 'bluesky' | 'youtube' | 'all'
         """
         channel_ids = self._resolve_channel_ids(channel)
-        days = ["tuesday", "wednesday", "friday"]
-        reference = datetime.now(TIMEZONE)
+        days = list(self.posting_schedule.keys())
+        reference = datetime.now(self.timezone)
 
         # Advance reference by (week_number - 1) weeks
         if week_number > 1:
@@ -98,7 +163,7 @@ class PostScheduler:
 
         # Compute how many posts per SSI component this week
         ssi_weights = get_ssi_focus_weights()
-        total_posts = min(3, len(posts))
+        total_posts = min(len(days), len(posts))
         # Sort posts by SSI component for selection
         posts_by_ssi = {k: [] for k in ssi_weights}
         for post in posts:
