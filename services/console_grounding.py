@@ -125,17 +125,17 @@ def _extract_tags(text: str, tech_keywords: set[str]) -> set[str]:
     return tags
 
 
-def parse_profile_project_facts(profile_context: str) -> list[ProjectFact]:
+def parse_profile_project_facts(profile_context: str, tech_keywords: set[str] | None = None) -> list[ProjectFact]:
     """Parse '- Project (years): details' bullets from PROFILE_CONTEXT."""
     facts: list[ProjectFact] = []
-    tech_keywords = get_console_grounding_keywords()
+    active_keywords = tech_keywords if tech_keywords is not None else get_console_grounding_keywords()
     pattern = re.compile(r"^\s*-\s+(.+?)\s*\(([^)]*)\):\s*(.+)$", re.MULTILINE)
     for m in pattern.finditer(profile_context):
         title = m.group(1).strip()
         years = m.group(2).strip()
         details = m.group(3).strip()
         company = _extract_company(title, details)
-        tags = _extract_tags(f"{title} {details} {company}", tech_keywords)
+        tags = _extract_tags(f"{title} {details} {company}", active_keywords)
         source = f"PROFILE_CONTEXT: {title} ({years})"
         facts.append(
             ProjectFact(
@@ -150,18 +150,23 @@ def parse_profile_project_facts(profile_context: str) -> list[ProjectFact]:
     return facts
 
 
-def parse_query_constraints(query: str) -> QueryConstraints:
+def parse_query_constraints(
+    query: str,
+    tech_keywords: set[str] | None = None,
+    tag_expansions: dict[str, set[str]] | None = None,
+) -> QueryConstraints:
     q = query.lower()
     require_projects = any(w in q for w in ["project", "projects", "worked on", "built", "resume"])
     require_companies = any(w in q for w in ["company", "companies", "where", "worked at", "employer"])
 
+    active_keywords = tech_keywords if tech_keywords is not None else get_console_grounding_keywords()
     tags: set[str] = set()
-    for kw in get_console_grounding_keywords():
+    for kw in active_keywords:
         if kw in q:
             tags.add(kw)
 
     # Expand detected tags into related tags for better retrieval quality.
-    expansions = get_console_grounding_tag_expansions()
+    expansions = tag_expansions if tag_expansions is not None else get_console_grounding_tag_expansions()
     for base_tag, related in expansions.items():
         if base_tag in tags:
             tags.update(related)

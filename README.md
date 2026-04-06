@@ -157,8 +157,15 @@ You can tune tech matching with:
 
 - `CONSOLE_GROUNDING_TECH_KEYWORDS`
 - `CONSOLE_GROUNDING_TAG_EXPANSIONS`
+- `CURATION_GROUNDING_TECH_KEYWORDS` (optional override for `--curate`)
+- `CURATION_GROUNDING_TAG_EXPANSIONS` (optional override for `--curate`)
 
 These controls affect which profile facts are considered relevant during retrieval.
+
+Fallback behavior:
+
+- If `CURATION_GROUNDING_TECH_KEYWORDS` is unset, `--curate` uses `CURATOR_KEYWORDS` for fact-tag matching.
+- If `CURATION_GROUNDING_TAG_EXPANSIONS` is unset, `--curate` uses `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
 
 #### Troubleshooting Grounding Quality
 
@@ -179,8 +186,8 @@ Common symptoms and fixes:
    Fix: Remove vague terms and keep only high-signal domain vocabulary.
 
 - Symptom: Console factual answers look right, but generate/curate still feel weakly grounded.  
-   Likely cause: Topic/article language does not overlap your configured keyword/tag space.  
-   Fix: Add synonyms that appear in curated article text and your content-calendar topics.
+   Likely cause: Curation articles use topic vocabulary that does not overlap console-oriented grounding keywords.  
+   Fix: Set `CURATION_GROUNDING_TECH_KEYWORDS` (and optionally `CURATION_GROUNDING_TAG_EXPANSIONS`) so `--curate` retrieval reflects article language.
 
 Quick tuning workflow:
 
@@ -229,6 +236,8 @@ cp .env.example .env
 #   PROFILE_CONTEXT_MAX_CHARS    → max total profile context after assembly (default 120000)
 #   CONSOLE_GROUNDING_TECH_KEYWORDS → comma-separated tech terms used by deterministic --console grounding
 #   CONSOLE_GROUNDING_TAG_EXPANSIONS → optional related-tag map (e.g. java:spring|jms|oracle)
+#   CURATION_GROUNDING_TECH_KEYWORDS → optional comma-separated terms used only by --curate fact retrieval
+#   CURATION_GROUNDING_TAG_EXPANSIONS → optional related-tag map used only by --curate
 
 # Set up your personal content calendar (gitignored — keeps your strategy private)
 cp content_calendar.example.py content_calendar.py

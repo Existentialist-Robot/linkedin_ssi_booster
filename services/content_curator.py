@@ -21,6 +21,7 @@ from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHAR
 from services.buffer_service import BufferQueueFullError, BufferChannelNotConnectedError
 from services.console_grounding import (
     ProjectFact,
+    get_console_grounding_tag_expansions,
     parse_profile_project_facts,
     parse_query_constraints,
     retrieve_relevant_facts,
@@ -167,17 +168,61 @@ _kw_env = os.getenv("CURATOR_KEYWORDS", "")
 KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env.strip() else _DEFAULT_KEYWORDS
 
 
+def _load_curation_grounding_keywords() -> set[str]:
+    """Load keywords used specifically for curation fact retrieval.
+
+    Falls back to CURATOR_KEYWORDS when not explicitly configured.
+    """
+    raw = os.getenv("CURATION_GROUNDING_TECH_KEYWORDS", "").strip()
+    if raw:
+        return {part.strip().lower() for part in raw.split(",") if part.strip()}
+    return {kw.strip().lower() for kw in KEYWORDS if kw.strip()}
+
+
+def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
+    """Load curation-specific tag expansions with console defaults fallback.
+
+    Env format:
+      CURATION_GROUNDING_TAG_EXPANSIONS=llm:rag|embeddings|vector search;java:spring|jms
+    """
+    raw = os.getenv("CURATION_GROUNDING_TAG_EXPANSIONS", "").strip()
+    if not raw:
+        return get_console_grounding_tag_expansions()
+
+    expansions: dict[str, set[str]] = {}
+    for block in raw.split(";"):
+        block = block.strip()
+        if not block or ":" not in block:
+            continue
+        base, values = block.split(":", 1)
+        base = base.strip().lower()
+        related = {v.strip().lower() for v in values.split("|") if v.strip()}
+        if base and related:
+            expansions[base] = related
+    return expansions or get_console_grounding_tag_expansions()
+
+
 class ContentCurator:
 
     def __init__(self, ai_service: OllamaService, buffer_service=None, profile_context: str = ""):
         self.ai = ai_service
         self.buffer = buffer_service
         self.profile_context = profile_context
-        self.profile_facts = parse_profile_project_facts(profile_context) if profile_context else []
+        self.curation_grounding_keywords = _load_curation_grounding_keywords()
+        self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
+        self.profile_facts = (
+            parse_profile_project_facts(profile_context, tech_keywords=self.curation_grounding_keywords)
+            if profile_context
+            else []
+        )
 
     def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
-        constraints = parse_query_constraints(query)
+        constraints = parse_query_constraints(
+            query,
+            tech_keywords=self.curation_grounding_keywords,
+            tag_expansions=self.curation_grounding_tag_expansions,
+        )
         return retrieve_relevant_facts(self.profile_facts, constraints, limit=5)
 
     def _load_published_titles(self) -> set:
