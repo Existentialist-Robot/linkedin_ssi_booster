@@ -79,27 +79,6 @@ class QueryConstraints:
     def requires_grounding(self) -> bool:
         return self.require_projects or self.require_companies or bool(self.tech_tags)
 
-
-PROFILE_CLAIM_MARKERS = (
-    "i built",
-    "i led",
-    "i implemented",
-    "i shipped",
-    "i delivered",
-    "i worked",
-    "my project",
-    "my team",
-    "at ",
-    "for ",
-)
-
-COMMON_STOPWORDS = {
-    "and", "the", "with", "from", "that", "this", "into", "about", "your", "their",
-    "they", "have", "were", "been", "while", "where", "using", "across", "under", "over",
-    "build", "built", "project", "projects", "system", "systems", "platform", "platforms",
-}
-
-
 def _extract_company(title: str, details: str) -> str:
     patterns = [
         r"\bat\s+([A-Z][A-Za-z0-9&/ .\-]+?)(?:\.|,|;|$)",
@@ -235,50 +214,3 @@ def build_grounding_facts_block(facts: list[ProjectFact], limit: int = 5) -> str
             f"- Project: {fact.project} | Company: {fact.company} | Years: {fact.years} | Detail: {fact.details}"
         )
     return "\n".join(lines)
-
-
-def _sentence_split(text: str) -> list[str]:
-    """Split text into sentence-like chunks while preserving punctuation."""
-    parts = re.split(r"(?<=[.!?])\s+", text.strip())
-    return [p.strip() for p in parts if p.strip()]
-
-
-def _allowed_claim_tokens(facts: list[ProjectFact]) -> set[str]:
-    tokens: set[str] = set()
-    for fact in facts:
-        combined = f"{fact.project} {fact.company}"
-        for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9+\-/.]{2,}", combined.lower()):
-            if token not in COMMON_STOPWORDS:
-                tokens.add(token)
-    return tokens
-
-
-def enforce_profile_claim_grounding(text: str, allowed_facts: list[ProjectFact]) -> str:
-    """Remove unsupported profile-claim sentences that reference unknown experience.
-
-    This is intentionally conservative and only removes sentences that look like
-    personal background claims but do not contain any allowed project/company token.
-    """
-    if not text or not allowed_facts:
-        return text
-
-    allowed_tokens = _allowed_claim_tokens(allowed_facts)
-    if not allowed_tokens:
-        return text
-
-    sentences = _sentence_split(text)
-    filtered: list[str] = []
-    removed_any = False
-
-    for sentence in sentences:
-        low = sentence.lower()
-        looks_like_claim = any(marker in low for marker in PROFILE_CLAIM_MARKERS)
-        if looks_like_claim and not any(tok in low for tok in allowed_tokens):
-            removed_any = True
-            continue
-        filtered.append(sentence)
-
-    if not removed_any or not filtered:
-        return text
-
-    return " ".join(filtered).strip()

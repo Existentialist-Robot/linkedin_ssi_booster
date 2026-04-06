@@ -36,7 +36,6 @@ from services.console_grounding import (
     parse_query_constraints,
     retrieve_relevant_facts,
     build_deterministic_grounded_reply,
-    enforce_profile_claim_grounding,
 )
 from scheduler import PostScheduler
 from content_calendar import CONTENT_CALENDAR
@@ -268,7 +267,6 @@ def main():
                 grounding_facts=grounding_facts,
                 channel=args.channel,
             )
-            post = enforce_profile_claim_grounding(post, grounding_facts)
             # Hashtags are only appended for LinkedIn-style posts.
             if args.channel not in ("x", "youtube"):
                 hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))

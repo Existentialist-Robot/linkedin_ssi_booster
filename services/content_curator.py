@@ -25,7 +25,6 @@ from services.console_grounding import (
     parse_profile_project_facts,
     parse_query_constraints,
     retrieve_relevant_facts,
-    enforce_profile_claim_grounding,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,7 +331,6 @@ class ContentCurator:
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
-                li_text = enforce_profile_claim_grounding(li_text, grounding_facts)
                 # Append URL then hashtags programmatically (order: body → URL → hashtags)
                 li_text = _append_url_and_hashtags(li_text, article["link"])
 
@@ -345,7 +343,6 @@ class ContentCurator:
                     grounding_facts=grounding_facts,
                 )
                 if x_post:
-                    x_post = enforce_profile_claim_grounding(x_post, grounding_facts)
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
                     x_post = _truncate_at_sentence(x_post, x_budget)
                     if article["link"] and article["link"] not in x_post:
@@ -359,7 +356,6 @@ class ContentCurator:
                     grounding_facts=grounding_facts,
                 )
                 if bsky_post:
-                    bsky_post = enforce_profile_claim_grounding(bsky_post, grounding_facts)
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
                     bsky_budget = 300 - url_overhead
                     bsky_post = _truncate_at_sentence(bsky_post, bsky_budget)
@@ -376,7 +372,6 @@ class ContentCurator:
                     grounding_facts=grounding_facts,
                 )
                 if yt_script:
-                    yt_script = enforce_profile_claim_grounding(yt_script, grounding_facts)
                     yt_script = _truncate_at_sentence(yt_script, 500)
 
                 yt_script_path = None
@@ -469,7 +464,6 @@ class ContentCurator:
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
-                post_text = enforce_profile_claim_grounding(post_text, grounding_facts)
 
                 # Append URL then hashtags programmatically (order: body → URL → hashtags).
                 # For X/Bluesky: cap the LLM text first, THEN append URL so buffer_service
