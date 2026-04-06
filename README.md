@@ -156,6 +156,36 @@ You can tune tech matching with:
 
 These controls affect which profile facts are considered relevant during retrieval.
 
+#### Troubleshooting Grounding Quality
+
+If grounded outputs feel too generic or personal references are missing, this is usually a retrieval-configuration issue rather than a generation issue.
+
+Common symptoms and fixes:
+
+- Symptom: Output avoids personal project references even when relevant.  
+   Likely cause: `CONSOLE_GROUNDING_TECH_KEYWORDS` does not include terms used in your topic or `PROFILE_CONTEXT`.  
+   Fix: Add missing terms (for example: `spring ai`, `sentence transformers`, `pubsub+`, `fastmcp`) in lowercase.
+
+- Symptom: Broad prompts like "Java" or "Python" miss obvious related projects.  
+   Likely cause: `CONSOLE_GROUNDING_TAG_EXPANSIONS` is too narrow.  
+   Fix: Expand umbrella tags so broad queries include adjacent stack terms (for example `java:spring|jms|oracle|weblogic`).
+
+- Symptom: Irrelevant personal facts are injected for unrelated topics.  
+   Likely cause: Keyword list is too broad/noisy.  
+   Fix: Remove vague terms and keep only high-signal domain vocabulary.
+
+- Symptom: Console factual answers look right, but generate/curate still feel weakly grounded.  
+   Likely cause: Topic/article language does not overlap your configured keyword/tag space.  
+   Fix: Add synonyms that appear in curated article text and your content-calendar topics.
+
+Quick tuning workflow:
+
+1. Start with a compact keyword set that mirrors your `PROFILE_CONTEXT` terms.
+2. Add tag expansions for umbrella terms (`java`, `python`, `rag`).
+3. Run `--console` with factual prompts and confirm retrieved facts match expectations.
+4. Run `--generate --dry-run` and `--curate --dry-run` and inspect whether personal references are relevant and supported.
+5. Iterate by adding/removing only a few terms at a time.
+
 #### Important Scope
 
 Grounding protects factual identity and project/company claims. It does not attempt to fact-check every external statement in third-party articles.
