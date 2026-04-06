@@ -219,6 +219,7 @@ cp .env.example .env
 #   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
 #   OLLAMA_BASE_URL       → default: http://localhost:11434
 #   OLLAMA_MODEL          → default: llama3.2 (gemma4:26b recommended)
+#   OLLAMA_NUM_CTX        → default: 16384 (increase to reduce prompt truncation)
 #
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
@@ -390,6 +391,7 @@ ollama pull gemma4:26b
 
 # 4. Set the model in .env
 OLLAMA_MODEL=gemma4:26b
+OLLAMA_NUM_CTX=16384
 
 # Override model for a single run
 OLLAMA_MODEL=llama3.2 python main.py --curate --dry-run
@@ -398,6 +400,7 @@ OLLAMA_MODEL=llama3.2 python main.py --curate --dry-run
 > **Tip:** `gemma4:26b` (MoE — 3.8B active params) gives the best post quality: native system role support,
 > configurable thinking mode, and strong instruction-following across long prompts. `qwen2.5:14b` is a solid
 > fallback if you're VRAM-constrained (~9 GB). `llama3.2` (3b) is fastest but lower quality.
+> Increase `OLLAMA_NUM_CTX` (for example `16384` or `32768`) if you see prompt truncation in logs when grounding is enabled.
 
 ## SSI Component Mapping
 

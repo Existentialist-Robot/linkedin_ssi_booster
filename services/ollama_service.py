@@ -10,6 +10,7 @@ Pull a model: ollama pull qwen2.5:14b
 """
 
 import os
+import re
 
 import logging
 from typing import Any, Optional
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "llama3.2"
 DEFAULT_BASE_URL = "http://localhost:11434"
+DEFAULT_NUM_CTX = 16384
 
 
 class OllamaService:
@@ -31,15 +33,26 @@ class OllamaService:
     def __init__(self, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_BASE_URL):
         self.model = model
         self.base_url = base_url
+        raw_num_ctx = (os.getenv("OLLAMA_NUM_CTX") or str(DEFAULT_NUM_CTX)).strip()
+        try:
+            self.num_ctx = max(1024, int(raw_num_ctx))
+        except ValueError:
+            logger.warning("Invalid OLLAMA_NUM_CTX=%r; using default %d", raw_num_ctx, DEFAULT_NUM_CTX)
+            self.num_ctx = DEFAULT_NUM_CTX
         self.client = ollama.Client(host=base_url)
-        logger.info(f"OllamaService initialised — model={model}, host={base_url}")
+        logger.info(
+            "OllamaService initialised — model=%s, host=%s, num_ctx=%d",
+            model,
+            base_url,
+            self.num_ctx,
+        )
 
     def _chat(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024) -> str:
         """Send a chat request to Ollama and return the response text."""
         try:
             response = self.client.chat(
                 model=self.model,
-                options={"num_predict": max_tokens},
+                options={"num_predict": max_tokens, "num_ctx": self.num_ctx},
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user",   "content": user_prompt},
@@ -88,7 +101,7 @@ You are in interactive console chat mode.
         try:
             response = self.client.chat(
                 model=self.model,
-                options={"num_predict": max_tokens},
+                options={"num_predict": max_tokens, "num_ctx": self.num_ctx},
                 messages=[{"role": "system", "content": system_prompt}, *normalized_messages],
             )
             return clean_llm_text((response.message.content or "").strip())
@@ -214,7 +227,7 @@ Article: {article_text[:3000]}"""
         try:
             response = self.client.chat(
                 model=self.model,
-                options={"num_predict": 600},
+                options={"num_predict": 600, "num_ctx": self.num_ctx},
                 format={
                     "type": "object",
                     "properties": {
@@ -307,9 +320,9 @@ Format (plain paragraphs, no dashes or bullets):
 
 Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
 Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
-Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Only reference a project from your profile if it directly uses or is directly challenged by the article's exact subject — when in doubt, skip the project mention and just give your engineering view.
+Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Include at most ONE grounded personal reference from Allowed profile facts when it is clearly relevant; otherwise keep your opinion article-focused.
 
-CRITICAL: Every sentence must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
+CRITICAL: All claims must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL — it will be appended automatically."""
         else:
@@ -319,9 +332,9 @@ Format (plain paragraphs, no dashes or bullets):
 
 Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
 Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
-Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Only reference a project from your profile if it directly uses or is directly challenged by the article's exact subject — when in doubt, skip the project mention and just give your engineering view.
+Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Include at most ONE grounded personal reference from Allowed profile facts when it is clearly relevant; otherwise keep your opinion article-focused.
 
-CRITICAL: Every sentence must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
+CRITICAL: All claims must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL in your output — it will be appended automatically."""
 
@@ -344,4 +357,57 @@ Truth grounding constraints for any personal references:
 SSI optimisation goal for this post:
 {ssi_instruction}"""
 
-        return clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=512))
+        first_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=512))
+        if first_pass:
+            return first_pass
+
+        logger.warning(
+            "Curation first-pass output was empty after cleanup; retrying with simplified prompt"
+        )
+        retry_prompt = f"""Write a concise {channel} post grounded in this article.
+
+Article:
+{article_text[:2500]}
+
+Requirements:
+- 3-5 sentences, plain text only.
+- Include one specific detail from the article.
+- Include at most one grounded personal reference from Allowed profile facts if clearly relevant.
+- Do not invent project/company names, years, or claims.
+
+Allowed profile facts:
+{grounding_block}
+"""
+        retry_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, retry_prompt, max_tokens=384))
+        if retry_pass:
+            return retry_pass
+
+        logger.warning(
+            "Curation retry output was empty after cleanup; using deterministic article-only fallback"
+        )
+        clean_article = re.sub(r"<[^>]+>", " ", article_text)
+        clean_article = re.sub(r"\s+", " ", clean_article).strip()
+        detail = ""
+        if clean_article:
+            parts = re.split(r"(?<=[.!?])\s+", clean_article)
+            detail = (parts[0] if parts else clean_article).strip()
+
+        hook = "Worth a read for teams building production AI and search systems."
+        if channel == "x":
+            fallback = f"{hook} {detail}".strip()
+            return fallback[: max(1, X_CHAR_LIMIT - X_URL_CHARS)].rstrip()
+        if channel == "bluesky":
+            bsky_budget = 300 - (2 + len(source_url) if source_url else 0)
+            fallback = f"{hook} {detail}".strip()
+            return fallback[: max(1, bsky_budget)].rstrip()
+        if channel == "youtube":
+            fallback = f"{hook} {detail}".strip()
+            return fallback[:500].rstrip()
+
+        fallback_lines = [hook]
+        if detail:
+            fallback_lines.append(detail)
+        fallback_lines.append("What stands out most to you from this approach in real deployments?")
+        if post_mode:
+            fallback_lines.append("#AI #MachineLearning #LLM")
+        return "\n\n".join(fallback_lines)
