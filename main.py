@@ -31,6 +31,13 @@ from services.buffer_service import BufferService, BufferQueueFullError, BufferR
 from services.content_curator import ContentCurator
 from services.ssi_tracker import SSITracker
 from services.github_service import build_github_profile_context
+from services.console_grounding import (
+    parse_profile_project_facts,
+    parse_query_constraints,
+    retrieve_relevant_facts,
+    build_deterministic_grounded_reply,
+    enforce_profile_claim_grounding,
+)
 from scheduler import PostScheduler
 from content_calendar import CONTENT_CALENDAR
 
@@ -64,6 +71,7 @@ def run_console(ai: OllamaService, profile_context: str) -> None:
 
     history: list[dict[str, str]] = []
     max_turns = 24
+    profile_facts = parse_profile_project_facts(profile_context)
 
     while True:
         try:
@@ -85,6 +93,17 @@ def run_console(ai: OllamaService, profile_context: str) -> None:
         if cmd == "/reset":
             history.clear()
             print("Conversation history cleared.")
+            continue
+
+        constraints = parse_query_constraints(user_input)
+        if constraints.requires_grounding:
+            facts = retrieve_relevant_facts(profile_facts, constraints, limit=8)
+            reply = build_deterministic_grounded_reply(user_input, facts, constraints)
+            history.append({"role": "user", "content": user_input})
+            history.append({"role": "assistant", "content": reply})
+            if len(history) > max_turns * 2:
+                history = history[-max_turns * 2 :]
+            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
             continue
 
         history.append({"role": "user", "content": user_input})
@@ -196,7 +215,7 @@ def main():
 
     if args.curate:
         buffer = build_buffer_service()
-        curator = ContentCurator(ai_service=ai, buffer_service=buffer)
+        curator = ContentCurator(ai_service=ai, buffer_service=buffer, profile_context=PROFILE_CONTEXT)
         logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
         try:
             ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0)
@@ -231,19 +250,25 @@ def main():
 
         logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week}...")
         posts = []
+        profile_facts = parse_profile_project_facts(PROFILE_CONTEXT)
         if args.channel == "youtube" and not args.dry_run:
             Path("yt-vid-data").mkdir(exist_ok=True)
 
         for topic in week_topics:
             logger.info(f"  Generating: {topic['title']}")
+            grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
+            constraints = parse_query_constraints(grounding_query)
+            grounding_facts = retrieve_relevant_facts(profile_facts, constraints, limit=5)
             post = ai.generate_linkedin_post(
                 title=topic["title"],
                 angle=topic["angle"],
                 ssi_component=topic["ssi_component"],
                 hashtags=topic.get("hashtags", []),
                 profile_context=PROFILE_CONTEXT,
+                grounding_facts=grounding_facts,
                 channel=args.channel,
             )
+            post = enforce_profile_claim_grounding(post, grounding_facts)
             # Hashtags are only appended for LinkedIn-style posts.
             if args.channel not in ("x", "youtube"):
                 hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))

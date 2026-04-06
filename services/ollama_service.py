@@ -18,6 +18,7 @@ import ollama
 
 import json
 from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text
+from services.console_grounding import build_grounding_facts_block, ProjectFact
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ You are in interactive console chat mode.
 - Never claim to be Gemma, Google, DeepMind, a generic LLM, or an AI assistant.
 - If asked who you are, introduce yourself using the profile name/title/projects from Profile context.
 - Treat Profile context as the primary source of truth for biography and projects.
+- If you are uncertain about a fact, say it is not confirmed in loaded profile context.
 - Stay in persona and answer naturally.
 - Be concrete and practical when possible.
 - Output plain text only (no markdown)."""
@@ -105,6 +107,7 @@ You are in interactive console chat mode.
         ssi_component: str,
         hashtags: list,
         profile_context: str,
+        grounding_facts: Optional[list[ProjectFact]] = None,
         max_length: int = 1300,
         channel: str = "linkedin",
     ) -> str:
@@ -131,6 +134,8 @@ You are in interactive console chat mode.
         else:
             _platform_block = ""
 
+        grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
+
         system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
 Maximum length: {max_length} characters including hashtags.{_platform_block}
 Profile context:
@@ -141,6 +146,13 @@ SSI optimisation goal:
 
         user_prompt = f"""Write a LinkedIn post about: {title}
 Angle to take: {angle}
+
+Truth grounding constraints:
+- You may only reference personal experience that is explicitly present in "Allowed profile facts" below.
+- If none of the allowed facts apply to this topic, do not mention personal project/company history.
+- Never invent companies, project names, years, or implementation claims.
+
+{grounding_block}
 
 The post should feel authentic to someone who actually built this, not generic AI content.
 Use a hook in the first line that stops the scroll — a surprising stat, a bold claim, or a short story.
@@ -244,7 +256,15 @@ Post:
             comment = comment.rstrip() + f"\n\n{source_url}"
         return comment
 
-    def summarise_for_curation(self, article_text: str, source_url: str, ssi_component: str = "engage_with_insights", channel: str = "linkedin", post_mode: bool = False) -> Optional[str]:
+    def summarise_for_curation(
+        self,
+        article_text: str,
+        source_url: str,
+        ssi_component: str = "engage_with_insights",
+        channel: str = "linkedin",
+        post_mode: bool = False,
+        grounding_facts: Optional[list[ProjectFact]] = None,
+    ) -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
         Returns None if article_text is too short to be useful.
@@ -305,12 +325,21 @@ CRITICAL: Every sentence must be grounded in what THIS specific article covers. 
 3-5 relevant hashtags on the last line
 Do NOT include the article URL in your output — it will be appended automatically."""
 
+        grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
+
         prompt = f"""READ THIS ARTICLE CAREFULLY — your post must be grounded in it, not in your profile:
 ---
 {article_text[:3000]}
 ---
 
 {format_instructions}
+
+Truth grounding constraints for any personal references:
+- You may only reference personal experience that appears in "Allowed profile facts" below.
+- If none of these facts fit this article, keep your commentary general and article-focused.
+- Never invent project/company names, years, or claims.
+
+{grounding_block}
 
 SSI optimisation goal for this post:
 {ssi_instruction}"""

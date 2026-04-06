@@ -19,6 +19,13 @@ from typing import Optional
 from services.ollama_service import OllamaService
 from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
 from services.buffer_service import BufferQueueFullError, BufferChannelNotConnectedError
+from services.console_grounding import (
+    ProjectFact,
+    parse_profile_project_facts,
+    parse_query_constraints,
+    retrieve_relevant_facts,
+    enforce_profile_claim_grounding,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,9 +169,16 @@ KEYWORDS: list = [k.strip() for k in _kw_env.split(",") if k.strip()] if _kw_env
 
 class ContentCurator:
 
-    def __init__(self, ai_service: OllamaService, buffer_service=None):
+    def __init__(self, ai_service: OllamaService, buffer_service=None, profile_context: str = ""):
         self.ai = ai_service
         self.buffer = buffer_service
+        self.profile_context = profile_context
+        self.profile_facts = parse_profile_project_facts(profile_context) if profile_context else []
+
+    def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
+        query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
+        constraints = parse_query_constraints(query)
+        return retrieve_relevant_facts(self.profile_facts, constraints, limit=5)
 
     def _load_published_titles(self) -> set:
         if IDEAS_CACHE_PATH.exists():
@@ -251,6 +265,11 @@ class ContentCurator:
                 time.sleep(request_delay)
             # Weighted random pick: components with lower scores get more posts
             ssi_component = _pick_ssi_component()
+            grounding_facts = self._grounding_facts_for_article(
+                article_title=article["title"],
+                article_summary=article["summary"],
+                ssi_component=ssi_component,
+            )
             logger.info(f"Generating [{message_type}|{ssi_component}] for: {article['title'][:60]}...")
 
             # ----------------------------------------------------------------
@@ -263,23 +282,39 @@ class ContentCurator:
                     ssi_component=ssi_component,
                     channel="linkedin",
                     post_mode=True,
+                    grounding_facts=grounding_facts,
                 )
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
+                li_text = enforce_profile_claim_grounding(li_text, grounding_facts)
                 # Append URL then hashtags programmatically (order: body → URL → hashtags)
                 li_text = _append_url_and_hashtags(li_text, article["link"])
 
                 time.sleep(request_delay)
-                x_post = self.ai.summarise_for_curation(article["summary"], article["link"], ssi_component, "x")
+                x_post = self.ai.summarise_for_curation(
+                    article["summary"],
+                    article["link"],
+                    ssi_component,
+                    "x",
+                    grounding_facts=grounding_facts,
+                )
                 if x_post:
+                    x_post = enforce_profile_claim_grounding(x_post, grounding_facts)
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
                     x_post = _truncate_at_sentence(x_post, x_budget)
                     if article["link"] and article["link"] not in x_post:
                         x_post = x_post.rstrip() + f"\n\n{article['link']}"
                 time.sleep(request_delay)
-                bsky_post = self.ai.summarise_for_curation(article["summary"], article["link"], ssi_component, "bluesky")
+                bsky_post = self.ai.summarise_for_curation(
+                    article["summary"],
+                    article["link"],
+                    ssi_component,
+                    "bluesky",
+                    grounding_facts=grounding_facts,
+                )
                 if bsky_post:
+                    bsky_post = enforce_profile_claim_grounding(bsky_post, grounding_facts)
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
                     bsky_budget = 300 - url_overhead
                     bsky_post = _truncate_at_sentence(bsky_post, bsky_budget)
@@ -287,8 +322,16 @@ class ContentCurator:
                         bsky_post = bsky_post.rstrip() + f"\n\n{article['link']}"
 
                 time.sleep(request_delay)
-                yt_script = self.ai.summarise_for_curation(article["summary"], article["link"], ssi_component, "youtube", post_mode=True)
+                yt_script = self.ai.summarise_for_curation(
+                    article["summary"],
+                    article["link"],
+                    ssi_component,
+                    "youtube",
+                    post_mode=True,
+                    grounding_facts=grounding_facts,
+                )
                 if yt_script:
+                    yt_script = enforce_profile_claim_grounding(yt_script, grounding_facts)
                     yt_script = _truncate_at_sentence(yt_script, 500)
 
                 yt_script_path = None
@@ -376,10 +419,12 @@ class ContentCurator:
                     ssi_component=ssi_component,
                     channel=effective_channel,
                     post_mode=(message_type == "post"),
+                    grounding_facts=grounding_facts,
                 )
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
+                post_text = enforce_profile_claim_grounding(post_text, grounding_facts)
 
                 # Append URL then hashtags programmatically (order: body → URL → hashtags).
                 # For X/Bluesky: cap the LLM text first, THEN append URL so buffer_service
