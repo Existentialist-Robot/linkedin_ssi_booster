@@ -50,6 +50,7 @@ Thumbs.db
 files.zip
 ssi_data.json
 github_repos_cache.json
+github_readmes_cache.json
 published_ideas_cache.json
 ssi_history.json
 
