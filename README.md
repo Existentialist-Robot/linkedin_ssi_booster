@@ -1,7 +1,7 @@
 # LinkedIn SSI Booster — Buffer API Integration
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version: alpha-0.0.0.9](https://img.shields.io/badge/version-alpha--0.0.0.9-orange.svg)]()
+[![Version: alpha-0.0.0.10](https://img.shields.io/badge/version-alpha--0.0.0.10-orange.svg)]()
 
 Automates LinkedIn post generation and scheduling via local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
 
@@ -204,6 +204,9 @@ python main.py --save-ssi 10.49 9.69 11.0 12.15
 
 # Fetch live Bluesky profile + engagement stats
 python main.py --bsky-stats
+
+# Open interactive persona chat console (no Buffer calls)
+python main.py --console
 ```
 
 ### `--generate` vs `--curate` vs `--dry-run`
@@ -212,6 +215,7 @@ python main.py --bsky-stats
 | -------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                                                                                                                                                  |
 | `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                                                                                                                                                |
+| `--console`          | Persona + profile context                                | Opens an interactive terminal chat with your persona/context loaded. No Buffer actions are performed in this mode. Console commands: `/help`, `/reset`, `/exit`.                                                                                                                                                                               |
 | `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                                                                                                                                               |
 | `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing. LinkedIn: source URL and hashtags appended programmatically (body → URL → hashtags).                                                                                                                                                                 |
 | `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: source URL and hashtags appended after the post body. X: single post, 280-char limit, no hashtags. Bluesky: single post, 300-char limit, no hashtags. YouTube: script printed to screen and saved to `yt-vid-data/` — not pushed to Buffer (see below). |

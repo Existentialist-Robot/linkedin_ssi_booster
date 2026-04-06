@@ -221,6 +221,8 @@ class GitHubService:
             readme_map = self._get_readme_summaries(repos, readme_max_chars)
 
         lines = ["GitHub projects (use these as real reference points when relevant):"]
+        included_repo_count = 0
+        included_readme_count = 0
         for repo in repos:
             name = repo["name"]
             desc = (repo.get("description") or "").strip()
@@ -242,11 +244,13 @@ class GitHubService:
             if meta:
                 parts.append(f"[{' | '.join(meta)}]")
             lines.append("  ".join(parts))
+            included_repo_count += 1
 
             if include_readme_summaries:
                 summary = (readme_map.get(full_name) or "").strip()
                 if summary:
                     lines.append(f"  README summary: {summary}")
+                    included_readme_count += 1
 
             current = "\n".join(lines)
             if len(current) > max_chars:
@@ -258,7 +262,16 @@ class GitHubService:
                 break
 
         block = "\n".join(lines)
-        return self._clip_at_sentence(block, max_chars)
+        clipped_block = self._clip_at_sentence(block, max_chars)
+        logger.debug(
+            "GitHub context assembled: repos=%s readmes=%s chars=%s/%s include_readmes=%s",
+            included_repo_count,
+            included_readme_count,
+            len(clipped_block),
+            max_chars,
+            include_readme_summaries,
+        )
+        return clipped_block
 
 
 def _env_bool(name: str, default: bool) -> bool:

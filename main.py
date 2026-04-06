@@ -10,6 +10,7 @@ Usage:
   python main.py --generate [--week N] [--dry-run] [--channel linkedin|x|bluesky|youtube|all]
   python main.py --schedule [--week N] [--dry-run] [--channel linkedin|x|bluesky|youtube|all]
   python main.py --curate               [--dry-run] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
+    python main.py --console
   python main.py --report
 """
 
@@ -55,11 +56,57 @@ logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 
 
+def run_console(ai: OllamaService, profile_context: str) -> None:
+    """Run interactive persona chat mode in the terminal."""
+    print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n🧠 Persona Console Mode" + str(Style.RESET_ALL))
+    print("- No Buffer actions will be performed in this mode.")
+    print("- Commands: /help, /reset, /exit")
+
+    history: list[dict[str, str]] = []
+    max_turns = 24
+
+    while True:
+        try:
+            user_input = input("\nYou> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nExiting console.")
+            return
+
+        if not user_input:
+            continue
+
+        cmd = user_input.lower()
+        if cmd in {"/exit", "/quit"}:
+            print("Exiting console.")
+            return
+        if cmd == "/help":
+            print("Commands: /help, /reset, /exit")
+            continue
+        if cmd == "/reset":
+            history.clear()
+            print("Conversation history cleared.")
+            continue
+
+        history.append({"role": "user", "content": user_input})
+        if len(history) > max_turns * 2:
+            history = history[-max_turns * 2 :]
+
+        try:
+            reply = ai.chat_as_persona(history, profile_context=profile_context, max_tokens=600)
+        except Exception as e:
+            print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
+            continue
+
+        history.append({"role": "assistant", "content": reply})
+        print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+
+
 def main():
     parser = argparse.ArgumentParser(description="LinkedIn SSI Booster via Buffer API")
     parser.add_argument("--generate",  action="store_true", help="Generate posts from content calendar")
     parser.add_argument("--schedule",  action="store_true", help="Push scheduled posts to Buffer")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
+    parser.add_argument("--console",   action="store_true", help="Open interactive persona chat mode (no Buffer calls)")
     parser.add_argument("--report",    action="store_true", help="Print SSI component report")
     parser.add_argument("--save-ssi",  nargs=4, metavar=("BRAND", "FIND", "ENGAGE", "BUILD"),
                         type=float, help="Record today's SSI scores: --save-ssi 10.49 9.69 11.0 12.15")
@@ -77,18 +124,42 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
         logging.getLogger("httpx").setLevel(logging.WARNING)  # suppress noisy HTTP client logs
 
-    buffer_api_key = os.getenv("BUFFER_API_KEY")
-    if not buffer_api_key:
-        raise ValueError("BUFFER_API_KEY environment variable is required")
-    buffer = BufferService(api_key=buffer_api_key)
-
     ai = OllamaService(
         model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
     logger.info(f"Using Ollama model: {ai.model}")
-    curator = ContentCurator(ai_service=ai, buffer_service=buffer)
     tracker = SSITracker()
+
+    if args.console:
+        incompatible = []
+        if args.generate:
+            incompatible.append("--generate")
+        if args.schedule:
+            incompatible.append("--schedule")
+        if args.curate:
+            incompatible.append("--curate")
+        if args.report:
+            incompatible.append("--report")
+        if args.save_ssi:
+            incompatible.append("--save-ssi")
+        if args.bsky_stats:
+            incompatible.append("--bsky-stats")
+        if incompatible:
+            print(
+                str(Fore.YELLOW)
+                + f"\n⚠️  --console cannot be combined with: {', '.join(incompatible)}"
+                + str(Style.RESET_ALL)
+            )
+            return
+        run_console(ai=ai, profile_context=PROFILE_CONTEXT)
+        return
+
+    def build_buffer_service() -> BufferService:
+        buffer_api_key = os.getenv("BUFFER_API_KEY")
+        if not buffer_api_key:
+            raise ValueError("BUFFER_API_KEY environment variable is required")
+        return BufferService(api_key=buffer_api_key)
 
     if args.report:
         tracker.print_report()
@@ -124,6 +195,8 @@ def main():
         return
 
     if args.curate:
+        buffer = build_buffer_service()
+        curator = ContentCurator(ai_service=ai, buffer_service=buffer)
         logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
         try:
             ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0)
@@ -225,6 +298,7 @@ def main():
                     + str(Style.RESET_ALL)
                 )
                 return
+            buffer = build_buffer_service()
             scheduler = PostScheduler(buffer_service=buffer)
             try:
                 scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)

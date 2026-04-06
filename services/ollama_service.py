@@ -12,7 +12,7 @@ Pull a model: ollama pull qwen2.5:14b
 import os
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import ollama
 
@@ -45,6 +45,51 @@ class OllamaService:
                 ],
             )
             return (response.message.content or "").strip()
+        except ollama.ResponseError as e:
+            raise RuntimeError(f"Ollama API error (model={self.model}): {e}") from e
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not reach Ollama at {self.base_url}. "
+                "Is it running? Try: ollama serve"
+            ) from e
+
+    def chat_as_persona(
+        self,
+        messages: list[dict[str, str]],
+        profile_context: str,
+        max_tokens: int = 600,
+    ) -> str:
+        """Run an interactive persona chat with profile context loaded."""
+        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
+
+Profile context:
+{profile_context}
+
+You are in interactive console chat mode.
+- Identity lock: You MUST represent the person described in Profile context.
+- Never claim to be Gemma, Google, DeepMind, a generic LLM, or an AI assistant.
+- If asked who you are, introduce yourself using the profile name/title/projects from Profile context.
+- Treat Profile context as the primary source of truth for biography and projects.
+- Stay in persona and answer naturally.
+- Be concrete and practical when possible.
+- Output plain text only (no markdown)."""
+
+        normalized_messages: list[dict[str, str]] = []
+        for m in messages:
+            role = (m.get("role") or "user").strip()
+            if role not in {"user", "assistant"}:
+                continue
+            content = (m.get("content") or "").strip()
+            if content:
+                normalized_messages.append({"role": role, "content": content})
+
+        try:
+            response = self.client.chat(
+                model=self.model,
+                options={"num_predict": max_tokens},
+                messages=[{"role": "system", "content": system_prompt}, *normalized_messages],
+            )
+            return clean_llm_text((response.message.content or "").strip())
         except ollama.ResponseError as e:
             raise RuntimeError(f"Ollama API error (model={self.model}): {e}") from e
         except Exception as e:
