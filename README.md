@@ -112,6 +112,54 @@ Hashtags (for `--generate` targeting LinkedIn) and source article links (for `--
 
 `--generate` and `--curate` now also apply the same deterministic truth-grounding strategy used in console mode: each request retrieves a small set of relevant facts from `PROFILE_CONTEXT`, injects those facts as the only allowed personal references, and runs a post-processing guard that removes unsupported personal-claim sentences. This reduces hallucinated project/company claims while still allowing authentic first-person experience when it is backed by your profile context.
 
+### How Deterministic Grounding Works (Console, Generate, Curate)
+
+Deterministic grounding is a safety layer that reduces hallucinated personal claims by forcing outputs to stay anchored to known profile facts.
+
+#### What Problem It Solves
+
+Large models are strong at style but can still invent plausible-sounding background details (project names, companies, years, implementation claims). Grounding prevents that by treating loaded profile context as the source of truth.
+
+#### Grounding Pipeline
+
+1. Parse profile facts  
+   The app parses project bullets from `PROFILE_CONTEXT` into structured records: project, company, years, details.
+2. Detect constraints from the request  
+   Query intent is analyzed for project/company lookups and technology tags (for example Java, Spring, RAG, Neo4j).
+3. Retrieve relevant facts  
+   Facts are ranked and a top subset is selected for the current request.
+4. Apply truth constraints in prompts (`--generate` and `--curate`)  
+   The model is explicitly told that personal references must come only from the allowed facts, and if none fit, it must avoid personal implementation claims.
+5. Post-process output with a claim guard  
+   A deterministic filter removes unsupported personal-claim sentences when they reference unknown experience.
+
+#### Console Mode Behavior
+
+When a question is factual (for example: what projects, where, when, what stack), console mode can answer deterministically from parsed facts with source references instead of relying on free-form generation.
+
+#### Generate and Curate Behavior
+
+For weekly generation and article curation:
+
+- Relevant facts are selected per topic/article.
+- Those facts are injected as the only allowed personal references.
+- Unsupported personal-claim sentences are stripped before final formatting.
+
+This keeps posts authentic while lowering risk of fabricated bio details.
+
+#### Environment Controls
+
+You can tune tech matching with:
+
+- `CONSOLE_GROUNDING_TECH_KEYWORDS`
+- `CONSOLE_GROUNDING_TAG_EXPANSIONS`
+
+These controls affect which profile facts are considered relevant during retrieval.
+
+#### Important Scope
+
+Grounding protects factual identity and project/company claims. It does not attempt to fact-check every external statement in third-party articles.
+
 ## Setup
 
 ```bash
