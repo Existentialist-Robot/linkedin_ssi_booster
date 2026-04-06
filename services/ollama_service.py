@@ -160,10 +160,7 @@ SSI optimisation goal:
         user_prompt = f"""Write a LinkedIn post about: {title}
 Angle to take: {angle}
 
-Truth grounding constraints:
-- You may only reference personal experience that is explicitly present in "Allowed profile facts" below.
-- If none of the allowed facts apply to this topic, do not mention personal project/company history.
-- Never invent companies, project names, years, or implementation claims.
+Draw on your background naturally — the profile facts below are your real experience. Use them to make specific, authentic connections to the topic. Do not fabricate details not present in your profile.
 
 {grounding_block}
 
@@ -171,7 +168,7 @@ The post should feel authentic to someone who actually built this, not generic A
 Use a hook in the first line that stops the scroll — a surprising stat, a bold claim, or a short story.
 Do NOT include hashtags in your output — they will be appended automatically."""
 
-        text = self._chat(system_prompt, user_prompt, max_tokens=512)
+        text = self._chat(system_prompt, user_prompt, max_tokens=768)
 
         if channel == "youtube" and len(text) > 500:
             # Hard cap: truncate to last complete sentence at or before 500 chars
@@ -320,9 +317,9 @@ Format (plain paragraphs, no dashes or bullets):
 
 Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
 Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
-Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Include at most ONE grounded personal reference from Allowed profile facts when it is clearly relevant; otherwise keep your opinion article-focused.
+Opinion (1-2 sentences): Give your direct engineering take on this article's specific finding. Connect it to your real experience from the profile facts below when the link is genuinely relevant.
 
-CRITICAL: All claims must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
+Stay focused on what this specific article covers. When you connect your own experience, make the link clear and natural.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL — it will be appended automatically."""
         else:
@@ -332,32 +329,29 @@ Format (plain paragraphs, no dashes or bullets):
 
 Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
 Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
-Opinion (1-2 sentences): Give your take as an engineer who builds production AI systems. Stay exactly on-topic — your opinion must be about the SAME subject as the article, not a tangentially related subject. Include at most ONE grounded personal reference from Allowed profile facts when it is clearly relevant; otherwise keep your opinion article-focused.
+Opinion (1-2 sentences): Give your direct engineering take on this article's specific finding. Connect it to your real experience from the profile facts below when the link is genuinely relevant.
 
-CRITICAL: All claims must be grounded in what THIS specific article covers. If the article is about fine-tuning, write about fine-tuning. If it is about agent safety, write about agent safety. Do NOT pivot topics under any circumstances.
+Stay focused on what this specific article covers. When you connect your own experience, make the link clear and natural.
 3-5 relevant hashtags on the last line
 Do NOT include the article URL in your output — it will be appended automatically."""
 
         grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
 
-        prompt = f"""READ THIS ARTICLE CAREFULLY — your post must be grounded in it, not in your profile:
+        prompt = f"""Read the article below carefully — your post must engage with it specifically:
 ---
-{article_text[:3000]}
+{article_text[:4500]}
 ---
 
 {format_instructions}
 
-Truth grounding constraints for any personal references:
-- You may only reference personal experience that appears in "Allowed profile facts" below.
-- If none of these facts fit this article, keep your commentary general and article-focused.
-- Never invent project/company names, years, or claims.
+Draw on your background to make the post specific and authentic. The profile facts below are real — use them to connect this article to your work when the link is organic. Do not fabricate project names, companies, years, or technical claims.
 
 {grounding_block}
 
 SSI optimisation goal for this post:
 {ssi_instruction}"""
 
-        first_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=512))
+        first_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=800))
         if first_pass:
             return first_pass
 
@@ -367,7 +361,7 @@ SSI optimisation goal for this post:
         retry_prompt = f"""Write a concise {channel} post grounded in this article.
 
 Article:
-{article_text[:2500]}
+{article_text[:3500]}
 
 Requirements:
 - 3-5 sentences, plain text only.
@@ -378,7 +372,7 @@ Requirements:
 Allowed profile facts:
 {grounding_block}
 """
-        retry_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, retry_prompt, max_tokens=384))
+        retry_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, retry_prompt, max_tokens=600))
         if retry_pass:
             return retry_pass
 

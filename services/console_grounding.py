@@ -208,7 +208,7 @@ def build_grounding_facts_block(facts: list[ProjectFact], limit: int = 5) -> str
     if not facts:
         return ""
 
-    lines = ["Allowed profile facts (use these only if you reference personal experience):"]
+    lines = ["Your background — weave these in naturally when they genuinely connect to the topic:"]
     for fact in facts[:limit]:
         lines.append(
             f"- Project: {fact.project} | Company: {fact.company} | Years: {fact.years} | Detail: {fact.details}"
