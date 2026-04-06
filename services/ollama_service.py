@@ -10,7 +10,6 @@ Pull a model: ollama pull qwen2.5:14b
 """
 
 import os
-import re
 
 import logging
 from typing import Any, Optional
@@ -311,97 +310,40 @@ CRITICAL HARD LIMIT: your entire response MUST be 500 characters or fewer — co
 Do NOT include hashtags, URLs, or any markdown.
 If you are close to 500 characters, stop at the last complete sentence that fits."""
         elif post_mode:
-            format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
-Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
-Format (plain paragraphs, no dashes or bullets):
-
-Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
-Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
-Opinion (1-2 sentences): Give your direct engineering take on this article's specific finding. Connect it to your real experience from the profile facts below when the link is genuinely relevant.
-
-Stay focused on what this specific article covers. When you connect your own experience, make the link clear and natural.
-3-5 relevant hashtags on the last line
-Do NOT include the article URL — it will be appended automatically."""
+            format_instructions = """Output rules:
+- Plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
+- 4-8 sentences in short punchy paragraphs.
+- Ground every claim in something specific from the article — a name, number, technique, or decision.
+- 3-5 hashtags on the last line.
+- Do NOT include the article URL — it will be appended automatically."""
         else:
-            format_instructions = """Summarise this article and write a LinkedIn post sharing it with your own commentary.
-Output plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
-Format (plain paragraphs, no dashes or bullets):
-
-Hook (1-2 sentences): Open with the most specific, surprising, or counterintuitive claim FROM THIS ARTICLE — name the actual thing: a model name, a number, a named technique, a decision the team actually made. Not a generic AI observation.
-Summary (2-3 sentences): Explain the article's core insight in your own words. Include at least one concrete detail from the article (a number, a benchmark result, a named technique, a specific decision). Do not pad with generalities.
-Opinion (1-2 sentences): Give your direct engineering take on this article's specific finding. Connect it to your real experience from the profile facts below when the link is genuinely relevant.
-
-Stay focused on what this specific article covers. When you connect your own experience, make the link clear and natural.
-3-5 relevant hashtags on the last line
-Do NOT include the article URL in your output — it will be appended automatically."""
+            format_instructions = """Output rules:
+- Plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
+- 4-8 sentences in short punchy paragraphs.
+- Ground every claim in something specific from the article — a name, number, technique, or decision.
+- 3-5 hashtags on the last line.
+- Do NOT include the article URL in your output — it will be appended automatically."""
 
         grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
 
-        prompt = f"""Read the article below carefully — your post must engage with it specifically:
+        prompt = f"""Article:
 ---
 {article_text[:4500]}
 ---
 
-{format_instructions}
+Write a LinkedIn post reacting to this article.
 
-Draw on your background to make the post specific and authentic. The profile facts below are real — use them to connect this article to your work when the link is organic. Do not fabricate project names, companies, years, or technical claims.
+{ssi_instruction}
 
 {grounding_block}
 
-SSI optimisation goal for this post:
-{ssi_instruction}"""
+{format_instructions}"""
 
-        first_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=800))
-        if first_pass:
-            return first_pass
-
-        logger.warning(
-            "Curation first-pass output was empty after cleanup; retrying with simplified prompt"
-        )
-        retry_prompt = f"""Write a concise {channel} post grounded in this article.
-
-Article:
-{article_text[:3500]}
-
-Requirements:
-- 3-5 sentences, plain text only.
-- Include one specific detail from the article.
-- Include at most one grounded personal reference from Allowed profile facts if clearly relevant.
-- Do not invent project/company names, years, or claims.
-
-Allowed profile facts:
-{grounding_block}
-"""
-        retry_pass = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, retry_prompt, max_tokens=600))
-        if retry_pass:
-            return retry_pass
+        result = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=800))
+        if result:
+            return result
 
         logger.warning(
-            "Curation retry output was empty after cleanup; using deterministic article-only fallback"
+            "Curation output was empty after cleanup — skipping article: %s", source_url
         )
-        clean_article = re.sub(r"<[^>]+>", " ", article_text)
-        clean_article = re.sub(r"\s+", " ", clean_article).strip()
-        detail = ""
-        if clean_article:
-            parts = re.split(r"(?<=[.!?])\s+", clean_article)
-            detail = (parts[0] if parts else clean_article).strip()
-
-        hook = "Worth a read for teams building production AI and search systems."
-        if channel == "x":
-            fallback = f"{hook} {detail}".strip()
-            return fallback[: max(1, X_CHAR_LIMIT - X_URL_CHARS)].rstrip()
-        if channel == "bluesky":
-            bsky_budget = 300 - (2 + len(source_url) if source_url else 0)
-            fallback = f"{hook} {detail}".strip()
-            return fallback[: max(1, bsky_budget)].rstrip()
-        if channel == "youtube":
-            fallback = f"{hook} {detail}".strip()
-            return fallback[:500].rstrip()
-
-        fallback_lines = [hook]
-        if detail:
-            fallback_lines.append(detail)
-        fallback_lines.append("What stands out most to you from this approach in real deployments?")
-        if post_mode:
-            fallback_lines.append("#AI #MachineLearning #LLM")
-        return "\n\n".join(fallback_lines)
+        return None
