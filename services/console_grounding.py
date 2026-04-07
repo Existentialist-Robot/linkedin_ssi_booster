@@ -214,3 +214,134 @@ def build_grounding_facts_block(facts: list[ProjectFact], limit: int = 5) -> str
             f"- Project: {fact.project} | Company: {fact.company} | Years: {fact.years} | Detail: {fact.details}"
         )
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Lightweight truth gate — post-generation claim check
+# ---------------------------------------------------------------------------
+
+# Regex to find sentences containing numeric claims (percentages, specific
+# numbers with units, dollar amounts) or year references that might be
+# hallucinated.
+_NUMERIC_CLAIM_RE = re.compile(
+    r"\d+(?:\.\d+)?(?:\s*[%x×]"           # 40%, 3x, 2×
+    r"|\s*(?:percent|million|billion|thousand|ms|seconds?|minutes?|hours?)"
+    r"|\s*(?:faster|slower|reduction|improvement|increase|decrease)"
+    r")",
+    re.IGNORECASE,
+)
+_YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
+_DOLLAR_RE = re.compile(r"\$\s?\d")
+
+# Company-name heuristic: two+ capitalised words that look like an org name
+# but are NOT common English phrases.
+_ORG_NAME_RE = re.compile(
+    r"\b(?:at|for|with|from|joined)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b"
+)
+
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _build_allowed_tokens(article_text: str, facts: list[ProjectFact]) -> set[str]:
+    """Build a set of lowercased tokens that are considered 'allowed' evidence.
+
+    Includes all words, numbers, and short phrases from the article text and
+    the grounding facts.  The truth gate checks whether a claim's specific
+    numeric/company token appears somewhere in this allowed set.
+    """
+    allowed: set[str] = set()
+
+    # Extract all number-like tokens and lowercased words from sources.
+    sources = [article_text]
+    for f in facts:
+        sources.append(f"{f.project} {f.company} {f.years} {f.details}")
+
+    for src in sources:
+        # Numbers (with optional decimal): "397k", "500ms", "40%", "2024"
+        for m in re.finditer(r"\d[\d,.*]*\w*", src):
+            allowed.add(m.group(0).lower().rstrip("."))
+        # Year ranges like "2014-2023"
+        for m in re.finditer(r"(19|20)\d{2}(?:\s*[-–]\s*(19|20)?\d{2})?", src):
+            allowed.add(m.group(0).replace(" ", "").lower())
+        # Capitalised multi-word names (potential orgs)
+        for m in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", src):
+            allowed.add(m.group(0).lower())
+        # Individual words ≥3 chars
+        for w in re.findall(r"\b\w{3,}\b", src):
+            allowed.add(w.lower())
+
+    return allowed
+
+
+def truth_gate(
+    text: str,
+    article_text: str,
+    facts: list[ProjectFact],
+) -> str:
+    """Lightweight post-generation truth gate.
+
+    Scans each sentence in *text* for numeric claims, year references,
+    dollar amounts, and company-name patterns.  If a sentence contains
+    such a claim whose key token does NOT appear in either the article
+    text or the grounding facts, that sentence is silently removed.
+
+    This is intentionally conservative:
+    - It only strips sentences with unsupported *specific* claims.
+    - General opinions, hooks, and rhetorical questions pass through.
+    - The rest of the post is left intact — no rewriting.
+
+    Returns the filtered text (may be identical to input if nothing was stripped).
+    """
+    if not text:
+        return text
+
+    allowed = _build_allowed_tokens(article_text, facts)
+    sentences = _SENTENCE_SPLIT_RE.split(text)
+    kept: list[str] = []
+
+    for sentence in sentences:
+        dominated = False
+
+        # Check numeric claims
+        for m in _NUMERIC_CLAIM_RE.finditer(sentence):
+            # Extract the number portion
+            num_token = re.match(r"[\d,.]+", m.group(0))
+            if num_token and num_token.group(0).lower().rstrip(".") not in allowed:
+                dominated = True
+                break
+
+        # Check year references
+        if not dominated:
+            for m in _YEAR_RE.finditer(sentence):
+                if m.group(0) not in allowed:
+                    dominated = True
+                    break
+
+        # Check dollar amounts
+        if not dominated:
+            for m in _DOLLAR_RE.finditer(sentence):
+                nearby = sentence[m.start():m.start()+20]
+                num = re.search(r"\d[\d,.]*", nearby)
+                if num and num.group(0).lower().rstrip(".") not in allowed:
+                    dominated = True
+                    break
+
+        # Check org-name patterns ("at SomeCompany", "for BigCorp")
+        if not dominated:
+            for m in _ORG_NAME_RE.finditer(sentence):
+                if m.group(1).lower() not in allowed:
+                    dominated = True
+                    break
+
+        if not dominated:
+            kept.append(sentence)
+
+    result = " ".join(kept).strip()
+    if result != text.strip():
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "Truth gate removed %d of %d sentences",
+            len(sentences) - len(kept),
+            len(sentences),
+        )
+    return result

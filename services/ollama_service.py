@@ -18,7 +18,7 @@ import ollama
 
 import json
 from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text
-from services.console_grounding import build_grounding_facts_block, ProjectFact
+from services.console_grounding import build_grounding_facts_block, ProjectFact, truth_gate
 
 logger = logging.getLogger(__name__)
 
@@ -159,15 +159,19 @@ SSI optimisation goal:
         user_prompt = f"""Write a LinkedIn post about: {title}
 Angle to take: {angle}
 
-Draw on your background naturally — the profile facts below are your real experience. Use them to make specific, authentic connections to the topic. Do not fabricate details not present in your profile.
-
 {grounding_block}
 
-The post should feel authentic to someone who actually built this, not generic AI content.
-Use a hook in the first line that stops the scroll — a surprising stat, a bold claim, or a short story.
+Balance rules (non-negotiable):
+- Every factual claim must come from the topic description or the profile facts above. Do not invent stats, dates, company names, or metrics.
+- Reference your own background at most once, and only when it maps directly to a profile fact provided. If none connect naturally, skip the personal reference.
+- Use a hook in the first line that stops the scroll — a surprising claim, a bold question, or a short scene.
+- The post should feel authentic to someone who actually built this, not generic AI content.
 Do NOT include hashtags in your output — they will be appended automatically."""
 
         text = self._chat(system_prompt, user_prompt, max_tokens=768)
+
+        # Lightweight truth gate — strip sentences with unsupported claims
+        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [])
 
         if channel == "youtube" and len(text) > 500:
             # Hard cap: truncate to last complete sentence at or before 500 chars
@@ -313,16 +317,26 @@ If you are close to 500 characters, stop at the last complete sentence that fits
             format_instructions = """Output rules:
 - Plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 - 4-8 sentences in short punchy paragraphs.
-- Ground every claim in something specific from the article — a name, number, technique, or decision.
 - 3-5 hashtags on the last line.
-- Do NOT include the article URL — it will be appended automatically."""
+- Do NOT include the article URL — it will be appended automatically.
+
+Balance rules (non-negotiable):
+- Every factual claim must come from either the article text or the profile facts below. If a stat, date, company name, or metric is not explicitly present in those sources, do not include it.
+- Include at least one specific detail from the article: a model name, number, benchmark, technique, or decision.
+- Reference your own background at most once per post, and only when it maps directly to one of the profile facts provided. If none connect naturally, write the post without a personal reference.
+- Do not invent percentages, performance numbers, timelines, or outcomes that are not stated in the article or profile facts."""
         else:
             format_instructions = """Output rules:
 - Plain text only — no Markdown, no **, no ##, no backticks. LinkedIn does not render Markdown.
 - 4-8 sentences in short punchy paragraphs.
-- Ground every claim in something specific from the article — a name, number, technique, or decision.
 - 3-5 hashtags on the last line.
-- Do NOT include the article URL in your output — it will be appended automatically."""
+- Do NOT include the article URL in your output — it will be appended automatically.
+
+Balance rules (non-negotiable):
+- Every factual claim must come from either the article text or the profile facts below. If a stat, date, company name, or metric is not explicitly present in those sources, do not include it.
+- Include at least one specific detail from the article: a model name, number, benchmark, technique, or decision.
+- Reference your own background at most once per post, and only when it maps directly to one of the profile facts provided. If none connect naturally, write the post without a personal reference.
+- Do not invent percentages, performance numbers, timelines, or outcomes that are not stated in the article or profile facts."""
 
         grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
 
@@ -340,6 +354,11 @@ Write a LinkedIn post reacting to this article.
 {format_instructions}"""
 
         result = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=800))
+
+        # Lightweight truth gate — strip sentences with unsupported claims
+        if result:
+            result = truth_gate(result, article_text, grounding_facts or [])
+
         if result:
             return result
 

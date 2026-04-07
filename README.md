@@ -114,7 +114,11 @@ For curated posts (`--curate`), `content_curator.py` filters RSS feeds by your n
 **Guaranteed output integrity**  
 Hashtags (for `--generate` targeting LinkedIn) and source article links (for `--curate`) are always appended programmatically _after_ the model responds — never left to the model to include or place correctly. X posts skip hashtag appending entirely — X's 280-character limit leaves no room for them, and the prompt instructs the model to write a single tight paragraph instead of the multi-paragraph LinkedIn format.
 
-`--generate` and `--curate` now also apply the same deterministic truth-grounding strategy used in console mode: each request retrieves a small set of relevant facts from `PROFILE_CONTEXT`, injects those facts as the only allowed personal references, and runs a post-processing guard that removes unsupported personal-claim sentences. This reduces hallucinated project/company claims while still allowing authentic first-person experience when it is backed by your profile context.
+`--generate` and `--curate` apply a three-layer grounding strategy:
+
+1. **Fact retrieval** — a small set of relevant facts is retrieved from `PROFILE_CONTEXT` and injected into each prompt.
+2. **Balance rules** — prompt-level instructions require every factual claim to come from either the article text or the provided profile facts, cap personal references to at most one per post, and forbid invented numbers/dates/companies.
+3. **Truth gate** — a lightweight post-generation filter scans each sentence for numeric claims, year references, dollar amounts, and company-name patterns. Any sentence whose specific token is not found in the article text or grounding facts is silently removed. General opinions, hooks, and rhetorical questions pass through untouched.
 
 ### How Deterministic Grounding Works (Console, Generate, Curate)
 
@@ -132,10 +136,10 @@ Large models are strong at style but can still invent plausible-sounding backgro
    Query intent is analyzed for project/company lookups and technology tags (for example Java, Spring, RAG, Neo4j).
 3. Retrieve relevant facts  
    Facts are ranked and a top subset is selected for the current request.
-4. Apply truth constraints in prompts (`--generate` and `--curate`)  
-   The model is explicitly told that personal references must come only from the allowed facts, and if none fit, it must avoid personal implementation claims.
-5. Post-process output with a claim guard  
-   A deterministic filter removes unsupported personal-claim sentences when they reference unknown experience.
+4. Apply balance rules in prompts (`--generate` and `--curate`)  
+   The model is told that every factual claim must come from the article or profile facts. Personal references are capped at one per post. Invented stats, dates, and company names are explicitly forbidden.
+5. Post-process output with the truth gate  
+   A lightweight deterministic filter strips sentences containing unsupported numeric/date/company claims. The rest of the post is left intact — no rewriting occurs.
 
 #### Console Mode Behavior
 
@@ -146,8 +150,8 @@ When a question is factual (for example: what projects, where, when, what stack)
 For weekly generation and article curation:
 
 - Relevant facts are selected per topic/article.
-- Those facts are injected as the only allowed personal references.
-- Unsupported personal-claim sentences are stripped before final formatting.
+- Balance rules in the prompt cap personal references and require article-grounded claims.
+- The truth gate strips sentences with unsupported numeric/date/company claims after generation.
 
 This keeps posts authentic while lowering risk of fabricated bio details.
 
