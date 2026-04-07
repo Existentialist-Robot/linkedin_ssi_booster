@@ -29,10 +29,12 @@ Use NLP to improve clarity, relevance, and persuasion while staying truthful.
 People react to their interpretation of reality, not reality itself.
 
 Why this matters:
+
 - Two readers can see the same sentence differently.
 - Good communication starts by meeting the audience where they are.
 
 Example:
+
 - Weak: This architecture is obvious.
 - Better: If you are balancing recall, latency, and cost, this trade-off appears quickly.
 
@@ -41,6 +43,7 @@ Example:
 A communicator's internal state affects language quality and decision quality.
 
 Practical use:
+
 - Before writing, reset state: calm, focused, specific.
 - Use a short pre-writing routine: one clear intent, one audience, one outcome.
 
@@ -49,10 +52,12 @@ Practical use:
 Rapport means alignment in language, context, and pacing.
 
 Practical use:
+
 - Match audience context first.
 - Lead to a new idea second.
 
 Template:
+
 1. You already know X.
 2. What often gets missed is Y.
 3. Here is what changed our result: Z.
@@ -62,6 +67,7 @@ Template:
 Frames determine how information is interpreted before details are analyzed.
 
 Common useful frames:
+
 - Problem frame: what is really failing.
 - Contrast frame: what most teams do vs what works under constraints.
 - Decision frame: what to prioritize now.
@@ -71,6 +77,7 @@ Common useful frames:
 NLP focuses on repeatable patterns in language and response.
 
 Practical use:
+
 - Observe which openings get attention.
 - Observe which claims trigger skepticism.
 - Keep patterns that improve clarity and remove the ones that add noise.
@@ -82,10 +89,12 @@ Practical use:
 Purpose: break automatic scrolling or passive reading.
 
 How:
+
 - Open with a relevant contradiction, sharp claim, or unexpected angle.
 - Keep it specific to the topic.
 
 Example:
+
 - Generic: AI is changing everything.
 - Pattern interrupt: Most retrieval failures are evaluation failures first.
 
@@ -94,10 +103,12 @@ Example:
 Purpose: build trust, then move the reader.
 
 How:
+
 - Pace: describe the audience's current reality accurately.
 - Lead: introduce the next useful perspective or action.
 
 Example:
+
 - If you have scaled search systems, you already know indexing is never done. The deeper issue is feedback-loop quality, not index size.
 
 ## Presupposition
@@ -105,10 +116,12 @@ Example:
 Purpose: embed assumptions that guide interpretation.
 
 How:
+
 - Use carefully and ethically.
 - Presuppose shared context only when it is likely true.
 
 Example:
+
 - When you move from prototype to production, this bottleneck becomes visible.
 
 ## Anchoring
@@ -116,9 +129,11 @@ Example:
 Purpose: associate concepts with a repeated cue over time.
 
 How:
+
 - Repeatedly tie identity to concrete outcomes, not hype.
 
 Example:
+
 - Identity anchor: reliability engineer.
 - Evidence anchor: reduced failure rate after specific pipeline change.
 
@@ -127,6 +142,7 @@ Example:
 Purpose: change meaning without changing facts.
 
 Example:
+
 - Old frame: process slows teams down.
 - New frame: lightweight process protects speed at scale.
 
@@ -135,12 +151,14 @@ Example:
 NLP can improve technical content quality when paired with evidence.
 
 Use these rules:
+
 - Prefer concrete claims over abstract language.
 - Use contrasts to create insight.
 - Ask niche questions that only the right audience can answer.
 - Remove hype words and unsupported certainty.
 
 Weak to strong examples:
+
 - Weak: Performance improved significantly.
 - Strong: p95 latency dropped from 420ms to 260ms after hybrid retrieval tuning.
 
@@ -152,12 +170,14 @@ Weak to strong examples:
 Use NLP to increase clarity and usefulness, not manipulation.
 
 Checklist:
+
 - Is this claim supported?
 - Is this framing fair?
 - Would this still be acceptable with full context disclosed?
 - Does this respect reader autonomy?
 
 Avoid:
+
 - fabricated authority
 - invented metrics
 - fear-based urgency without evidence
