@@ -120,6 +120,52 @@ def clean_llm_text(s: str) -> str:
     return s.strip()
 
 
+_HASHTAG_TAIL_RE = re.compile(r'((?:\s*#\w+)+)\s*$')
+_SENTENCE_SPLIT_RE = re.compile(r'(?<=[.!?])\s+')
+
+
+def format_post_paragraphs(text: str, sentences_per_para: int = 3) -> str:
+    """Break a wall-of-text post into paragraphs and put hashtags on their own line.
+
+    - If the body already contains paragraph breaks (\\n\\n), only ensures
+      hashtags are separated onto their own line.
+    - Otherwise, splits sentences and groups them into paragraphs of
+      *sentences_per_para* sentences each.
+    """
+    if not text or not text.strip():
+        return text
+
+    # --- extract trailing hashtags -----------------------------------
+    match = _HASHTAG_TAIL_RE.search(text)
+    hashtags = ""
+    body = text
+    if match:
+        hashtags = match.group(1).strip()
+        body = text[: match.start()].rstrip()
+
+    # --- already paragraphed? just fix hashtag placement -------------
+    if "\n\n" in body:
+        return (body + f"\n\n{hashtags}") if hashtags else body
+
+    # --- split into sentences ----------------------------------------
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(body) if s.strip()]
+    if len(sentences) <= sentences_per_para:
+        result = body
+    else:
+        paragraphs: list[str] = []
+        for i in range(0, len(sentences), sentences_per_para):
+            paragraphs.append(" ".join(sentences[i : i + sentences_per_para]))
+        # avoid a lonely 1-sentence final paragraph — merge with previous
+        if len(paragraphs) > 1 and len(sentences) % sentences_per_para == 1:
+            last = paragraphs.pop()
+            paragraphs[-1] += " " + last
+        result = "\n\n".join(paragraphs)
+
+    if hashtags:
+        result += f"\n\n{hashtags}"
+    return result
+
+
 def parse_xml_thread(raw: str, source_url: str) -> Optional[list[str]]:
     """Extract a 2-post thread from <post_1>…</post_1> tagged LLM output.
 

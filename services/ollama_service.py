@@ -17,7 +17,7 @@ from typing import Any, Optional
 import ollama
 
 import json
-from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text
+from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text, format_post_paragraphs
 from services.console_grounding import build_grounding_facts_block, ProjectFact, truth_gate
 
 logger = logging.getLogger(__name__)
@@ -172,6 +172,10 @@ Do NOT include hashtags in your output — they will be appended automatically."
 
         # Lightweight truth gate — strip sentences with unsupported claims
         text = truth_gate(text, f"{title}. {angle}", grounding_facts or [])
+
+        # Format into paragraphs with hashtags on their own line
+        if channel in ("linkedin",):
+            text = format_post_paragraphs(text)
 
         if channel == "youtube" and len(text) > 500:
             # Hard cap: truncate to last complete sentence at or before 500 chars
@@ -358,6 +362,10 @@ Write a LinkedIn post reacting to this article.
         # Lightweight truth gate — strip sentences with unsupported claims
         if result:
             result = truth_gate(result, article_text, grounding_facts or [])
+
+        # Format into paragraphs with hashtags on their own line
+        if result and channel == "linkedin":
+            result = format_post_paragraphs(result)
 
         if result:
             return result

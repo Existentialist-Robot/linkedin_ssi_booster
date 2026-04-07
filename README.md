@@ -1,7 +1,7 @@
 # LinkedIn SSI Booster — Buffer API Integration
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version: alpha-0.0.0.10](https://img.shields.io/badge/version-alpha--0.0.0.10-orange.svg)]()
+[![Version: alpha-0.0.0.11](https://img.shields.io/badge/version-alpha--0.0.0.11-orange.svg)]()
 
 Automates LinkedIn post generation and scheduling via local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
 
@@ -223,7 +223,7 @@ cp .env.example .env
 #   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
 #   OLLAMA_BASE_URL       → default: http://localhost:11434
 #   OLLAMA_MODEL          → default: llama3.2 (gemma4:26b recommended)
-#   OLLAMA_NUM_CTX        → default: 16384 (increase to reduce prompt truncation)
+#   OLLAMA_NUM_CTX        → default: 4096 (increase to reduce prompt truncation)
 #
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
