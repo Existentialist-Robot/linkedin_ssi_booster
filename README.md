@@ -171,6 +171,38 @@ Fallback behavior:
 - If `CURATION_GROUNDING_TECH_KEYWORDS` is unset, `--curate` uses `CURATOR_KEYWORDS` for fact-tag matching.
 - If `CURATION_GROUNDING_TAG_EXPANSIONS` is unset, `--curate` uses `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
 
+#### Truth Gate Behavior and Configuration
+
+The truth gate runs after model generation (and cleanup) for LinkedIn generation and curation flows.
+It checks each sentence independently and removes only sentences that contain unsupported specific claims.
+
+What it checks:
+
+- Numeric claims (for example: `40%`, `3x`, `500ms`, `2 hours`)
+- Year references (for example: `2021`, `2024`)
+- Dollar amounts (for example: `$2M`)
+- Company-name style patterns in context (for example: "at Company Name", "for Company Name")
+
+Evidence source used by the gate:
+
+- Article text (for `--curate`)
+- Retrieved profile grounding facts (`project`, `company`, `years`, `details`)
+
+If a sentence contains one of the claim patterns above and its key token is not present in the evidence source, that sentence is removed.
+If a sentence is opinion, framing, hook, or a rhetorical question without unsupported hard claims, it is kept.
+
+Current configuration surface:
+
+- There are no dedicated `.env` variables for truth-gate thresholds or regex patterns today.
+- Truth-gate strictness is currently code-defined in `services/console_grounding.py`.
+- Practical tuning in `.env` is indirect: improving retrieval relevance (`CONSOLE_GROUNDING_TECH_KEYWORDS`, `CONSOLE_GROUNDING_TAG_EXPANSIONS`, `CURATION_GROUNDING_TECH_KEYWORDS`, `CURATION_GROUNDING_TAG_EXPANSIONS`) increases available evidence and typically reduces unnecessary sentence removals.
+
+Operational notes:
+
+- The gate logs how many sentences were removed (example: `Truth gate removed 1 of 8 sentences`).
+- The gate does not rewrite text; it only removes unsupported claim sentences.
+- The gate is intentionally conservative and not a full external fact-checker.
+
 #### Troubleshooting Grounding Quality
 
 If grounded outputs feel too generic or personal references are missing, this is usually a retrieval-configuration issue rather than a generation issue.
@@ -192,6 +224,14 @@ Common symptoms and fixes:
 - Symptom: Console factual answers look right, but generate/curate still feel weakly grounded.  
    Likely cause: Curation articles use topic vocabulary that does not overlap console-oriented grounding keywords.  
    Fix: Set `CURATION_GROUNDING_TECH_KEYWORDS` (and optionally `CURATION_GROUNDING_TAG_EXPANSIONS`) so `--curate` retrieval reflects article language.
+
+- Symptom: Good posts lose one useful sentence after generation.  
+   Likely cause: The sentence contains a specific number/date/company token not present in article text or retrieved facts.  
+   Fix: Expand grounding keywords/tag expansions so the correct fact is retrieved, or rephrase the prompt/topic so the claim appears in source evidence.
+
+- Symptom: Truth gate often removes 2+ sentences for curation posts.  
+   Likely cause: Retrieval signal is weak for that article domain, so evidence is too thin.  
+   Fix: Add domain terms to `CURATION_GROUNDING_TECH_KEYWORDS` and map broader terms via `CURATION_GROUNDING_TAG_EXPANSIONS`.
 
 Quick tuning workflow:
 
