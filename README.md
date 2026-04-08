@@ -61,6 +61,17 @@ You control whether curated content is reviewed before publishing or scheduled d
 
 5. **SSI tracker** — weekly report with specific actions per component
 
+### Hybrid RAG + Agent Workflow
+
+This project is not just a single prompt call. It operates as a practical hybrid RAG + agent-style pipeline:
+
+- **Retrieval grounding**: profile facts are parsed and ranked per topic/article before generation.
+- **Generation orchestration**: channel-aware generation rules are applied for LinkedIn/X/Bluesky/YouTube.
+- **Deterministic validation**: a truth gate removes unsupported numeric/date/company claim sentences post-generation.
+- **Operational automation**: curation, scheduling, and SSI-targeted content balancing are executed end-to-end.
+
+In short: retrieve relevant facts, generate with strict context, validate deterministically, then publish/schedule through Buffer.
+
 ## How post personalisation works
 
 Every generated post is plain text — there's no audio or special format involved.  
@@ -269,7 +280,7 @@ cp .env.example .env
 #   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
 #   OLLAMA_BASE_URL       → default: http://localhost:11434
 #   OLLAMA_MODEL          → default: llama3.2 (gemma4:26b recommended)
-#   OLLAMA_NUM_CTX        → default: 4096 (increase to reduce prompt truncation)
+#   OLLAMA_NUM_CTX        → default: 4096 (16384 recommended baseline for grounded prompts)
 #
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
@@ -450,7 +461,9 @@ OLLAMA_MODEL=llama3.2 python main.py --curate --dry-run
 > **Tip:** `gemma4:26b` (MoE — 3.8B active params) gives the best post quality: native system role support,
 > configurable thinking mode, and strong instruction-following across long prompts. `qwen2.5:14b` is a solid
 > fallback if you're VRAM-constrained (~9 GB). `llama3.2` (3b) is fastest but lower quality.
-> Increase `OLLAMA_NUM_CTX` (for example `16384` or `32768`) if you see prompt truncation in logs when grounding is enabled.
+> For this repo, use `OLLAMA_NUM_CTX=16384` as the default baseline: it is usually the best quality/speed balance for
+> long persona + grounding prompts. Drop to `8192` if memory/latency is tight; raise to `32768` only when logs indicate
+> truncation or long grounded curation outputs degrade.
 
 ## SSI Component Mapping
 
