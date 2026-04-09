@@ -1,8 +1,8 @@
-# Feature Idea: End-to-End AI-TDD Platform for SSI Growth
+# Feature AI-TDD Idea: End-to-End LinkedIn SSI Booster
 
 ## Overview
 
-Build and evolve LinkedIn SSI Booster as a full AI-assisted publishing platform that turns personal expertise into consistently high-quality, grounded multi-channel content, with deterministic safeguards and measurable SSI progress loops.
+This document defines the end-to-end AI-TDD feature idea for the LinkedIn SSI Booster project: an AI-assisted publishing workflow that turns personal expertise into consistently high-quality, grounded multi-channel content, with deterministic safeguards and measurable SSI progress loops.
 
 This idea document covers the complete system in the README: content planning, generation, curation, scheduling, deterministic grounding, channel adaptation, and reporting.
 
