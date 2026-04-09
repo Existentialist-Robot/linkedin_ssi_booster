@@ -186,9 +186,6 @@ Fallback behavior for `--curate`:
 - Tech keywords: falls back to `CURATOR_KEYWORDS` (the RSS-filtering keyword list).
 - Tag expansions: falls back to `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
 
-If curation quality drops (articles miss relevant personal facts), re-introduce separate
-`CURATION_GROUNDING_TECH_KEYWORDS` / `CURATION_GROUNDING_TAG_EXPANSIONS` in `.env`.
-
 #### Truth Gate Behavior and Configuration
 
 The truth gate runs after model generation (and cleanup) for LinkedIn generation and curation flows.
