@@ -241,6 +241,9 @@ _ORG_NAME_RE = re.compile(
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+import logging as _logging
+_truth_logger = _logging.getLogger(__name__)
+
 
 def _build_allowed_tokens(article_text: str, facts: list[ProjectFact]) -> set[str]:
     """Build a set of lowercased tokens that are considered 'allowed' evidence.
@@ -273,6 +276,50 @@ def _build_allowed_tokens(article_text: str, facts: list[ProjectFact]) -> set[st
     return allowed
 
 
+def _build_project_tech_map(
+    facts: list[ProjectFact],
+    article_text: str,
+) -> dict[str, str]:
+    """Map each project name (lowercased) to its allowed evidence text.
+
+    The evidence text is the lowercased concatenation of the project's own
+    title + details and the article text.  Keyword matching uses substring
+    search against this text, which naturally handles:
+    - Multi-word phrases (e.g. 'hybrid search' found in detail prose)
+    - Compound-word aliases (e.g. 'mcp' found inside 'fastmcp')
+    """
+    article_lower = article_text.lower()
+
+    project_map: dict[str, str] = {}
+    for fact in facts:
+        detail_lower = f"{fact.project} {fact.details}".lower()
+        project_map[fact.project.lower()] = f"{detail_lower} {article_lower}"
+    return project_map
+
+
+def _check_project_claim(
+    sentence: str,
+    project_map: dict[str, str],
+    tech_keywords: set[str],
+) -> str | None:
+    """Return the reason string if the sentence falsely links a tech to a project.
+
+    Returns None when the sentence is fine to keep.
+    """
+    sent_lower = sentence.lower()
+    for project_name, evidence_text in project_map.items():
+        if project_name not in sent_lower:
+            continue
+        # This sentence mentions a known project — check tech keywords in it.
+        for kw in tech_keywords:
+            if kw in sent_lower and kw not in evidence_text:
+                return (
+                    f"project_claim: '{kw}' attributed to "
+                    f"'{project_name}' but not in its detail or article"
+                )
+    return None
+
+
 def truth_gate(
     text: str,
     article_text: str,
@@ -280,15 +327,15 @@ def truth_gate(
 ) -> str:
     """Lightweight post-generation truth gate.
 
-    Scans each sentence in *text* for numeric claims, year references,
-    dollar amounts, and company-name patterns.  If a sentence contains
-    such a claim whose key token does NOT appear in either the article
-    text or the grounding facts, that sentence is silently removed.
+    Scans each sentence in *text* for:
+    1. Numeric claims, year references, dollar amounts, and company-name
+       patterns whose key token does NOT appear in the article or facts.
+    2. Project-technology misattributions — when a sentence names a known
+       project but pairs it with a tech keyword that does not appear in
+       that project's detail or the article text.
 
-    This is intentionally conservative:
-    - It only strips sentences with unsupported *specific* claims.
-    - General opinions, hooks, and rhetorical questions pass through.
-    - The rest of the post is left intact — no rewriting.
+    Flagged sentences are silently removed.  The rest of the post is left
+    intact — no rewriting.
 
     Returns the filtered text (may be identical to input if nothing was stripped).
     """
@@ -296,52 +343,66 @@ def truth_gate(
         return text
 
     allowed = _build_allowed_tokens(article_text, facts)
+    tech_keywords = get_console_grounding_keywords()
+    project_map = _build_project_tech_map(facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
+    removed: list[tuple[str, str]] = []  # (sentence_fragment, reason)
 
     for sentence in sentences:
-        dominated = False
+        reason: str | None = None
 
         # Check numeric claims
         for m in _NUMERIC_CLAIM_RE.finditer(sentence):
-            # Extract the number portion
             num_token = re.match(r"[\d,.]+", m.group(0))
             if num_token and num_token.group(0).lower().rstrip(".") not in allowed:
-                dominated = True
+                reason = f"unsupported_numeric: '{m.group(0)}'"
                 break
 
         # Check year references
-        if not dominated:
+        if not reason:
             for m in _YEAR_RE.finditer(sentence):
                 if m.group(0) not in allowed:
-                    dominated = True
+                    reason = f"unsupported_year: '{m.group(0)}'"
                     break
 
         # Check dollar amounts
-        if not dominated:
+        if not reason:
             for m in _DOLLAR_RE.finditer(sentence):
                 nearby = sentence[m.start():m.start()+20]
                 num = re.search(r"\d[\d,.]*", nearby)
                 if num and num.group(0).lower().rstrip(".") not in allowed:
-                    dominated = True
+                    reason = f"unsupported_dollar: '{nearby.strip()}'"
                     break
 
         # Check org-name patterns ("at SomeCompany", "for BigCorp")
-        if not dominated:
+        if not reason:
             for m in _ORG_NAME_RE.finditer(sentence):
                 if m.group(1).lower() not in allowed:
-                    dominated = True
+                    reason = f"unsupported_org: '{m.group(1)}'"
                     break
 
-        if not dominated:
+        # Semantic project-claim check
+        if not reason:
+            reason = _check_project_claim(sentence, project_map, tech_keywords)
+
+        if reason:
+            removed.append((sentence[:80], reason))
+        else:
             kept.append(sentence)
 
-    result = " ".join(kept).strip()
-    if result != text.strip():
-        import logging as _logging
-        _logging.getLogger(__name__).info(
-            "Truth gate removed %d of %d sentences",
-            len(sentences) - len(kept),
+    # Log each removed sentence with its reason code
+    if removed:
+        for fragment, reason in removed:
+            _truth_logger.info(
+                "Truth gate removed [%s]: ...%s...",
+                reason,
+                fragment,
+            )
+        _truth_logger.info(
+            "Truth gate summary: removed %d of %d sentences",
+            len(removed),
             len(sentences),
         )
-    return result
+
+    return " ".join(kept).strip()

@@ -163,6 +163,7 @@ Angle to take: {angle}
 
 Balance rules (non-negotiable):
 - Every factual claim must come from the topic description or the profile facts above. Do not invent stats, dates, company names, or metrics.
+- If you mention a specific project by name, only attribute technologies or challenges that appear in that project's Detail field above. Never transfer concepts from the article onto a project unless they are explicitly listed in its detail.
 - Reference your own background at most once, and only when it maps directly to a profile fact provided. If none connect naturally, skip the personal reference.
 - Use a hook in the first line that stops the scroll — a surprising claim, a bold question, or a short scene.
 - The post should feel authentic to someone who actually built this, not generic AI content.
@@ -326,6 +327,7 @@ If you are close to 500 characters, stop at the last complete sentence that fits
 
 Balance rules (non-negotiable):
 - Every factual claim must come from either the article text or the profile facts below. If a stat, date, company name, or metric is not explicitly present in those sources, do not include it.
+- If you mention a specific project by name, only attribute technologies or challenges that appear in that project's Detail field. Never transfer concepts from the article onto a project unless they are explicitly listed in its detail.
 - Include at least one specific detail from the article: a model name, number, benchmark, technique, or decision.
 - Reference your own background at most once per post, and only when it maps directly to one of the profile facts provided. If none connect naturally, write the post without a personal reference.
 - Do not invent percentages, performance numbers, timelines, or outcomes that are not stated in the article or profile facts."""
@@ -338,6 +340,7 @@ Balance rules (non-negotiable):
 
 Balance rules (non-negotiable):
 - Every factual claim must come from either the article text or the profile facts below. If a stat, date, company name, or metric is not explicitly present in those sources, do not include it.
+- If you mention a specific project by name, only attribute technologies or challenges that appear in that project's Detail field. Never transfer concepts from the article onto a project unless they are explicitly listed in its detail.
 - Include at least one specific detail from the article: a model name, number, benchmark, technique, or decision.
 - Reference your own background at most once per post, and only when it maps directly to one of the profile facts provided. If none connect naturally, write the post without a personal reference.
 - Do not invent percentages, performance numbers, timelines, or outcomes that are not stated in the article or profile facts."""

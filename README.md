@@ -135,7 +135,7 @@ Hashtags (for `--generate` targeting LinkedIn) and source article links (for `--
 
 1. **Fact retrieval** — a small set of relevant facts is retrieved from `PROFILE_CONTEXT` and injected into each prompt.
 2. **Balance rules** — prompt-level instructions require every factual claim to come from either the article text or the provided profile facts, cap personal references to at most one per post, and forbid invented numbers/dates/companies.
-3. **Truth gate** — a lightweight post-generation filter scans each sentence for numeric claims, year references, dollar amounts, and company-name patterns. Any sentence whose specific token is not found in the article text or grounding facts is silently removed. General opinions, hooks, and rhetorical questions pass through untouched.
+3. **Truth gate** — a lightweight post-generation filter scans each sentence for numeric claims, year references, dollar amounts, company-name patterns, and project-technology misattributions. Any sentence whose specific token is not found in the article text or grounding facts is silently removed. General opinions, hooks, and rhetorical questions pass through untouched.
 
 ### How Deterministic Grounding Works (Console, Generate, Curate)
 
@@ -154,9 +154,9 @@ Large models are strong at style but can still invent plausible-sounding backgro
 3. Retrieve relevant facts  
    Facts are ranked and a top subset is selected for the current request.
 4. Apply balance rules in prompts (`--generate` and `--curate`)  
-   The model is told that every factual claim must come from the article or profile facts. Personal references are capped at one per post. Invented stats, dates, and company names are explicitly forbidden.
+   The model is told that every factual claim must come from the article or profile facts. Personal references are capped at one per post. Invented stats, dates, and company names are explicitly forbidden. If the model mentions a specific project by name, it may only attribute technologies that appear in that project's detail field.
 5. Post-process output with the truth gate  
-   A lightweight deterministic filter strips sentences containing unsupported numeric/date/company claims. The rest of the post is left intact — no rewriting occurs.
+   A lightweight deterministic filter strips sentences containing unsupported numeric/date/company claims or project-technology misattributions. The rest of the post is left intact — no rewriting occurs.
 
 #### Console Mode Behavior
 
@@ -167,8 +167,8 @@ When a question is factual (for example: what projects, where, when, what stack)
 For weekly generation and article curation:
 
 - Relevant facts are selected per topic/article.
-- Balance rules in the prompt cap personal references and require article-grounded claims.
-- The truth gate strips sentences with unsupported numeric/date/company claims after generation.
+- Balance rules in the prompt cap personal references, require article-grounded claims, and prohibit attributing technologies to a named project unless those technologies appear in the project's detail.
+- The truth gate strips sentences with unsupported numeric/date/company claims or project-technology misattributions after generation.
 
 This keeps posts authentic while lowering risk of fabricated bio details.
 
@@ -202,6 +202,7 @@ What it checks:
 - Year references (for example: `2021`, `2024`)
 - Dollar amounts (for example: `$2M`)
 - Company-name style patterns in context (for example: "at Company Name", "for Company Name")
+- Project-technology misattributions — when a sentence names a known project but pairs it with a tech keyword not present in that project's detail field or the article text
 
 Evidence source used by the gate:
 
@@ -219,7 +220,7 @@ Current configuration surface:
 
 Operational notes:
 
-- The gate logs how many sentences were removed (example: `Truth gate removed 1 of 8 sentences`).
+- The gate logs each removed sentence with a reason code (for example: `unsupported_numeric`, `unsupported_year`, `unsupported_org`, `project_claim`) followed by a summary count.
 - The gate does not rewrite text; it only removes unsupported claim sentences.
 - The gate is intentionally conservative and not a full external fact-checker.
 
