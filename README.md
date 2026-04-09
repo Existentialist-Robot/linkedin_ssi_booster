@@ -176,17 +176,18 @@ This keeps posts authentic while lowering risk of fabricated bio details.
 
 You can tune tech matching with:
 
-- `CONSOLE_GROUNDING_TECH_KEYWORDS`
-- `CONSOLE_GROUNDING_TAG_EXPANSIONS`
-- `CURATION_GROUNDING_TECH_KEYWORDS` (optional override for `--curate`)
-- `CURATION_GROUNDING_TAG_EXPANSIONS` (optional override for `--curate`)
+- `CONSOLE_GROUNDING_TECH_KEYWORDS` — tech terms for deterministic retrieval (used by `--console`, `--generate`, and `--curate`)
+- `CONSOLE_GROUNDING_TAG_EXPANSIONS` — maps umbrella terms to related stack terms (e.g. `java:spring|jms|oracle`)
 
 These controls affect which profile facts are considered relevant during retrieval.
 
-Fallback behavior:
+Fallback behavior for `--curate`:
 
-- If `CURATION_GROUNDING_TECH_KEYWORDS` is unset, `--curate` uses `CURATOR_KEYWORDS` for fact-tag matching.
-- If `CURATION_GROUNDING_TAG_EXPANSIONS` is unset, `--curate` uses `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
+- Tech keywords: falls back to `CURATOR_KEYWORDS` (the RSS-filtering keyword list).
+- Tag expansions: falls back to `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
+
+If curation quality drops (articles miss relevant personal facts), re-introduce separate
+`CURATION_GROUNDING_TECH_KEYWORDS` / `CURATION_GROUNDING_TAG_EXPANSIONS` in `.env`.
 
 #### Truth Gate Behavior and Configuration
 
@@ -212,7 +213,7 @@ Current configuration surface:
 
 - There are no dedicated `.env` variables for truth-gate thresholds or regex patterns today.
 - Truth-gate strictness is currently code-defined in `services/console_grounding.py`.
-- Practical tuning in `.env` is indirect: improving retrieval relevance (`CONSOLE_GROUNDING_TECH_KEYWORDS`, `CONSOLE_GROUNDING_TAG_EXPANSIONS`, `CURATION_GROUNDING_TECH_KEYWORDS`, `CURATION_GROUNDING_TAG_EXPANSIONS`) increases available evidence and typically reduces unnecessary sentence removals.
+- Practical tuning in `.env` is indirect: improving retrieval relevance (`CONSOLE_GROUNDING_TECH_KEYWORDS`, `CONSOLE_GROUNDING_TAG_EXPANSIONS`) increases available evidence and typically reduces unnecessary sentence removals.
 
 Operational notes:
 
@@ -238,19 +239,17 @@ Common symptoms and fixes:
    Likely cause: Keyword list is too broad/noisy.  
    Fix: Remove vague terms and keep only high-signal domain vocabulary.
 
-- Symptom: Console factual answers look right, but generate/curate still feel weakly grounded.  
-   Likely cause: Curation articles use topic vocabulary that does not overlap console-oriented grounding keywords.  
-   Fix: Set `CURATION_GROUNDING_TECH_KEYWORDS` (and optionally `CURATION_GROUNDING_TAG_EXPANSIONS`) so `--curate` retrieval reflects article language.
+- Symptom: Console factual answers look right, but `--curate` still feels weakly grounded.
+  Likely cause: Curation articles use topic vocabulary that does not overlap `CURATOR_KEYWORDS` or `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
+  Fix: Add domain terms to `CURATOR_KEYWORDS` (for tech matching) or `CONSOLE_GROUNDING_TAG_EXPANSIONS` (for umbrella expansion). If that is not enough, re-introduce `CURATION_GROUNDING_TECH_KEYWORDS` in `.env`.
 
-- Symptom: Good posts lose one useful sentence after generation.  
-   Likely cause: The sentence contains a specific number/date/company token not present in article text or retrieved facts.  
+- Symptom: Good posts lose one useful sentence after generation.
+  Likely cause: The sentence contains a specific number/date/company token not present in article text or retrieved facts.  
    Fix: Expand grounding keywords/tag expansions so the correct fact is retrieved, or rephrase the prompt/topic so the claim appears in source evidence.
 
 - Symptom: Truth gate often removes 2+ sentences for curation posts.  
    Likely cause: Retrieval signal is weak for that article domain, so evidence is too thin.  
-   Fix: Add domain terms to `CURATION_GROUNDING_TECH_KEYWORDS` and map broader terms via `CURATION_GROUNDING_TAG_EXPANSIONS`.
-
-Quick tuning workflow:
+   Fix: Add domain terms to `CURATOR_KEYWORDS` and expand umbrella terms in `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
 
 1. Start with a compact keyword set that mirrors your `PROFILE_CONTEXT` terms.
 2. Add tag expansions for umbrella terms (`java`, `python`, `rag`).
@@ -296,10 +295,8 @@ cp .env.example .env
 #   GITHUB_README_MAX_CHARS      → max chars per README summary (default 1200)
 #   GITHUB_CONTEXT_MAX_CHARS     → max GitHub-derived context block size (default 30000)
 #   PROFILE_CONTEXT_MAX_CHARS    → max total profile context after assembly (default 120000)
-#   CONSOLE_GROUNDING_TECH_KEYWORDS → comma-separated tech terms used by deterministic --console grounding
+#   CONSOLE_GROUNDING_TECH_KEYWORDS → comma-separated tech terms for deterministic grounding
 #   CONSOLE_GROUNDING_TAG_EXPANSIONS → optional related-tag map (e.g. java:spring|jms|oracle)
-#   CURATION_GROUNDING_TECH_KEYWORDS → optional comma-separated terms used only by --curate fact retrieval
-#   CURATION_GROUNDING_TAG_EXPANSIONS → optional related-tag map used only by --curate
 
 # Set up your personal content calendar (gitignored — keeps your strategy private)
 cp content_calendar.example.py content_calendar.py
