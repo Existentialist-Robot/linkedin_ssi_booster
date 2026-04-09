@@ -120,6 +120,12 @@ NLP primer in this repo:
 
 The primer covers core NLP concepts, practical communication techniques, technical writing examples, and ethical usage guidelines.
 
+AI-TDD project documentation:
+
+- [docs/idea.md](docs/idea.md) — full product idea and scope
+- [docs/prd.md](docs/prd.md) — product requirements document
+- [docs/design.md](docs/design.md) — technical design with Mermaid diagrams
+
 **4. Per-post angle and SSI mapping (`content_calendar.py`)**  
 Each topic in the calendar has:
 
@@ -570,6 +576,11 @@ linkedin_ssi_booster/
 ├── scheduler.py               # Buffer post scheduling logic
 ├── requirements.txt
 ├── .env.example               # Template — copy to .env and fill in keys/persona
+├── docs/
+│   ├── idea.md                # AI-TDD idea document (full platform scope)
+│   ├── prd.md                 # AI-TDD product requirements document
+│   ├── design.md              # AI-TDD technical design + Mermaid diagrams
+│   └── nlp-basics.md          # NLP communication primer used by prompts
 └── services/
     ├── buffer_service.py      # Buffer GraphQL API client
     ├── ollama_service.py      # Ollama local LLM — post generation + SSI instructions
