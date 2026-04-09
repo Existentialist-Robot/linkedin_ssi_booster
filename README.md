@@ -186,6 +186,11 @@ Fallback behavior for `--curate`:
 - Tech keywords: falls back to `CURATOR_KEYWORDS` (the RSS-filtering keyword list).
 - Tag expansions: falls back to `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
 
+Recommended tuning order:
+
+1. Expand `CURATOR_KEYWORDS` for article vocabulary coverage.
+2. Expand `CONSOLE_GROUNDING_TAG_EXPANSIONS` for umbrella-term mapping.
+
 #### Truth Gate Behavior and Configuration
 
 The truth gate runs after model generation (and cleanup) for LinkedIn generation and curation flows.
@@ -238,7 +243,7 @@ Common symptoms and fixes:
 
 - Symptom: Console factual answers look right, but `--curate` still feels weakly grounded.
   Likely cause: Curation articles use topic vocabulary that does not overlap `CURATOR_KEYWORDS` or `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
-  Fix: Add domain terms to `CURATOR_KEYWORDS` (for tech matching) or `CONSOLE_GROUNDING_TAG_EXPANSIONS` (for umbrella expansion). If that is not enough, re-introduce `CURATION_GROUNDING_TECH_KEYWORDS` in `.env`.
+  Fix: Add domain terms to `CURATOR_KEYWORDS` (for tech matching) or `CONSOLE_GROUNDING_TAG_EXPANSIONS` (for umbrella expansion).
 
 - Symptom: Good posts lose one useful sentence after generation.
   Likely cause: The sentence contains a specific number/date/company token not present in article text or retrieved facts.  
