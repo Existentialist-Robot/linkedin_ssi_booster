@@ -40,6 +40,37 @@ Quality constraints:
 - [x] Confirm local write permissions for `data/avatar/`.
 - [ ] Confirm `.gitignore` behavior for local runtime data (if needed).
 
+## Progress Summary
+
+### Phase 1A: Persona Graph Foundation
+
+- [x] Step 1 — Add avatar data scaffolding
+- [x] Step 2 — Implement avatar intelligence core module
+- [x] Step 3 — Integrate graph-backed retrieval path
+
+### Phase 1B: Learning Capture and Explainability
+
+- [x] Step 4 — Add interactive learning event capture
+- [x] Step 5 — Add explain output mode
+- [x] Step 6 — Add learning report command
+
+### Phase 1C: Confidence Scoring and Policy
+
+- [x] Step 7 — Implement confidence score engine
+- [x] Step 8 — Add confidence policy enforcement
+- [x] Step 9 — Add config defaults and docs alignment
+
+### Phase 1D: Narrative Continuity Memory
+
+- [ ] Step 10 — Implement narrative memory store
+- [ ] Step 11 — Inject continuity into prompts and confidence
+
+### Phase 1E: PROFILE_CONTEXT Migration
+
+- [ ] Step 12 — Populate persona graph from PROFILE_CONTEXT
+- [ ] Step 13 — Switch retrieval to persona graph
+- [ ] Step 14 — Remove PROFILE_CONTEXT and related code
+
 ## Phase 1A: Persona Graph Foundation (Read-Only)
 
 ### Step 1: Add avatar data scaffolding
@@ -134,7 +165,7 @@ Quality constraints:
 
 ### Step 7: Implement confidence score engine
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 4-6h
 - **Description:** Score each output using deterministic signals.
 - **Actions:**
@@ -148,7 +179,7 @@ Quality constraints:
 
 ### Step 8: Add confidence policy enforcement
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Route post vs idea vs block based on policy.
 - **Actions:**
@@ -162,7 +193,7 @@ Quality constraints:
 
 ### Step 9: Add config defaults and docs alignment
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Add environment controls and update docs.
 - **Actions:**
@@ -181,7 +212,7 @@ Quality constraints:
 
 ### Step 10: Implement narrative memory store
 
-- **Status:** [ ] Not Started
+- **Status:** [ ]
 - **Effort:** 3-4h
 - **Description:** Persist recent themes/claims/arcs for continuity.
 - **Actions:**
@@ -195,7 +226,7 @@ Quality constraints:
 
 ### Step 11: Inject continuity into prompts and confidence
 
-- **Status:** [ ] Not Started
+- **Status:** [ ]
 - **Effort:** 3-5h
 - **Description:** Use memory to improve coherence and reduce repetition.
 - **Actions:**
@@ -211,7 +242,7 @@ Quality constraints:
 
 ### Step 12: Populate persona graph from PROFILE_CONTEXT
 
-- **Status:** [ ] Not Started
+- **Status:** [ ]
 - **Effort:** 4-6h
 - **Description:** Parse existing PROFILE_CONTEXT and populate persona graph during development.
 - **Actions:**
@@ -226,7 +257,7 @@ Quality constraints:
 
 ### Step 13: Switch retrieval to persona graph
 
-- **Status:** [ ] Not Started
+- **Status:** [ ]
 - **Effort:** 3-5h
 - **Description:** Replace PROFILE_CONTEXT parsing with persona graph as sole identity source for retrieval.
 - **Actions:**
@@ -240,7 +271,7 @@ Quality constraints:
 
 ### Step 14: Remove PROFILE_CONTEXT and related code
 
-- **Status:** [ ] Not Started
+- **Status:** [ ]
 - **Effort:** 2-3h
 - **Description:** Delete PROFILE_CONTEXT env var, parsing code, and all related references.
 - **Actions:**
@@ -264,7 +295,7 @@ Quality constraints:
 - [ ] Persona graph loader/validator
 - [ ] Evidence mapping and explain output
 - [ ] Learning report generation
-- [ ] Confidence scoring and policy routing
+- [x] Confidence scoring and policy routing
 
 ### Gate C: Integration tests
 
@@ -344,6 +375,7 @@ Quality constraints:
 ### Epic 1B — 2026-04-10
 
 **Completed:**
+
 - T2.1: `ModerationEvent` dataclass added to `services/avatar_intelligence.py` with all required fields.
 - T2.2: `record_moderation_event()` append-only writer; hooked into `truth_gate()` interactive path in `console_grounding.py`.
 - T2.3: `--avatar-explain` flag added to `main.py`; recognized in `--help`.
@@ -355,3 +387,19 @@ Quality constraints:
 **Blockers/Risks:** None.
 
 **Scope adjustments:** `--avatar-explain` is wired into `--generate` flow only in this phase; `--curate` explain output deferred to integration step when persona graph is populated.
+
+### Epic 1C — 2026-04-10
+
+**Completed:**
+
+- T3.1: `ConfidenceSignals`, `ConfidenceResult` dataclasses + `score_confidence()` weighted scoring function added to `services/avatar_intelligence.py`. Determinism verified.
+- T3.2: `extract_confidence_signals()` populates all 6 signals from truth-gate meta + channel/length data. `TruthGateMeta` + `truth_gate_result()` added to `services/console_grounding.py`; existing `truth_gate()` refactored to call it (backward compatible).
+- T3.3: `decide_publish_mode(policy, confidence, requested_mode)` implements §7.2 matrix (strict/balanced/draft-first). Unknown policy values fall back to balanced with warning.
+- T3.4: `--confidence-policy strict|balanced|draft-first` added to `main.py`. CLI arg passed to `ContentCurator`; env default resolved from `AVATAR_CONFIDENCE_POLICY`.
+- T3.5: `ContentCurator._score_and_route()` helper runs confidence scoring on every generated post. Policy decisions (post/idea/block) enforced before Buffer calls in the single-channel curate path.
+- T3.6: `ConfidenceDecisionEvent` dataclass + `record_confidence_decision()` appends score, route, reason, and dominant_signal to `learning_log.jsonl`.
+- T3.7: `AVATAR_CONFIDENCE_POLICY`, `AVATAR_LEARNING_ENABLED`, `AVATAR_MAX_MEMORY_ITEMS` constants added to `services/shared.py` with validation and safe defaults.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** Confidence assessment in `_score_and_route()` runs `truth_gate_result()` on the already-cleaned post text (assess-only pass). `truth_gate_removed_count` therefore reflects residual issues in the cleaned output, not the pre-gate draft — this is intentional and consistent with the Phase 1C signal design.

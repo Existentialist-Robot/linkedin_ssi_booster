@@ -139,6 +139,8 @@ def main():
     parser.add_argument("--interactive", action="store_true", help="Pause for user confirmation on each truth gate removal")
     parser.add_argument("--avatar-explain", action="store_true", help="Print evidence IDs and grounding summary after each generation")
     parser.add_argument("--avatar-learn-report", action="store_true", help="Print learning report from captured moderation events and exit")
+    parser.add_argument("--confidence-policy", choices=["strict", "balanced", "draft-first"], default=None,
+                        help="Confidence policy for curate path: strict|balanced|draft-first (default: AVATAR_CONFIDENCE_POLICY env var, else balanced)")
     args = parser.parse_args()
 
     if args.debug:
@@ -223,7 +225,9 @@ def main():
 
     if args.curate:
         buffer = build_buffer_service()
-        curator = ContentCurator(ai_service=ai, buffer_service=buffer, profile_context=PROFILE_CONTEXT)
+        from services.shared import AVATAR_CONFIDENCE_POLICY
+        confidence_policy = args.confidence_policy or AVATAR_CONFIDENCE_POLICY
+        curator = ContentCurator(ai_service=ai, buffer_service=buffer, profile_context=PROFILE_CONTEXT, confidence_policy=confidence_policy)
         logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
         try:
             ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0, interactive=args.interactive)

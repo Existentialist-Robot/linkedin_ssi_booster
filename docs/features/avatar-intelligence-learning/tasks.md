@@ -111,25 +111,25 @@ Operating rules:
 
 ## Epic 1C: Confidence Scoring and Policy
 
-- [ ] T3.1 Define confidence signal model and score function
+- [x] T3.1 Define confidence signal model and score function
   - Depends on: T1.8, T2.2
   - Verify: deterministic score output for fixed inputs
-- [ ] T3.2 Implement signal extraction from generation + truth gate
+- [x] T3.2 Implement signal extraction from generation + truth gate
   - Depends on: T3.1
   - Verify: all required signals populated
-- [ ] T3.3 Add policy decision function (`strict|balanced|draft-first`)
+- [x] T3.3 Add policy decision function (`strict|balanced|draft-first`)
   - Depends on: T3.1
   - Verify: policy matrix behaves as specified for high/medium/low
-- [ ] T3.4 Add CLI flag `--confidence-policy`
+- [x] T3.4 Add CLI flag `--confidence-policy`
   - Depends on: T3.3
   - Verify: invalid values fallback with warning
-- [ ] T3.5 Enforce confidence policy in curate publish path
+- [x] T3.5 Enforce confidence policy in curate publish path
   - Depends on: T3.4
   - Verify: post/idea/block routing follows policy
-- [ ] T3.6 Integrate decision reason logging
+- [x] T3.6 Integrate decision reason logging
   - Depends on: T3.5
   - Verify: logs include score + reason + route
-- [ ] T3.7 Add env defaults and wiring in config/shared layer
+- [x] T3.7 Add env defaults and wiring in config/shared layer
   - Depends on: T3.4
   - Verify: defaults apply when env vars absent
 

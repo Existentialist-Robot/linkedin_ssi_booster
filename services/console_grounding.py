@@ -7,7 +7,7 @@ deterministic cited answers without additional model calls.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 import re
 from typing import TYPE_CHECKING
@@ -93,6 +93,15 @@ class ProjectFact:
     details: str
     source: str
     tags: set[str]
+
+
+@dataclass
+class TruthGateMeta:
+    """Metadata about what truth_gate evaluated — used for confidence scoring (Phase 1C)."""
+
+    removed_count: int
+    total_sentences: int
+    reason_codes: list[str] = field(default_factory=list)  # one entry per removed sentence
 
 
 @dataclass
@@ -351,6 +360,115 @@ def _check_project_claim(
     return None
 
 
+def truth_gate_result(
+    text: str,
+    article_text: str,
+    facts: list[ProjectFact],
+    interactive: bool = False,
+    article_ref: str = "",
+    channel: str = "linkedin",
+) -> tuple[str, TruthGateMeta]:
+    """Truth gate that returns both the filtered text and scoring metadata.
+
+    Identical logic to :func:`truth_gate` but also returns a :class:`TruthGateMeta`
+    with removed_count, total_sentences, and reason_codes so callers can feed
+    the metadata into confidence scoring (Phase 1C).
+
+    When *interactive* is True, user decisions are still recorded to the
+    learning log exactly as in :func:`truth_gate`.
+    """
+    if not text:
+        return text, TruthGateMeta(removed_count=0, total_sentences=0)
+
+    allowed = _build_allowed_tokens(article_text, facts)
+    tech_keywords = get_console_grounding_keywords()
+    domain_terms = get_domain_terms()
+    project_map = _build_project_tech_map(facts, article_text)
+    sentences = _SENTENCE_SPLIT_RE.split(text)
+    kept: list[str] = []
+    removed: list[tuple[str, str]] = []  # (full_sentence, reason)
+
+    for sentence in sentences:
+        reason: str | None = None
+
+        for m in _NUMERIC_CLAIM_RE.finditer(sentence):
+            full_token = m.group(0).lower().strip()
+            num_token = re.match(r"[\d,.]+", m.group(0))
+            if num_token and full_token not in allowed and num_token.group(0).lower().rstrip(".") not in allowed:
+                reason = f"unsupported_numeric: '{m.group(0)}'"
+                break
+
+        if not reason:
+            for m in _YEAR_RE.finditer(sentence):
+                if m.group(0) not in allowed:
+                    reason = f"unsupported_year: '{m.group(0)}'"
+                    break
+
+        if not reason:
+            for m in _DOLLAR_RE.finditer(sentence):
+                nearby = sentence[m.start():m.start()+20]
+                num = re.search(r"\d[\d,.]*", nearby)
+                if num and num.group(0).lower().rstrip(".") not in allowed:
+                    reason = f"unsupported_dollar: '{nearby.strip()}'"
+                    break
+
+        if not reason:
+            for m in _ORG_NAME_RE.finditer(sentence):
+                if m.group(1).lower() not in allowed:
+                    reason = f"unsupported_org: '{m.group(1)}'"
+                    break
+
+        if not reason:
+            reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
+
+        if reason:
+            if interactive:
+                print(f"\n⚠️  Truth gate flagged sentence:")
+                print(f"    Reason : {reason}")
+                print(f"    Sentence: {sentence}")
+                try:
+                    answer = input("    Remove this sentence? [y/N]: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    answer = "n"
+                user_removed = answer in ("y", "yes")
+                if user_removed:
+                    removed.append((sentence, reason))
+                else:
+                    kept.append(sentence)
+                decision = "removed" if user_removed else "kept"
+                try:
+                    from services.avatar_intelligence import record_moderation_event
+                    record_moderation_event(
+                        sentence=sentence,
+                        reason_code=reason.split(":")[0],
+                        decision=decision,
+                        channel=channel,
+                        article_ref=article_ref,
+                    )
+                except Exception as _log_exc:  # noqa: BLE001
+                    _truth_logger.warning("Failed to record moderation event: %s", _log_exc)
+            else:
+                removed.append((sentence, reason))
+        else:
+            kept.append(sentence)
+
+    if removed:
+        for full_sentence, reason in removed:
+            _truth_logger.info("Truth gate removed [%s]: %s", reason, full_sentence)
+        _truth_logger.info(
+            "Truth gate summary: removed %d of %d sentences",
+            len(removed),
+            len(sentences),
+        )
+
+    meta = TruthGateMeta(
+        removed_count=len(removed),
+        total_sentences=len(sentences),
+        reason_codes=[r.split(":")[0] for _, r in removed],
+    )
+    return " ".join(kept).strip(), meta
+
+
 def truth_gate(
     text: str,
     article_text: str,
@@ -377,100 +495,12 @@ def truth_gate(
 
     Returns the filtered text (may be identical to input if nothing was stripped).
     """
-    if not text:
-        return text
-
-    allowed = _build_allowed_tokens(article_text, facts)
-    tech_keywords = get_console_grounding_keywords()
-    domain_terms = get_domain_terms()
-    project_map = _build_project_tech_map(facts, article_text)
-    sentences = _SENTENCE_SPLIT_RE.split(text)
-    kept: list[str] = []
-    removed: list[tuple[str, str]] = []  # (full_sentence, reason)
-
-    for sentence in sentences:
-        reason: str | None = None
-
-        # Check numeric claims
-        for m in _NUMERIC_CLAIM_RE.finditer(sentence):
-            full_token = m.group(0).lower().strip()
-            num_token = re.match(r"[\d,.]+", m.group(0))
-            if num_token and full_token not in allowed and num_token.group(0).lower().rstrip(".") not in allowed:
-                reason = f"unsupported_numeric: '{m.group(0)}'"
-                break
-
-        # Check year references
-        if not reason:
-            for m in _YEAR_RE.finditer(sentence):
-                if m.group(0) not in allowed:
-                    reason = f"unsupported_year: '{m.group(0)}'"
-                    break
-
-        # Check dollar amounts
-        if not reason:
-            for m in _DOLLAR_RE.finditer(sentence):
-                nearby = sentence[m.start():m.start()+20]
-                num = re.search(r"\d[\d,.]*", nearby)
-                if num and num.group(0).lower().rstrip(".") not in allowed:
-                    reason = f"unsupported_dollar: '{nearby.strip()}'"
-                    break
-
-        # Check org-name patterns ("at SomeCompany", "for BigCorp")
-        if not reason:
-            for m in _ORG_NAME_RE.finditer(sentence):
-                if m.group(1).lower() not in allowed:
-                    reason = f"unsupported_org: '{m.group(1)}'"
-                    break
-
-        # Semantic project-claim check (domain terms are exempt)
-        if not reason:
-            reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
-
-        if reason:
-            if interactive:
-                # Present full sentence and reason to user for confirmation
-                print(f"\n⚠️  Truth gate flagged sentence:")
-                print(f"    Reason : {reason}")
-                print(f"    Sentence: {sentence}")
-                try:
-                    answer = input("    Remove this sentence? [y/N]: ").strip().lower()
-                except (EOFError, KeyboardInterrupt):
-                    answer = "n"
-                user_removed = answer in ("y", "yes")
-                if user_removed:
-                    removed.append((sentence, reason))
-                else:
-                    kept.append(sentence)
-                # Record the interactive decision in the avatar learning log.
-                decision = "removed" if user_removed else "kept"
-                try:
-                    from services.avatar_intelligence import record_moderation_event
-                    record_moderation_event(
-                        sentence=sentence,
-                        reason_code=reason.split(":")[0],
-                        decision=decision,
-                        channel=channel,
-                        article_ref=article_ref,
-                    )
-                except Exception as _log_exc:  # noqa: BLE001
-                    _truth_logger.warning("Failed to record moderation event: %s", _log_exc)
-            else:
-                removed.append((sentence, reason))
-        else:
-            kept.append(sentence)
-
-    # Log each removed sentence with its full text and reason code
-    if removed:
-        for full_sentence, reason in removed:
-            _truth_logger.info(
-                "Truth gate removed [%s]: %s",
-                reason,
-                full_sentence,
-            )
-        _truth_logger.info(
-            "Truth gate summary: removed %d of %d sentences",
-            len(removed),
-            len(sentences),
-        )
-
-    return " ".join(kept).strip()
+    filtered, _ = truth_gate_result(
+        text=text,
+        article_text=article_text,
+        facts=facts,
+        interactive=interactive,
+        article_ref=article_ref,
+        channel=channel,
+    )
+    return filtered
