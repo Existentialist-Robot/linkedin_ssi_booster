@@ -48,10 +48,10 @@ Operating rules:
 - [x] T0.1 Create feature branch
   - Depends on: none
   - Verify: branch exists and is active
-- [ ] T0.2 Collect user-provided baseline run artifacts for compare set
+- [x] T0.2 Collect user-provided baseline run artifacts for compare set
   - Depends on: T0.1
   - Verify: baseline artifacts are attached/available from user-run workflows (no agent app-run execution)
-- [ ] T0.3 Define acceptance prompt/article set for regression checks
+- [x] T0.3 Define acceptance prompt/article set for regression checks
   - Depends on: T0.1
   - Verify: test cases documented and reusable
 
