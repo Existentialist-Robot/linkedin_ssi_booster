@@ -52,7 +52,7 @@ flowchart TD
 
 ## 3. Design Principles
 
-- Backward compatible first: no mandatory migration for existing users.
+- Backward compatible first: persona graph replaces PROFILE_CONTEXT as canonical identity source during development.
 - Deterministic safety preserved: current reason checks stay active.
 - Human-in-the-loop learning: suggestions only, no autonomous config changes.
 - Explainability by default-ready: evidence IDs and optional explain reports.
@@ -89,13 +89,13 @@ Changes:
   - `--avatar-learn-report`
   - `--confidence-policy strict|balanced|draft-first`
 - Route generate/curate operations through Avatar Intelligence orchestrator hooks.
-- Keep existing behavior when flags/config are absent.
+- Persona graph is the sole identity source — PROFILE_CONTEXT and its parsing code are removed during development.
 
 ### 4.3 console_grounding.py integration
 
 Changes:
 
-- Add graph-backed fact input path while preserving current parser fallback.
+- Replace PROFILE_CONTEXT text parsing with graph-backed fact retrieval from persona graph.
 - Preserve current reason checks:
   - `unsupported_numeric`
   - `unsupported_year`
@@ -378,9 +378,65 @@ Phase 1D:
 
 - Add narrative continuity memory injection.
 
+Phase 1E:
+
+- Populate persona graph from existing PROFILE_CONTEXT during development.
+- Switch retrieval to persona graph as sole identity source.
+- Remove PROFILE_CONTEXT env var, parsing code, and related references.
+
 ## 15. Design Decisions Summary
 
 - Keep deterministic safety and human approval central.
 - Introduce intelligence incrementally with explicit fallbacks.
 - Treat explainability and learning as first-class outputs, not side effects.
 - Preserve compatibility with existing commands and operational workflow.
+
+## 16. PROFILE_CONTEXT Migration Design
+
+### 16.1 Migration overview
+
+PROFILE_CONTEXT is currently the primary identity source — a free-form text blob in `.env` that is parsed at runtime for project/company/skill facts. This migration replaces it with the structured persona graph as the single canonical identity model.
+
+This is a development-time migration, not a user-facing tool. The developer populates the persona graph during implementation, verifies quality, and then removes PROFILE_CONTEXT entirely.
+
+### 16.2 Population approach
+
+During development:
+
+1. Parse existing PROFILE_CONTEXT using `console_grounding.py` fact parser (reuse `parse_profile_facts`).
+2. Extract structured entities:
+   - Person: name, title, location from header lines.
+   - Projects: from bullet patterns (`- ProjectName (Company, Years): details`).
+   - Companies: deduplicated from project entries.
+   - Skills: extracted from details fields and tech keywords.
+   - Claims: factual statements with project references.
+3. Populate `data/avatar/persona_graph.json` with extracted data.
+4. Review and manually refine the graph as needed.
+
+### 16.3 Retrieval cutover
+
+After persona graph is populated and verified:
+
+1. Update retrieval path in `console_grounding.py` to use graph facts instead of PROFILE_CONTEXT text parsing.
+2. Remove PROFILE_CONTEXT parsing code from the retrieval path.
+3. Persona graph becomes the sole identity source — no fallback to PROFILE_CONTEXT.
+
+### 16.4 PROFILE_CONTEXT removal
+
+Once retrieval cutover is verified:
+
+1. Remove `PROFILE_CONTEXT` from `.env`.
+2. Remove `PROFILE_CONTEXT` from `.env.example`.
+3. Remove `PROFILE_CONTEXT_MAX_CHARS` from `.env` and `.env.example`.
+4. Remove PROFILE_CONTEXT loading/parsing code from `main.py` and services.
+5. Update README to remove all PROFILE_CONTEXT references and document persona graph as the identity source.
+6. GitHub enrichment (`services/github_service.py`) continues to work independently.
+
+### 16.5 Verification
+
+Developer verification during implementation:
+
+1. Compare persona graph entity coverage against original PROFILE_CONTEXT.
+2. Run `--generate --dry-run` and `--curate --dry-run` with persona graph.
+3. Compare output quality against baseline (pre-migration dry-run artifacts).
+4. Git history provides rollback if needed.

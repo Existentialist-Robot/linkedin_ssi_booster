@@ -7,6 +7,10 @@ This feature is executed in one continuous run with two driver documents:
 - Strategy driver: `docs/avatar-intelligence-learning/plan.md`
 - Execution driver: `docs/avatar-intelligence-learning/tasks.md`
 
+Required technical reference before and during execution:
+
+- Design reference: `docs/avatar-intelligence-learning/design.md`
+
 Operating rules:
 
 - Follow this order exactly and do not skip forward:
@@ -15,9 +19,10 @@ Operating rules:
   3. Epic 1B
   4. Epic 1C
   5. Epic 1D
-  6. Epic 2
-  7. Epic 3
-  8. Release Checklist
+  6. Epic 1E
+  7. Epic 2
+  8. Epic 3
+  9. Release Checklist
 - Respect task dependencies inside each epic.
 - Update task state immediately during execution (`[ ]` -> `[-]` -> `[x]`).
 - If a verification gate fails, stay in the current epic and fix forward before continuing.
@@ -27,6 +32,8 @@ Operating rules:
   - Scope adjustments (if any)
 - Use feature-flag-safe defaults so existing behavior remains unchanged unless explicitly enabled.
 - Do not auto-edit `.env` or policy values from learning suggestions; output recommendations only.
+- The agent must NOT run app workflow commands (`--generate`, `--curate`, `--schedule`, or `--dry-run`).
+- Runtime workflow verification is user-executed; agent uses code-level checks, tests, and static validation only.
 
 ## Usage
 
@@ -41,9 +48,9 @@ Operating rules:
 - [ ] T0.1 Create feature branch
   - Depends on: none
   - Verify: branch exists and is active
-- [ ] T0.2 Capture baseline dry-run outputs for compare set
+- [ ] T0.2 Collect user-provided baseline run artifacts for compare set
   - Depends on: T0.1
-  - Verify: baseline artifacts saved for `--generate --dry-run` and `--curate --dry-run`
+  - Verify: baseline artifacts are attached/available from user-run workflows (no agent app-run execution)
 - [ ] T0.3 Define acceptance prompt/article set for regression checks
   - Depends on: T0.1
   - Verify: test cases documented and reusable
@@ -141,14 +148,38 @@ Operating rules:
   - Depends on: T4.3, T3.1
   - Verify: near-duplicate drafts reduce confidence score
 
+## Epic 1E: PROFILE_CONTEXT Migration
+
+- [ ] T7.1 Parse PROFILE_CONTEXT into persona graph entities
+  - Depends on: T1.6
+  - Verify: persona graph contains all parseable projects/companies/skills from PROFILE_CONTEXT
+- [ ] T7.2 Populate and commit persona_graph.json
+  - Depends on: T7.1
+  - Verify: output passes schema validation; entity counts match expectations
+- [ ] T7.3 Switch retrieval to persona graph as sole identity source
+  - Depends on: T7.2, T1.9
+  - Verify: retrieval uses graph facts; PROFILE_CONTEXT is not parsed for identity
+- [ ] T7.4 Remove PROFILE_CONTEXT parsing code from retrieval path
+  - Depends on: T7.3
+  - Verify: no PROFILE_CONTEXT text parsing remains in console_grounding.py retrieval
+- [ ] T7.5 Remove PROFILE_CONTEXT from .env and .env.example
+  - Depends on: T7.4
+  - Verify: app starts and runs without PROFILE_CONTEXT
+- [ ] T7.6 Remove PROFILE_CONTEXT_MAX_CHARS and related env var references
+  - Depends on: T7.5
+  - Verify: no references to PROFILE_CONTEXT or PROFILE_CONTEXT_MAX_CHARS in code or config
+- [ ] T7.7 Remove PROFILE_CONTEXT loading code from main.py and services
+  - Depends on: T7.6
+  - Verify: no dead PROFILE_CONTEXT code remains
+
 ## Epic 2: Docs and Config Alignment
 
 - [ ] T5.1 Update `.env.example` with avatar controls
-  - Depends on: T3.7
-  - Verify: new env vars documented with defaults and behavior
+  - Depends on: T3.7, T7.6
+  - Verify: new env vars documented with defaults and behavior; PROFILE_CONTEXT removed
 - [ ] T5.2 Update README command/options and behavior sections
-  - Depends on: T2.4, T2.6, T3.5
-  - Verify: docs match implemented flags and routing behavior
+  - Depends on: T2.4, T2.6, T3.5, T7.7
+  - Verify: docs match implemented flags and routing behavior; persona graph documented as identity source
 - [ ] T5.3 Add operational notes for explain/report/confidence workflow
   - Depends on: T5.2
   - Verify: runbook-level guidance present
@@ -170,11 +201,14 @@ Operating rules:
 - [ ] T6.5 Add integration tests for generate/curate with new flags
   - Depends on: T2.4, T3.5
   - Verify: end-to-end flows complete without regression
-- [ ] T6.6 Run syntax compilation gate
-  - Depends on: T6.1-T6.5
+- [ ] T6.6 Add integration tests for persona graph retrieval cutover
+  - Depends on: T7.7
+  - Verify: retrieval with persona graph active, app runs without PROFILE_CONTEXT
+- [ ] T6.7 Run syntax compilation gate
+  - Depends on: T6.1-T6.6
   - Verify: `python -m py_compile` passes for changed Python files
-- [ ] T6.7 Run regression checks for existing truth-gate behavior
-  - Depends on: T6.5
+- [ ] T6.8 Run regression checks for existing truth-gate behavior
+  - Depends on: T6.5, T6.6
   - Verify: no breaking change in existing reason semantics
 
 ## Release Checklist
@@ -182,8 +216,9 @@ Operating rules:
 - [ ] R1 Feature flags default-safe (no behavior change when not enabled)
 - [ ] R2 Performance spot-check completed (local overhead acceptable)
 - [ ] R3 Baseline-vs-feature comparison report completed (2-4 week window target)
-- [ ] R4 Final docs review complete
-- [ ] R5 Merge and release notes prepared
+- [ ] R4 Migration verified: persona graph populated, PROFILE_CONTEXT removed, retrieval works without it
+- [ ] R5 Final docs review complete
+- [ ] R6 Merge and release notes prepared
 
 ## Suggested Execution Order
 
@@ -192,6 +227,7 @@ Operating rules:
 3. Epic 1B
 4. Epic 1C
 5. Epic 1D
-6. Epic 2
-7. Epic 3
-8. Release Checklist
+6. Epic 1E
+7. Epic 2
+8. Epic 3
+9. Release Checklist

@@ -207,6 +207,52 @@ Quality constraints:
   - Quality remains stable in manual sample review.
 - **Dependencies:** Steps 7, 10
 
+## Phase 1E: PROFILE_CONTEXT Migration
+
+### Step 12: Populate persona graph from PROFILE_CONTEXT
+
+- **Status:** [ ] Not Started
+- **Effort:** 4-6h
+- **Description:** Parse existing PROFILE_CONTEXT and populate persona graph during development.
+- **Actions:**
+  1. Reuse existing `parse_profile_facts` logic from `console_grounding.py` to extract structured records.
+  2. Map parsed output to persona graph entities (person, projects, companies, skills, claims).
+  3. Write populated `data/avatar/persona_graph.json`.
+  4. Manually review and refine extracted entities for accuracy.
+- **Verification:**
+  - Persona graph contains all parseable projects, companies, skills from PROFILE_CONTEXT.
+  - Schema validation passes.
+- **Dependencies:** Step 2 (avatar intelligence module)
+
+### Step 13: Switch retrieval to persona graph
+
+- **Status:** [ ] Not Started
+- **Effort:** 3-5h
+- **Description:** Replace PROFILE_CONTEXT parsing with persona graph as sole identity source for retrieval.
+- **Actions:**
+  1. Update `console_grounding.py` retrieval path to use graph facts instead of PROFILE_CONTEXT text parsing.
+  2. Remove PROFILE_CONTEXT parsing from retrieval path.
+  3. Update `load_avatar_state()` to load persona graph directly (no fallback to PROFILE_CONTEXT).
+- **Verification:**
+  - Retrieval uses graph facts exclusively.
+  - `--generate --dry-run` and `--curate --dry-run` output quality is equal or better than baseline.
+- **Dependencies:** Steps 3, 12
+
+### Step 14: Remove PROFILE_CONTEXT and related code
+
+- **Status:** [ ] Not Started
+- **Effort:** 2-3h
+- **Description:** Delete PROFILE_CONTEXT env var, parsing code, and all related references.
+- **Actions:**
+  1. Remove `PROFILE_CONTEXT` from `.env`.
+  2. Remove `PROFILE_CONTEXT` and `PROFILE_CONTEXT_MAX_CHARS` from `.env.example`.
+  3. Remove PROFILE_CONTEXT loading/parsing code from `main.py` and services.
+  4. Update README to remove PROFILE_CONTEXT references and document persona graph as identity source.
+- **Verification:**
+  - App starts and runs without PROFILE_CONTEXT.
+  - README and `.env.example` reflect persona graph as sole identity model.
+- **Dependencies:** Step 13
+
 ## Testing and Quality Gates
 
 ### Gate A: Build and syntax
@@ -225,12 +271,14 @@ Quality constraints:
 - [ ] `--generate --dry-run` with and without new flags
 - [ ] `--curate --dry-run --interactive` learning capture path
 - [ ] Policy routing for `post` and `idea`
+- [ ] Retrieval using persona graph (PROFILE_CONTEXT removed)
 
 ### Gate D: Regression checks
 
 - [ ] Existing truth-gate reason behavior unchanged
 - [ ] Channel formatting constraints still pass (LinkedIn/X/Bluesky/YouTube)
 - [ ] No publish-path regressions when feature disabled
+- [ ] App starts and runs correctly without PROFILE_CONTEXT
 
 ## Implementation Order (Dependency-Optimized)
 
@@ -238,7 +286,8 @@ Quality constraints:
 2. Steps 4-6 (learning + explain/report)
 3. Steps 7-9 (confidence + policy + docs/config)
 4. Steps 10-11 (narrative memory)
-5. Run quality gates A-D
+5. Steps 12-14 (PROFILE_CONTEXT migration + removal)
+6. Run quality gates A-D
 
 ## Rollout and Release
 
@@ -256,5 +305,4 @@ Quality constraints:
 ## Post-Implementation Follow-ups
 
 - Evaluate whether to migrate persona graph to SQLite.
-- Add optional export/import tooling between `PROFILE_CONTEXT` and persona graph.
 - Add outcome-aware learning (engagement feedback) in future phase.

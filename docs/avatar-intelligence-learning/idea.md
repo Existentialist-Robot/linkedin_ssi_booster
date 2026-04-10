@@ -47,7 +47,8 @@ Introduce an "Avatar Intelligence and Learning Engine" with five capabilities:
   - Skill
   - Claim
   - Relationship/alias metadata
-- Treat `.env PROFILE_CONTEXT` as an import/export view, not the canonical model.
+- Treat `.env PROFILE_CONTEXT` as an import source during migration, then retire it.
+- After import, the persona graph is the single canonical identity model.
 
 2. Evidence-linked generation
 
@@ -80,6 +81,13 @@ Introduce an "Avatar Intelligence and Learning Engine" with five capabilities:
   - Open narrative arcs
   - Claims already made to audience
 - Use this memory to avoid repetitive posts and maintain coherent avatar voice over time.
+
+6. PROFILE_CONTEXT migration to persona graph
+
+- During development, parse the existing `.env PROFILE_CONTEXT` and populate `persona_graph.json` directly.
+- Switch the retrieval path from PROFILE_CONTEXT text as the primary identity source to the persona graph.
+- Once the persona graph is verified and retrieval quality is confirmed, delete PROFILE_CONTEXT and all related env var references from `.env`, `.env.example`, and code.
+- This is a development-time migration, not a user-facing tool — single-user project, no import/export CLI needed.
 
 ## Expected Benefits (Project User Impact)
 
@@ -173,6 +181,8 @@ Introduce an "Avatar Intelligence and Learning Engine" with five capabilities:
 - Learning log from truth-gate interactive decisions.
 - Confidence scoring and publish policy gate.
 - Basic narrative memory (recent claims + themes).
+- Populate persona graph from existing PROFILE_CONTEXT during development.
+- Full cutover: retire and delete PROFILE_CONTEXT, persona graph becomes canonical.
 
 ### Out of scope (Phase 1)
 
@@ -185,7 +195,7 @@ Introduce an "Avatar Intelligence and Learning Engine" with five capabilities:
 
 - Complexity: Medium-high, but incremental.
 - Risk: Manageable if introduced behind feature flags.
-- Migration: Backward compatible by defaulting to current behavior when new files/config are absent.
+- Migration: Developer populates persona graph from existing PROFILE_CONTEXT during implementation. After verification, PROFILE_CONTEXT is deleted.
 
 ## Risks and Mitigations
 
@@ -195,6 +205,8 @@ Introduce an "Avatar Intelligence and Learning Engine" with five capabilities:
   - Mitigation: require repeated signals before suggestions.
 - Risk: Identity drift from stale persona graph.
   - Mitigation: add simple sync workflow from profile updates.
+- Risk: Migration breaks existing retrieval quality.
+  - Mitigation: pre/post `--dry-run` comparison before committing cutover; git history provides rollback.
 
 ## Success Criteria
 

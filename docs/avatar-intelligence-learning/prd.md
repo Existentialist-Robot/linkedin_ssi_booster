@@ -36,6 +36,7 @@ Represent the user as a trustworthy digital avatar that:
 ### Goals
 
 - Establish a structured persona graph as the identity source of truth.
+- Migrate identity data from `.env PROFILE_CONTEXT` into the persona graph and retire PROFILE_CONTEXT as an identity source.
 - Attach evidence references to grounded claims used in generation and validation.
 - Capture moderation outcomes and convert recurring patterns into tuning suggestions.
 - Enforce configurable confidence policy before direct posting.
@@ -117,6 +118,17 @@ Acceptance criteria:
 - Generation context includes selected continuity snippets.
 - Repetition checks lower confidence when new draft duplicates recent content.
 
+### Story 6: PROFILE_CONTEXT migration to persona graph
+
+As a user, I want my identity data migrated from PROFILE_CONTEXT to the persona graph during development so the new structured model is the only identity source when the feature ships.
+
+Acceptance criteria:
+
+- Persona graph is populated from existing PROFILE_CONTEXT data during development.
+- After migration, retrieval path uses persona graph as the sole identity source.
+- PROFILE_CONTEXT env var and all related parsing code are removed.
+- Quality comparison: `--dry-run` output with persona graph is equal or better than with PROFILE_CONTEXT.
+
 ## 6. Functional Requirements
 
 ### FR-1 Persona graph storage and validation
@@ -188,6 +200,19 @@ Acceptance criteria:
 
 - Add structured logs for confidence decisions and learning summaries.
 - Preserve existing truth-gate reason reporting.
+
+### FR-10 PROFILE_CONTEXT migration (development-time)
+
+- During development, parse existing PROFILE_CONTEXT and populate persona graph entities.
+- Handle project bullets, company names, years, skills, and free-form details.
+- Write output to `data/avatar/persona_graph.json`.
+- Verify entity coverage against original PROFILE_CONTEXT.
+
+### FR-11 PROFILE_CONTEXT removal
+
+- Remove PROFILE_CONTEXT from `.env`, `.env.example`, and code after persona graph is verified.
+- Remove PROFILE_CONTEXT text parsing from retrieval path.
+- Update all documentation to reflect persona graph as the sole identity source.
 
 ## 7. Non-Functional Requirements
 
@@ -274,7 +299,11 @@ Acceptance criteria:
 
 - Mitigation: add import/sync workflow from profile context and clear update instructions.
 
-### Risk 4: Adoption friction
+### Risk 4: Migration breaks retrieval quality
+
+- Mitigation: pre/post `--dry-run` comparison before committing cutover; git history provides rollback.
+
+### Risk 5: Adoption friction
 
 - Mitigation: backward compatibility and opt-in flags in early phases.
 
