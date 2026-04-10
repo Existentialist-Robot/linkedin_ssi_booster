@@ -448,3 +448,20 @@ Quality constraints:
 **Blockers/Risks:** None.
 
 **Scope adjustments:** None.
+
+### Epic 3 — 2026-04-10
+
+**Completed:**
+
+- T6.1: `tests/test_avatar_state_loader.py` — 20 tests covering `_validate_persona_graph`, `_validate_narrative_memory`, `_load_persona_graph`, `_load_narrative_memory`, and `load_avatar_state` for valid, missing, malformed JSON, and schema-error cases.
+- T6.2: `tests/test_evidence_mapping.py` — 23 tests covering `_make_evidence_id` (stability, format, hash), `normalize_evidence_facts` (field values, company resolution, unloaded state), `evidence_facts_to_project_facts`, `retrieve_evidence` (scoring, fallback, limit), `build_explain_output`, `format_explain_output`, `build_grounding_context`, and `get_grounding_context_for_query`.
+- T6.3: `tests/test_learning_report.py` — 21 tests covering `_load_learning_events` (empty, missing, malformed JSONL skip), `record_moderation_event` (roundtrip, invalid decision guard), `_apply_heuristics` (all three rules, threshold boundaries), `build_learning_report` (counts, sorted reason codes, recommendations), and `format_learning_report`.
+- T6.4: `tests/test_confidence_scoring.py` — 21 tests covering `score_confidence` (determinism, level thresholds high/medium/low, score clamping, dominant signal), `extract_confidence_signals` (zero removal, full removal, coverage cap, zero-sentence guard, unknown reason code), and `decide_publish_mode` (full policy matrix: strict / balanced / draft-first × high / medium / low, unknown-policy fallback).
+- T6.5: `tests/test_integration_flags.py` — 7 tests covering CLI flag presence in `--help` output (`--avatar-explain`, `--avatar-learn-report`, `--confidence-policy` with valid choices), rejection of invalid `--confidence-policy` value, and clean exit of `--avatar-learn-report` with an empty log.
+- T6.6: `tests/test_persona_graph_retrieval.py` — 12 tests against the real `data/avatar/persona_graph.json`: full load (17 projects), evidence ID uniqueness, retrieval quality (G7 GovAI tops RAG query, Answer42 tops Spring Batch query), limit enforcement, unrelated-query fallback, app start without `PROFILE_CONTEXT`, and `os.getenv` migration gate.
+- T6.7: `python -m py_compile` gate — all source and test files compile cleanly.
+- T6.8: `pytest tests/ -v` — **109 passed, 0 failed** in 2.26 s. Truth-gate reason semantics (`unsupported_numeric`, `unsupported_year`, `project_claim`, etc.) verified unchanged.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** Added `pytest>=9.0.0` to `requirements.txt` (was absent). The PROFILE_CONTEXT migration gate in T6.6 checks for `os.getenv("PROFILE_CONTEXT")` absence rather than string absence — the legacy `parse_profile_project_facts` utility and its docstring are retained in `console_grounding.py` as a non-retrieval helper.

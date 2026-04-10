@@ -186,28 +186,28 @@ Operating rules:
 
 ## Epic 3: Testing and Validation
 
-- [ ] T6.1 Add unit tests for avatar state loader and schema validation
+- [x] T6.1 Add unit tests for avatar state loader and schema validation
   - Depends on: T1.6
   - Verify: pass on valid and malformed fixtures
-- [ ] T6.2 Add unit tests for evidence mapping and explain output
+- [x] T6.2 Add unit tests for evidence mapping and explain output
   - Depends on: T1.7, T2.4
   - Verify: deterministic and correct mapping
-- [ ] T6.3 Add unit tests for learning report and recommendation rules
+- [x] T6.3 Add unit tests for learning report and recommendation rules
   - Depends on: T2.7
   - Verify: expected suggestions from synthetic logs
-- [ ] T6.4 Add unit tests for confidence scoring and policy routing
+- [x] T6.4 Add unit tests for confidence scoring and policy routing
   - Depends on: T3.5
   - Verify: thresholds and routes pass matrix tests
-- [ ] T6.5 Add integration tests for generate/curate with new flags
+- [x] T6.5 Add integration tests for generate/curate with new flags
   - Depends on: T2.4, T3.5
   - Verify: end-to-end flows complete without regression
-- [ ] T6.6 Add integration tests for persona graph retrieval cutover
+- [x] T6.6 Add integration tests for persona graph retrieval cutover
   - Depends on: T7.7
   - Verify: retrieval with persona graph active, app runs without PROFILE_CONTEXT
-- [ ] T6.7 Run syntax compilation gate
+- [x] T6.7 Run syntax compilation gate
   - Depends on: T6.1-T6.6
   - Verify: `python -m py_compile` passes for changed Python files
-- [ ] T6.8 Run regression checks for existing truth-gate behavior
+- [x] T6.8 Run regression checks for existing truth-gate behavior
   - Depends on: T6.5, T6.6
   - Verify: no breaking change in existing reason semantics
 
