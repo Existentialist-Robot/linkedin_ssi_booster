@@ -57,31 +57,31 @@ Operating rules:
 
 ## Epic 1A: Persona Graph Foundation
 
-- [ ] T1.1 Add avatar data directory scaffolding
+- [x] T1.1 Add avatar data directory scaffolding
   - Depends on: T0.1
   - Verify: `data/avatar/` created with required seed files
-- [ ] T1.2 Add seed file `persona_graph.json`
+- [x] T1.2 Add seed file `persona_graph.json`
   - Depends on: T1.1
   - Verify: valid JSON parse
-- [ ] T1.3 Add seed file `narrative_memory.json`
+- [x] T1.3 Add seed file `narrative_memory.json`
   - Depends on: T1.1
   - Verify: valid JSON parse
-- [ ] T1.4 Add learning log creation path (`learning_log.jsonl`)
+- [x] T1.4 Add learning log creation path (`learning_log.jsonl`)
   - Depends on: T1.1
   - Verify: append path works and file is newline-delimited JSON
-- [ ] T1.5 Create module `services/avatar_intelligence.py`
+- [x] T1.5 Create module `services/avatar_intelligence.py`
   - Depends on: T1.2, T1.3
   - Verify: module imports without errors
-- [ ] T1.6 Implement avatar state loader + validation
+- [x] T1.6 Implement avatar state loader + validation
   - Depends on: T1.5
   - Verify: valid files load; malformed files fallback safely
-- [ ] T1.7 Implement evidence fact normalization and ID assignment
+- [x] T1.7 Implement evidence fact normalization and ID assignment
   - Depends on: T1.6
   - Verify: IDs stable per run for same input order
-- [ ] T1.8 Implement grounding context builder from evidence facts
+- [x] T1.8 Implement grounding context builder from evidence facts
   - Depends on: T1.7
   - Verify: prompt block emitted with expected fact coverage
-- [ ] T1.9 Integrate graph-backed retrieval path in startup flow
+- [x] T1.9 Integrate graph-backed retrieval path in startup flow
   - Depends on: T1.8
   - Verify: runs with and without graph files produce expected fallback behavior
 

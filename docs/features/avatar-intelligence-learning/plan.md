@@ -34,17 +34,17 @@ Quality constraints:
 
 ## Pre-Implementation Checklist
 
-- [ ] Confirm baseline behavior using current dry-run commands.
-- [ ] Create a feature branch.
-- [ ] Define acceptance test prompts/articles for regression comparisons.
-- [ ] Confirm local write permissions for `data/avatar/`.
+- [ ] Confirm baseline behavior using current dry-run commands. ✅
+- [ ] Create a feature branch. ✅
+- [ ] Define acceptance test prompts/articles for regression comparisons. ✅
+- [ ] Confirm local write permissions for `data/avatar/`. ✅
 - [ ] Confirm `.gitignore` behavior for local runtime data (if needed).
 
 ## Phase 1A: Persona Graph Foundation (Read-Only)
 
 ### Step 1: Add avatar data scaffolding
 
-- **Status:** [ ] Not Started
+- **Status:** [x] Complete
 - **Effort:** 2-3h
 - **Description:** Create structured data files and minimal schema contract.
 - **Actions:**
@@ -59,7 +59,7 @@ Quality constraints:
 
 ### Step 2: Implement avatar intelligence core module
 
-- **Status:** [ ] Not Started
+- **Status:** [x] Complete
 - **Effort:** 4-6h
 - **Description:** Create `services/avatar_intelligence.py` with loader + validator + retrieval adapter.
 - **Actions:**
@@ -74,7 +74,7 @@ Quality constraints:
 
 ### Step 3: Integrate graph-backed retrieval path
 
-- **Status:** [ ] Not Started
+- **Status:** [x] Complete
 - **Effort:** 3-4h
 - **Description:** Wire retrieval path into generation/curation while preserving current fallback.
 - **Actions:**
@@ -306,3 +306,37 @@ Quality constraints:
 
 - Evaluate whether to migrate persona graph to SQLite.
 - Add outcome-aware learning (engagement feedback) in future phase.
+
+---
+
+## Progress Notes
+
+### Epic 0 — 2026-04-10
+
+**Completed:**
+
+- T0.1: Feature branch `feature/avatar-intelligence-learning` created and pushed.
+- T0.2: Baseline dry-run artifacts documented in `tests/fixtures/baseline_run_2026-04-10.md`.
+- T0.3: Acceptance test set (TC-01, TC-02, TC-03) defined in `tests/fixtures/acceptance_test_set.md`.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None.
+
+### Epic 1A — 2026-04-10
+
+**Completed:**
+
+- T1.1: `data/avatar/` directory created with `.gitkeep`.
+- T1.2: `data/avatar/persona_graph.json` seeded (empty valid schema v1.0).
+- T1.3: `data/avatar/narrative_memory.json` seeded (empty valid structure).
+- T1.4: `learning_log.jsonl` append path verified (created on first write, not tracked).
+- T1.5: `services/avatar_intelligence.py` created — compiles and imports cleanly.
+- T1.6: `load_avatar_state()` implemented — valid files load, malformed JSON falls back safely with warnings.
+- T1.7: `normalize_evidence_facts()` with stable `E{idx:03d}-{6-char-hash}` IDs.
+- T1.8: `build_grounding_context()` emits evidence-ID-tagged prompt block.
+- T1.9: `get_grounding_context_for_query()` returns empty string for None/unloaded state (fallback verified).
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** `data/avatar/learning_log.jsonl` is runtime-created (not seeded) — append path verified via test only.
