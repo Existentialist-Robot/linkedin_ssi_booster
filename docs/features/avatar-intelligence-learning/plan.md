@@ -90,7 +90,7 @@ Quality constraints:
 
 ### Step 4: Add interactive learning event capture
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Persist moderation outcomes from truth gate interactive decisions.
 - **Actions:**
@@ -104,7 +104,7 @@ Quality constraints:
 
 ### Step 5: Add explain output mode
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Expose evidence summary to user via CLI flag.
 - **Actions:**
@@ -118,7 +118,7 @@ Quality constraints:
 
 ### Step 6: Add learning report command
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-4h
 - **Description:** Convert captured events into actionable recommendations.
 - **Actions:**
@@ -340,3 +340,18 @@ Quality constraints:
 **Blockers/Risks:** None.
 
 **Scope adjustments:** `data/avatar/learning_log.jsonl` is runtime-created (not seeded) — append path verified via test only.
+
+### Epic 1B — 2026-04-10
+
+**Completed:**
+- T2.1: `ModerationEvent` dataclass added to `services/avatar_intelligence.py` with all required fields.
+- T2.2: `record_moderation_event()` append-only writer; hooked into `truth_gate()` interactive path in `console_grounding.py`.
+- T2.3: `--avatar-explain` flag added to `main.py`; recognized in `--help`.
+- T2.4: `build_explain_output()` + `format_explain_output()` implemented; emits evidence IDs only when flag enabled.
+- T2.5: `--avatar-learn-report` flag added to `main.py`; exits cleanly after printing report.
+- T2.6: `build_learning_report()` + `format_learning_report()` handle empty, small, and large logs.
+- T2.7: Three rule-based heuristics (domain_term, retrieval_expansion, prompt_length) — advisory only, no config mutation.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** `--avatar-explain` is wired into `--generate` flow only in this phase; `--curate` explain output deferred to integration step when persona graph is populated.

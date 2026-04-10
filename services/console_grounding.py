@@ -10,6 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass  # avoid circular import; avatar_intelligence imported lazily inside truth_gate
 
 
 DEFAULT_TECH_KEYWORDS = {
@@ -352,6 +356,8 @@ def truth_gate(
     article_text: str,
     facts: list[ProjectFact],
     interactive: bool = False,
+    article_ref: str = "",
+    channel: str = "linkedin",
 ) -> str:
     """Lightweight post-generation truth gate.
 
@@ -364,7 +370,10 @@ def truth_gate(
        (configurable via ``TRUTH_GATE_DOMAIN_TERMS``) are always allowed.
 
     When *interactive* is True, each flagged sentence is presented to the
-    user for confirmation before removal.
+    user for confirmation before removal.  Interactive decisions are recorded
+    in the avatar learning log when the avatar module is available.
+
+    *article_ref* and *channel* are forwarded to the learning log for context.
 
     Returns the filtered text (may be identical to input if nothing was stripped).
     """
@@ -427,10 +436,24 @@ def truth_gate(
                     answer = input("    Remove this sentence? [y/N]: ").strip().lower()
                 except (EOFError, KeyboardInterrupt):
                     answer = "n"
-                if answer in ("y", "yes"):
+                user_removed = answer in ("y", "yes")
+                if user_removed:
                     removed.append((sentence, reason))
                 else:
                     kept.append(sentence)
+                # Record the interactive decision in the avatar learning log.
+                decision = "removed" if user_removed else "kept"
+                try:
+                    from services.avatar_intelligence import record_moderation_event
+                    record_moderation_event(
+                        sentence=sentence,
+                        reason_code=reason.split(":")[0],
+                        decision=decision,
+                        channel=channel,
+                        article_ref=article_ref,
+                    )
+                except Exception as _log_exc:  # noqa: BLE001
+                    _truth_logger.warning("Failed to record moderation event: %s", _log_exc)
             else:
                 removed.append((sentence, reason))
         else:

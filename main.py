@@ -137,6 +137,8 @@ def main():
                         help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")
     parser.add_argument("--debug",     action="store_true", help="Enable DEBUG-level logging (shows raw API payloads and responses)")
     parser.add_argument("--interactive", action="store_true", help="Pause for user confirmation on each truth gate removal")
+    parser.add_argument("--avatar-explain", action="store_true", help="Print evidence IDs and grounding summary after each generation")
+    parser.add_argument("--avatar-learn-report", action="store_true", help="Print learning report from captured moderation events and exit")
     args = parser.parse_args()
 
     if args.debug:
@@ -182,6 +184,12 @@ def main():
 
     if args.report:
         tracker.print_report()
+        return
+
+    if args.avatar_learn_report:
+        from services.avatar_intelligence import build_learning_report, format_learning_report
+        report = build_learning_report()
+        print(format_learning_report(report))
         return
 
     if args.save_ssi:
@@ -254,6 +262,15 @@ def main():
         if args.channel == "youtube" and not args.dry_run:
             Path("yt-vid-data").mkdir(exist_ok=True)
 
+        if args.avatar_explain:
+            from services.avatar_intelligence import (
+                load_avatar_state as _load_avatar_state,
+                normalize_evidence_facts, retrieve_evidence,
+                build_explain_output, format_explain_output,
+            )
+            _avatar_state = _load_avatar_state()
+            _avatar_facts = normalize_evidence_facts(_avatar_state)
+
         for topic in week_topics:
             logger.info(f"  Generating: {topic['title']}")
             grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
@@ -312,6 +329,16 @@ def main():
                 print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']}" + str(Style.RESET_ALL))
                 print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))
                 print(f"\n{post}\n")
+
+            if args.avatar_explain:
+                _relevant = retrieve_evidence(grounding_query, _avatar_facts)  # type: ignore[possibly-undefined]
+                _explain = build_explain_output(  # type: ignore[possibly-undefined]
+                    evidence_facts=_relevant,
+                    article_ref=topic.get("title", ""),
+                    channel=args.channel,
+                    ssi_component=topic.get("ssi_component", ""),
+                )
+                print(format_explain_output(_explain))  # type: ignore[possibly-undefined]
 
         if args.schedule and not args.dry_run:
             if args.channel == "youtube":

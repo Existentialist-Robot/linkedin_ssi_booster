@@ -87,25 +87,25 @@ Operating rules:
 
 ## Epic 1B: Learning Capture and Explainability
 
-- [ ] T2.1 Add interactive moderation event model
+- [x] T2.1 Add interactive moderation event model
   - Depends on: T1.5
   - Verify: event includes timestamp/channel/reason/decision/hash/runId
-- [ ] T2.2 Hook truth-gate interactive decisions into learning log writer
+- [x] T2.2 Hook truth-gate interactive decisions into learning log writer
   - Depends on: T2.1
   - Verify: each decision appends one valid JSONL record
-- [ ] T2.3 Add CLI flag `--avatar-explain`
+- [x] T2.3 Add CLI flag `--avatar-explain`
   - Depends on: T1.9
   - Verify: flag is recognized and help text updated
-- [ ] T2.4 Emit explain output (evidence IDs + support summary)
+- [x] T2.4 Emit explain output (evidence IDs + support summary)
   - Depends on: T2.3
   - Verify: explain output appears only when flag enabled
-- [ ] T2.5 Add CLI flag `--avatar-learn-report`
+- [x] T2.5 Add CLI flag `--avatar-learn-report`
   - Depends on: T2.2
   - Verify: flag is recognized and command path exits cleanly
-- [ ] T2.6 Implement learning report aggregation
+- [x] T2.6 Implement learning report aggregation
   - Depends on: T2.5
   - Verify: report handles empty, small, and large logs
-- [ ] T2.7 Add recommendation heuristics (advisory-only)
+- [x] T2.7 Add recommendation heuristics (advisory-only)
   - Depends on: T2.6
   - Verify: outputs suggestions without mutating config files
 
