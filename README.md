@@ -80,7 +80,7 @@ Every generated post is plain text — there's no audio or special format involv
 **1. Your profile (`PROFILE_CONTEXT` in `.env`)**  
 Injected into every prompt: your name, role, location, specialties, and real project outcomes. Stored in `.env` (gitignored) so it stays private and out of source control. The profile is also enriched at startup with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
-> **Upcoming change:** The Avatar Intelligence feature (see `docs/avatar-intelligence-learning/`) will replace `PROFILE_CONTEXT` with a structured persona graph (`data/avatar/persona_graph.json`). Once implemented, `PROFILE_CONTEXT` and its related env vars will be removed — the persona graph becomes the sole identity source.
+> **Upcoming change:** The Avatar Intelligence feature (see `docs/features/avatar-intelligence-learning/`) will replace `PROFILE_CONTEXT` with a structured persona graph (`data/avatar/persona_graph.json`). Once implemented, `PROFILE_CONTEXT` and its related env vars will be removed — the persona graph becomes the sole identity source.
 
 GitHub enrichment details:
 
@@ -606,12 +606,13 @@ linkedin_ssi_booster/
 │   ├── prd.md                 # AI-TDD product requirements document
 │   ├── design.md              # AI-TDD technical design + Mermaid diagrams
 │   ├── nlp-basics.md          # NLP communication primer used by prompts
-│   └── avatar-intelligence-learning/  # Avatar Intelligence feature docs
-│       ├── idea.md            # Feature idea: persona graph, migration, learning
-│       ├── prd.md             # Product requirements + acceptance criteria
-│       ├── design.md          # Technical design + migration design
-│       ├── plan.md            # Phased implementation plan (1A-1E)
-│       └── tasks.md           # Execution task list with agent protocol
+│   └── features/
+│       └── avatar-intelligence-learning/  # Avatar Intelligence feature docs
+│           ├── idea.md            # Feature idea: persona graph, migration, learning
+│           ├── prd.md             # Product requirements + acceptance criteria
+│           ├── design.md          # Technical design + migration design
+│           ├── plan.md            # Phased implementation plan (1A-1E)
+│           └── tasks.md           # Execution task list with agent protocol
 └── services/
     ├── buffer_service.py      # Buffer GraphQL API client
     ├── ollama_service.py      # Ollama local LLM — post generation + SSI instructions
