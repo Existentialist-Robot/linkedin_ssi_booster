@@ -4,9 +4,9 @@
 
 This plan executes the feature defined in:
 
-- `docs/avatar-intelligence-learning/idea.md`
-- `docs/avatar-intelligence-learning/prd.md`
-- `docs/avatar-intelligence-learning/design.md`
+- `docs/features/avatar-intelligence-learning/idea.md`
+- `docs/features/avatar-intelligence-learning/prd.md`
+- `docs/features/avatar-intelligence-learning/design.md`
 
 Delivery strategy:
 

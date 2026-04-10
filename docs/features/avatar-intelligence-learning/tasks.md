@@ -4,12 +4,12 @@
 
 This feature is executed in one continuous run with two driver documents:
 
-- Strategy driver: `docs/avatar-intelligence-learning/plan.md`
-- Execution driver: `docs/avatar-intelligence-learning/tasks.md`
+- Strategy driver: `docs/features/avatar-intelligence-learning/plan.md`
+- Execution driver: `docs/features/avatar-intelligence-learning/tasks.md`
 
 Required technical reference before and during execution:
 
-- Design reference: `docs/avatar-intelligence-learning/design.md`
+- Design reference: `docs/features/avatar-intelligence-learning/design.md`
 
 Operating rules:
 
@@ -26,7 +26,7 @@ Operating rules:
 - Respect task dependencies inside each epic.
 - Update task state immediately during execution (`[ ]` -> `[-]` -> `[x]`).
 - If a verification gate fails, stay in the current epic and fix forward before continuing.
-- At end of each epic, append a short progress note to `docs/avatar-intelligence-learning/plan.md`:
+- At end of each epic, append a short progress note to `docs/features/avatar-intelligence-learning/plan.md`:
   - Completed tasks
   - Blockers/risks
   - Scope adjustments (if any)
