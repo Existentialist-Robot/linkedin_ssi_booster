@@ -123,6 +123,7 @@ You are in interactive console chat mode.
         max_length: int = 1300,
         channel: str = "linkedin",
         interactive: bool = False,
+        continuity_context: str = "",
     ) -> str:
         """
         Generate a LinkedIn post optimised for a specific SSI component.
@@ -149,13 +150,19 @@ You are in interactive console chat mode.
 
         grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
 
+        _continuity_block = (
+            f"\n\nContinuity context (avoid repeating these recent topics; build on or contrast them):\n{continuity_context}"
+            if continuity_context
+            else ""
+        )
+
         system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
 Maximum length: {max_length} characters including hashtags.{_platform_block}
 Profile context:
 {profile_context}
 
 SSI optimisation goal:
-{ssi_instruction}"""
+{ssi_instruction}{_continuity_block}"""
 
         user_prompt = f"""Write a LinkedIn post about: {title}
 Angle to take: {angle}
@@ -284,6 +291,7 @@ Post:
         post_mode: bool = False,
         grounding_facts: Optional[list[ProjectFact]] = None,
         interactive: bool = False,
+        continuity_context: str = "",
     ) -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
@@ -349,6 +357,12 @@ Balance rules (non-negotiable):
 
         grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
 
+        _continuity_block = (
+            f"\n\nContinuity context (avoid repeating these recent topics; build on or contrast them):\n{continuity_context}"
+            if continuity_context
+            else ""
+        )
+
         prompt = f"""Article:
 ---
 {article_text[:4500]}
@@ -360,7 +374,7 @@ Write a LinkedIn post reacting to this article.
 
 {grounding_block}
 
-{format_instructions}"""
+{format_instructions}{_continuity_block}"""
 
         result = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=800))
 

@@ -62,8 +62,8 @@ Quality constraints:
 
 ### Phase 1D: Narrative Continuity Memory
 
-- [ ] Step 10 — Implement narrative memory store
-- [ ] Step 11 — Inject continuity into prompts and confidence
+- [x] Step 10 — Implement narrative memory store
+- [x] Step 11 — Inject continuity into prompts and confidence
 
 ### Phase 1E: PROFILE_CONTEXT Migration
 
@@ -212,7 +212,7 @@ Quality constraints:
 
 ### Step 10: Implement narrative memory store
 
-- **Status:** [ ]
+- **Status:** [x]
 - **Effort:** 3-4h
 - **Description:** Persist recent themes/claims/arcs for continuity.
 - **Actions:**
@@ -223,10 +223,11 @@ Quality constraints:
   - Memory updates are stable across runs.
   - Store remains bounded by configured max items.
 - **Dependencies:** Step 2
+- **Progress:** `update_narrative_memory()`, `save_narrative_memory()` added to `avatar_intelligence.py`. FIFO-trim bounded by `AVATAR_MAX_MEMORY_ITEMS`. `extract_narrative_updates()` provides rule-based theme/claim extraction (no LLM call). Memory update hook injected into the single-channel curator path after each successful generation.
 
 ### Step 11: Inject continuity into prompts and confidence
 
-- **Status:** [ ]
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Use memory to improve coherence and reduce repetition.
 - **Actions:**
@@ -237,6 +238,7 @@ Quality constraints:
   - Repetition checks lower confidence for near-duplicate drafts.
   - Quality remains stable in manual sample review.
 - **Dependencies:** Steps 7, 10
+- **Progress:** `build_continuity_context()` produces ≤300-char prompt snippet. `continuity_context` param added to both `OllamaService.generate_linkedin_post()` and `OllamaService.summarise_for_curation()`. `compute_repetition_score()` computes token-overlap ratio against `recent_claims`; wired into `_score_and_route()` replacing the hardcoded `0.0` placeholder.
 
 ## Phase 1E: PROFILE_CONTEXT Migration
 

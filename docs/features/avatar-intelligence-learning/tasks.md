@@ -135,16 +135,16 @@ Operating rules:
 
 ## Epic 1D: Narrative Continuity Memory
 
-- [ ] T4.1 Implement narrative memory read/update/trim operations
+- [x] T4.1 Implement narrative memory read/update/trim operations
   - Depends on: T1.6
   - Verify: bounded memory persists across runs
-- [ ] T4.2 Extract recent themes/claims from successful outputs
+- [x] T4.2 Extract recent themes/claims from successful outputs
   - Depends on: T4.1
   - Verify: memory updates with expected fields
-- [ ] T4.3 Inject continuity snippets into prompt assembly
+- [x] T4.3 Inject continuity snippets into prompt assembly
   - Depends on: T4.2
   - Verify: prompt includes continuity context within budget
-- [ ] T4.4 Add repetition signal into confidence scoring
+- [x] T4.4 Add repetition signal into confidence scoring
   - Depends on: T4.3, T3.1
   - Verify: near-duplicate drafts reduce confidence score
 

@@ -217,6 +217,16 @@ class ContentCurator:
             if profile_context
             else []
         )
+        self._narrative_memory = None
+        try:
+            from services.shared import AVATAR_LEARNING_ENABLED
+            if AVATAR_LEARNING_ENABLED:
+                from services.avatar_intelligence import load_avatar_state
+                _state = load_avatar_state()
+                if _state.narrative_memory is not None:
+                    self._narrative_memory = _state.narrative_memory
+        except Exception as _exc:
+            logger.warning("Narrative memory init failed (continuing): %s", _exc)
 
     def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
@@ -272,8 +282,16 @@ class ContentCurator:
                 score_confidence,
                 decide_publish_mode,
                 record_confidence_decision,
+                compute_repetition_score,
             )
             from services.shared import AVATAR_LEARNING_ENABLED
+
+            # T4.4: repetition signal from narrative memory
+            rep_score = (
+                compute_repetition_score(post_text, self._narrative_memory)
+                if self._narrative_memory is not None
+                else 0.0
+            )
 
             # Assess the already-cleaned post against source article to get truth-gate meta.
             _assessed_text, gate_meta = truth_gate_result(
@@ -287,6 +305,7 @@ class ContentCurator:
                 max_grounding_facts=5,
                 channel=channel,
                 post_length=len(post_text),
+                narrative_repetition_score=rep_score,
             )
             result = score_confidence(signals)
             cd = decide_publish_mode(self.confidence_policy, result, requested_mode)
@@ -536,6 +555,17 @@ class ContentCurator:
             # ----------------------------------------------------------------
             else:
                 effective_channel = "linkedin" if (message_type == "post" and channel == "linkedin") else channel
+                # T4.3: build continuity snippet from narrative memory (empty string if unavailable)
+                try:
+                    from services.avatar_intelligence import build_continuity_context
+                    _continuity = (
+                        build_continuity_context(self._narrative_memory)
+                        if self._narrative_memory is not None
+                        else ""
+                    )
+                except Exception:
+                    _continuity = ""
+
                 post_text = self.ai.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
@@ -544,10 +574,30 @@ class ContentCurator:
                     post_mode=(message_type == "post"),
                     grounding_facts=grounding_facts,
                     interactive=interactive,
+                    continuity_context=_continuity,
                 )
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
+
+                # T4.2 + T4.1: update narrative memory with themes/claims from this post
+                try:
+                    from services.shared import AVATAR_LEARNING_ENABLED
+                    from services.avatar_intelligence import (
+                        extract_narrative_updates,
+                        update_narrative_memory,
+                        save_narrative_memory,
+                    )
+                    if AVATAR_LEARNING_ENABLED and self._narrative_memory is not None:
+                        _updates = extract_narrative_updates(
+                            post_text, ssi_component, article["title"]
+                        )
+                        self._narrative_memory = update_narrative_memory(
+                            self._narrative_memory, **_updates
+                        )
+                        save_narrative_memory(self._narrative_memory)
+                except Exception as _mem_exc:
+                    logger.warning("Narrative memory update failed (continuing): %s", _mem_exc)
 
                 # Append URL then hashtags programmatically (order: body → URL → hashtags).
                 # For X/Bluesky: cap the LLM text first, THEN append URL so buffer_service
