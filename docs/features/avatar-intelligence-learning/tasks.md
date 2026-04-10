@@ -174,13 +174,13 @@ Operating rules:
 
 ## Epic 2: Docs and Config Alignment
 
-- [ ] T5.1 Update `.env.example` with avatar controls
+- [x] T5.1 Update `.env.example` with avatar controls
   - Depends on: T3.7, T7.6
   - Verify: new env vars documented with defaults and behavior; PROFILE_CONTEXT removed
-- [ ] T5.2 Update README command/options and behavior sections
+- [x] T5.2 Update README command/options and behavior sections
   - Depends on: T2.4, T2.6, T3.5, T7.7
   - Verify: docs match implemented flags and routing behavior; persona graph documented as identity source
-- [ ] T5.3 Add operational notes for explain/report/confidence workflow
+- [x] T5.3 Add operational notes for explain/report/confidence workflow
   - Depends on: T5.2
   - Verify: runbook-level guidance present
 

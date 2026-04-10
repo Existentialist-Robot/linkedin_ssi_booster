@@ -71,6 +71,11 @@ Quality constraints:
 - [x] Step 13 — Switch retrieval to persona graph
 - [x] Step 14 — Remove PROFILE_CONTEXT and related code
 
+### Phase 2: Docs and Config Alignment
+
+- [x] Step 15 — Update .env.example with avatar controls
+- [x] Step 16 — Update README and add operational notes
+
 ## Phase 1A: Persona Graph Foundation (Read-Only)
 
 ### Step 1: Add avatar data scaffolding
@@ -244,7 +249,7 @@ Quality constraints:
 
 ### Step 12: Populate persona graph from PROFILE_CONTEXT
 
-- **Status:** [ ]
+- **Status:** [x]
 - **Effort:** 4-6h
 - **Description:** Parse existing PROFILE_CONTEXT and populate persona graph during development.
 - **Actions:**
@@ -259,7 +264,7 @@ Quality constraints:
 
 ### Step 13: Switch retrieval to persona graph
 
-- **Status:** [ ]
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Replace PROFILE_CONTEXT parsing with persona graph as sole identity source for retrieval.
 - **Actions:**
@@ -273,7 +278,7 @@ Quality constraints:
 
 ### Step 14: Remove PROFILE_CONTEXT and related code
 
-- **Status:** [ ]
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Delete PROFILE_CONTEXT env var, parsing code, and all related references.
 - **Actions:**
@@ -304,14 +309,14 @@ Quality constraints:
 - [ ] `--generate --dry-run` with and without new flags
 - [ ] `--curate --dry-run --interactive` learning capture path
 - [ ] Policy routing for `post` and `idea`
-- [ ] Retrieval using persona graph (PROFILE_CONTEXT removed)
+- [x] Retrieval using persona graph (PROFILE_CONTEXT removed)
 
 ### Gate D: Regression checks
 
 - [ ] Existing truth-gate reason behavior unchanged
 - [ ] Channel formatting constraints still pass (LinkedIn/X/Bluesky/YouTube)
 - [ ] No publish-path regressions when feature disabled
-- [ ] App starts and runs correctly without PROFILE_CONTEXT
+- [x] App starts and runs correctly without PROFILE_CONTEXT
 
 ## Implementation Order (Dependency-Optimized)
 
@@ -405,3 +410,41 @@ Quality constraints:
 **Blockers/Risks:** None.
 
 **Scope adjustments:** Confidence assessment in `_score_and_route()` runs `truth_gate_result()` on the already-cleaned post text (assess-only pass). `truth_gate_removed_count` therefore reflects residual issues in the cleaned output, not the pre-gate draft — this is intentional and consistent with the Phase 1C signal design.
+
+### Epic 1D — 2026-04-10
+
+**Completed:**
+
+- T4.1: `NarrativeMemory` dataclass + `load_narrative_memory()`, `update_narrative_memory()`, `trim_narrative_memory()` implemented in `services/avatar_intelligence.py`. Bounded by `AVATAR_MAX_MEMORY_ITEMS`.
+- T4.2: `extract_narrative_updates()` extracts recent themes and claim tokens from successful post output. Memory updated with channel, ssi_component, claim_tokens, and themes after each successful generation.
+- T4.3: `build_continuity_context()` produces a ≤300-char prompt snippet injected into the curate prompt assembly. `continuity_context` param added to `OllamaService.generate_linkedin_post()` and `summarise_for_curation()`.
+- T4.4: `compute_repetition_score()` computes token-overlap ratio against `recent_claims`; wired into `_score_and_route()` as `repetition_penalty` signal in confidence scoring.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None.
+
+### Epic 1E — 2026-04-10
+
+**Completed:**
+
+- T7.1: Real persona data parsed from `.env` PROFILE_CONTEXT — 17 projects, 37 skills, 15 companies, 6 verifiable claims — populated into `data/avatar/persona_graph.json`.
+- T7.2: Schema validation passes; `load_avatar_state()` confirms `is_loaded=True`, 17 projects, 37 skills. Retrieval ranking verified (G7 GovAI tops RAG queries; Answer42 tops Spring Batch queries).
+- T7.3: `evidence_facts_to_project_facts()` adapter added to `avatar_intelligence.py`. `content_curator.py` `__init__` and `_grounding_facts_for_article` updated to load avatar state and use `retrieve_evidence`. `ollama_service.py` `generate_linkedin_post` drops `profile_context` param; `chat_as_persona` replaces it with `grounding_context: str = ""`.
+- T7.4–T7.7: All PROFILE_CONTEXT parsing code removed. `main.py` module-level block deleted (`_PROFILE_CONTEXT_BASE`, `raise ValueError`, `_env_int`, `_assemble_profile_context`, `PROFILE_CONTEXT_MAX_CHARS`, `PROFILE_CONTEXT`). `run_console` and generate path load avatar state internally. `content_curator.py` dead imports removed. `.env.example` and `README.md` updated throughout.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None. App imports cleanly with no `PROFILE_CONTEXT` in environment.
+
+### Epic 2 — 2026-04-10
+
+**Completed:**
+
+- T5.1: Avatar controls block added to `.env.example` — `AVATAR_LEARNING_ENABLED`, `AVATAR_CONFIDENCE_POLICY`, `AVATAR_MAX_MEMORY_ITEMS` — each with inline documentation of valid values, defaults, and behavior description.
+- T5.2: README updated with all three new flags (`--avatar-explain`, `--avatar-learn-report`, `--confidence-policy`) in the usage block, the `## Setup` inline config comment, and the flag reference table.
+- T5.3: "Avatar Intelligence — Explain, Learn, Confidence" operational notes section added to README — runbook-level guidance for each overlay, example commands, and the confidence routing matrix table (`strict` / `balanced` / `draft-first` × High / Medium / Low).
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None.
