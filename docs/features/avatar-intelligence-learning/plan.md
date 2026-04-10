@@ -34,17 +34,17 @@ Quality constraints:
 
 ## Pre-Implementation Checklist
 
-- [ ] Confirm baseline behavior using current dry-run commands. ✅
-- [ ] Create a feature branch. ✅
-- [ ] Define acceptance test prompts/articles for regression comparisons. ✅
-- [ ] Confirm local write permissions for `data/avatar/`. ✅
+- [x] Confirm baseline behavior using current dry-run commands.
+- [x] Create a feature branch.
+- [x] Define acceptance test prompts/articles for regression comparisons.
+- [x] Confirm local write permissions for `data/avatar/`.
 - [ ] Confirm `.gitignore` behavior for local runtime data (if needed).
 
 ## Phase 1A: Persona Graph Foundation (Read-Only)
 
 ### Step 1: Add avatar data scaffolding
 
-- **Status:** [x] Complete
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Create structured data files and minimal schema contract.
 - **Actions:**
@@ -59,7 +59,7 @@ Quality constraints:
 
 ### Step 2: Implement avatar intelligence core module
 
-- **Status:** [x] Complete
+- **Status:** [x]
 - **Effort:** 4-6h
 - **Description:** Create `services/avatar_intelligence.py` with loader + validator + retrieval adapter.
 - **Actions:**
@@ -74,7 +74,7 @@ Quality constraints:
 
 ### Step 3: Integrate graph-backed retrieval path
 
-- **Status:** [x] Complete
+- **Status:** [x]
 - **Effort:** 3-4h
 - **Description:** Wire retrieval path into generation/curation while preserving current fallback.
 - **Actions:**
@@ -257,7 +257,7 @@ Quality constraints:
 
 ### Gate A: Build and syntax
 
-- [ ] `python -m py_compile main.py services/avatar_intelligence.py services/console_grounding.py services/ollama_service.py services/content_curator.py`
+- [x] `python -m py_compile main.py services/avatar_intelligence.py services/console_grounding.py services/ollama_service.py services/content_curator.py`
 
 ### Gate B: Unit tests
 
