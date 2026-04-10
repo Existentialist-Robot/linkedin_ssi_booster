@@ -184,6 +184,7 @@ You can tune tech matching with:
 
 - `CONSOLE_GROUNDING_TECH_KEYWORDS` — tech terms for deterministic retrieval (used by `--console`, `--generate`, and `--curate`)
 - `CONSOLE_GROUNDING_TAG_EXPANSIONS` — maps umbrella terms to related stack terms (e.g. `java:spring|jms|oracle`)
+- `TRUTH_GATE_DOMAIN_TERMS` — comma-separated domain-wide terms that bypass truth gate project-claim checks (e.g. `llm,ai,ml,api,model`). Defaults are built-in; set this to override.
 
 These controls affect which profile facts are considered relevant during retrieval.
 
@@ -220,13 +221,34 @@ If a sentence is opinion, framing, hook, or a rhetorical question without unsupp
 
 Current configuration surface:
 
-- There are no dedicated `.env` variables for truth-gate thresholds or regex patterns today.
+- `TRUTH_GATE_DOMAIN_TERMS` — comma-separated domain-wide terms (e.g. `llm,ai,ml,api,model,pipeline`) that are always allowed in project-claim context. These broad vocabulary items make sense when discussing any AI/software project and should never trigger a project-technology misattribution flag. Overrides the built-in defaults.
 - Truth-gate strictness is currently code-defined in `services/console_grounding.py`.
 - Practical tuning in `.env` is indirect: improving retrieval relevance (`CONSOLE_GROUNDING_TECH_KEYWORDS`, `CONSOLE_GROUNDING_TAG_EXPANSIONS`) increases available evidence and typically reduces unnecessary sentence removals.
 
+Recommended tuning approach:
+
+1. Start with current default-like set.
+2. Run generate/curate and watch truth gate removals.
+3. Add only terms that are repeatedly false positives.
+4. Avoid adding specific proprietary tech names that should remain project-validated.
+
+Also, this variable does not change:
+
+- `unsupported_numeric` checks
+- `unsupported_year` checks
+- `unsupported_org` checks
+
+In other words: `TRUTH_GATE_DOMAIN_TERMS` only affects `project_claim` filtering.
+
+Interactive mode:
+
+- Use `--interactive` with `--generate` or `--curate` to pause on each flagged sentence and confirm removal (y/N).
+- Without `--interactive`, flagged sentences are removed automatically as before.
+
 Operational notes:
 
-- The gate logs each removed sentence with a reason code (for example: `unsupported_numeric`, `unsupported_year`, `unsupported_org`, `project_claim`) followed by a summary count.
+- The gate logs each removed sentence in full (no truncation) with a reason code (for example: `unsupported_numeric`, `unsupported_year`, `unsupported_org`, `project_claim`) followed by a summary count.
+- Generated posts are now displayed to the screen in both `--dry-run` and regular mode for traceability tuning.
 - The gate does not rewrite text; it only removes unsupported claim sentences.
 - The gate is intentionally conservative and not a full external fact-checker.
 
@@ -387,6 +409,7 @@ python main.py --console
 | `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                                                                                                                                                                                                                 |
 | `--channel youtube`  | Either                                                   | Generates a **spoken Short script** (500-char / ~100–150 words) for use with lipsync.video or similar avatar tools; persona controlled by `YOUTUBE_SHORT_SYSTEM_PROMPT` in `.env`; script is printed to screen and saved to `yt-vid-data/<timestamp>_<title>.txt` — **not pushed to Buffer** (Buffer requires a video file)                                                                                   |
 | `--channel all`      | Either                                                   | Target LinkedIn, X, Bluesky, and YouTube in one run. LinkedIn/X/Bluesky are scheduled independently; YouTube is generated as a local script (printed + saved to `yt-vid-data/`) because Buffer YouTube requires a video upload. If X or Bluesky is not connected in Buffer, that channel is skipped with a warning (no crash).                                                                                |
+| `--interactive`      | Either                                                   | Pause on each truth gate flagged sentence for user confirmation (y/N) before removal. Without this flag, flagged sentences are removed automatically.                                                                                                                                                                                                                                                         |
 
 **YouTube Short workflow:** The `--channel youtube` output is a **spoken script** for a lipsync.video avatar (or similar tool), targeting ~100–150 words (500-char hard cap). The script is printed to the terminal and saved to `yt-vid-data/<timestamp>_<title>.txt` for you to copy into lipsync.video. Buffer is **not** used — YouTube requires a video file, which must be uploaded manually after rendering. The avatar persona (name, intro line, subscribe CTA) is fully configurable via `YOUTUBE_SHORT_SYSTEM_PROMPT` in your `.env`.
 

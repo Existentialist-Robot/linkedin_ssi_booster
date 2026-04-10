@@ -23,6 +23,28 @@ DEFAULT_TAG_EXPANSIONS: dict[str, set[str]] = {
     "java": {"spring", "jms", "oracle", "weblogic", "solr", "lucene", "elasticsearch"},
 }
 
+# Domain-wide terms that are always allowed in project-claim context.
+# These are broad domain vocabulary items (e.g. "llm", "ai", "api") that make
+# sense when discussing *any* AI/software project and should never trigger a
+# project-technology misattribution flag.
+DEFAULT_DOMAIN_TERMS: set[str] = {
+    "llm", "ai", "ml", "api", "model", "pipeline", "agent", "prompt",
+    "embedding", "vector", "retrieval", "inference", "fine-tuning",
+}
+
+
+def get_domain_terms() -> set[str]:
+    """Return domain-wide terms that bypass the project-claim check.
+
+    Env format:
+      TRUTH_GATE_DOMAIN_TERMS=llm,ai,ml,api,model (comma-separated, overrides defaults)
+    """
+    raw = os.getenv("TRUTH_GATE_DOMAIN_TERMS", "").strip()
+    if not raw:
+        return set(DEFAULT_DOMAIN_TERMS)
+    parsed = {part.strip().lower() for part in raw.split(",") if part.strip()}
+    return parsed or set(DEFAULT_DOMAIN_TERMS)
+
 
 def get_console_grounding_keywords() -> set[str]:
     """Return tech keywords used by console grounding from env with defaults."""
@@ -301,10 +323,13 @@ def _check_project_claim(
     sentence: str,
     project_map: dict[str, str],
     tech_keywords: set[str],
+    domain_terms: set[str],
 ) -> str | None:
     """Return the reason string if the sentence falsely links a tech to a project.
 
     Returns None when the sentence is fine to keep.
+    Domain-wide terms (e.g. 'llm', 'ai') are always allowed — they apply
+    broadly across all projects and should not trigger misattribution.
     """
     sent_lower = sentence.lower()
     for project_name, evidence_text in project_map.items():
@@ -312,6 +337,8 @@ def _check_project_claim(
             continue
         # This sentence mentions a known project — check tech keywords in it.
         for kw in tech_keywords:
+            if kw in domain_terms:
+                continue  # domain-wide term — always allowed
             if kw in sent_lower and kw not in evidence_text:
                 return (
                     f"project_claim: '{kw}' attributed to "
@@ -324,6 +351,7 @@ def truth_gate(
     text: str,
     article_text: str,
     facts: list[ProjectFact],
+    interactive: bool = False,
 ) -> str:
     """Lightweight post-generation truth gate.
 
@@ -332,10 +360,11 @@ def truth_gate(
        patterns whose key token does NOT appear in the article or facts.
     2. Project-technology misattributions — when a sentence names a known
        project but pairs it with a tech keyword that does not appear in
-       that project's detail or the article text.
+       that project's detail or the article text.  Domain-wide terms
+       (configurable via ``TRUTH_GATE_DOMAIN_TERMS``) are always allowed.
 
-    Flagged sentences are silently removed.  The rest of the post is left
-    intact — no rewriting.
+    When *interactive* is True, each flagged sentence is presented to the
+    user for confirmation before removal.
 
     Returns the filtered text (may be identical to input if nothing was stripped).
     """
@@ -344,18 +373,20 @@ def truth_gate(
 
     allowed = _build_allowed_tokens(article_text, facts)
     tech_keywords = get_console_grounding_keywords()
+    domain_terms = get_domain_terms()
     project_map = _build_project_tech_map(facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
-    removed: list[tuple[str, str]] = []  # (sentence_fragment, reason)
+    removed: list[tuple[str, str]] = []  # (full_sentence, reason)
 
     for sentence in sentences:
         reason: str | None = None
 
         # Check numeric claims
         for m in _NUMERIC_CLAIM_RE.finditer(sentence):
+            full_token = m.group(0).lower().strip()
             num_token = re.match(r"[\d,.]+", m.group(0))
-            if num_token and num_token.group(0).lower().rstrip(".") not in allowed:
+            if num_token and full_token not in allowed and num_token.group(0).lower().rstrip(".") not in allowed:
                 reason = f"unsupported_numeric: '{m.group(0)}'"
                 break
 
@@ -382,22 +413,36 @@ def truth_gate(
                     reason = f"unsupported_org: '{m.group(1)}'"
                     break
 
-        # Semantic project-claim check
+        # Semantic project-claim check (domain terms are exempt)
         if not reason:
-            reason = _check_project_claim(sentence, project_map, tech_keywords)
+            reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
 
         if reason:
-            removed.append((sentence[:80], reason))
+            if interactive:
+                # Present full sentence and reason to user for confirmation
+                print(f"\n⚠️  Truth gate flagged sentence:")
+                print(f"    Reason : {reason}")
+                print(f"    Sentence: {sentence}")
+                try:
+                    answer = input("    Remove this sentence? [y/N]: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    answer = "n"
+                if answer in ("y", "yes"):
+                    removed.append((sentence, reason))
+                else:
+                    kept.append(sentence)
+            else:
+                removed.append((sentence, reason))
         else:
             kept.append(sentence)
 
-    # Log each removed sentence with its reason code
+    # Log each removed sentence with its full text and reason code
     if removed:
-        for fragment, reason in removed:
+        for full_sentence, reason in removed:
             _truth_logger.info(
-                "Truth gate removed [%s]: ...%s...",
+                "Truth gate removed [%s]: %s",
                 reason,
-                fragment,
+                full_sentence,
             )
         _truth_logger.info(
             "Truth gate summary: removed %d of %d sentences",

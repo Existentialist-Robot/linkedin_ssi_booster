@@ -7,9 +7,9 @@ Social Selling Index (SSI) across all four components.
 AI backend: Ollama (local) — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-  python main.py --generate [--week N] [--dry-run] [--channel linkedin|x|bluesky|youtube|all]
-  python main.py --schedule [--week N] [--dry-run] [--channel linkedin|x|bluesky|youtube|all]
-  python main.py --curate               [--dry-run] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
+  python main.py --generate [--week N] [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all]
+  python main.py --schedule [--week N] [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all]
+  python main.py --curate               [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
     python main.py --console
   python main.py --report
 """
@@ -136,6 +136,7 @@ def main():
     parser.add_argument("--type",      choices=["idea", "post"], default="idea",
                         help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")
     parser.add_argument("--debug",     action="store_true", help="Enable DEBUG-level logging (shows raw API payloads and responses)")
+    parser.add_argument("--interactive", action="store_true", help="Pause for user confirmation on each truth gate removal")
     args = parser.parse_args()
 
     if args.debug:
@@ -217,7 +218,7 @@ def main():
         curator = ContentCurator(ai_service=ai, buffer_service=buffer, profile_context=PROFILE_CONTEXT)
         logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
         try:
-            ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0)
+            ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0, interactive=args.interactive)
         except BufferQueueFullError as e:
             print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
             return
@@ -266,6 +267,7 @@ def main():
                 profile_context=PROFILE_CONTEXT,
                 grounding_facts=grounding_facts,
                 channel=args.channel,
+                interactive=args.interactive,
             )
             # Hashtags are only appended for LinkedIn-style posts.
             if args.channel not in ("x", "youtube"):
@@ -305,7 +307,7 @@ def main():
                     print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
             posts.append({**topic, "generated_text": post})
 
-            if args.dry_run and args.channel != "youtube":
+            if args.channel != "youtube":
                 print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                 print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']}" + str(Style.RESET_ALL))
                 print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))

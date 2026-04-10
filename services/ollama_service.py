@@ -122,6 +122,7 @@ You are in interactive console chat mode.
         grounding_facts: Optional[list[ProjectFact]] = None,
         max_length: int = 1300,
         channel: str = "linkedin",
+        interactive: bool = False,
     ) -> str:
         """
         Generate a LinkedIn post optimised for a specific SSI component.
@@ -172,7 +173,7 @@ Do NOT include hashtags in your output — they will be appended automatically."
         text = self._chat(system_prompt, user_prompt, max_tokens=768)
 
         # Lightweight truth gate — strip sentences with unsupported claims
-        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [])
+        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [], interactive=interactive)
 
         # Format into paragraphs with hashtags on their own line
         if channel in ("linkedin",):
@@ -282,6 +283,7 @@ Post:
         channel: str = "linkedin",
         post_mode: bool = False,
         grounding_facts: Optional[list[ProjectFact]] = None,
+        interactive: bool = False,
     ) -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
@@ -364,7 +366,7 @@ Write a LinkedIn post reacting to this article.
 
         # Lightweight truth gate — strip sentences with unsupported claims
         if result:
-            result = truth_gate(result, article_text, grounding_facts or [])
+            result = truth_gate(result, article_text, grounding_facts or [], interactive=interactive)
 
         # Format into paragraphs with hashtags on their own line
         if result and channel == "linkedin":

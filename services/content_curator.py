@@ -279,7 +279,7 @@ class ContentCurator:
         logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
         return articles
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea") -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False) -> list:
         """
         Main entry point: fetch articles, generate posts with the configured AI service,
         and either push as Buffer Ideas (message_type='idea') or schedule directly to the
@@ -327,6 +327,7 @@ class ContentCurator:
                     channel="linkedin",
                     post_mode=True,
                     grounding_facts=grounding_facts,
+                    interactive=interactive,
                 )
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
@@ -341,6 +342,7 @@ class ContentCurator:
                     ssi_component,
                     "x",
                     grounding_facts=grounding_facts,
+                    interactive=interactive,
                 )
                 if x_post:
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
@@ -354,6 +356,7 @@ class ContentCurator:
                     ssi_component,
                     "bluesky",
                     grounding_facts=grounding_facts,
+                    interactive=interactive,
                 )
                 if bsky_post:
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
@@ -370,6 +373,7 @@ class ContentCurator:
                     "youtube",
                     post_mode=True,
                     grounding_facts=grounding_facts,
+                    interactive=interactive,
                 )
                 if yt_script:
                     yt_script = _truncate_at_sentence(yt_script, 500)
@@ -402,6 +406,17 @@ class ContentCurator:
                         print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                 else:
+                    # Display generated posts for traceability
+                    print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + "📡 CHANNEL: all" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.GREEN) + f"\n🔵 LINKEDIN POST:" + str(Style.RESET_ALL) + f"\n{li_text}")
+                    if x_post:
+                        print(str(Fore.BLUE) + f"\n𝕏  X POST:" + str(Style.RESET_ALL) + f"\n{x_post}")
+                    if bsky_post:
+                        print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
                     if self.buffer:
                         try:
                             self.buffer.create_scheduled_post(
@@ -460,6 +475,7 @@ class ContentCurator:
                     channel=effective_channel,
                     post_mode=(message_type == "post"),
                     grounding_facts=grounding_facts,
+                    interactive=interactive,
                 )
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
@@ -494,6 +510,13 @@ class ContentCurator:
                     print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
                 else:
+                    # Display generated post for traceability
+                    print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"📡 CHANNEL: {channel}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
                     if self.buffer:
                         if message_type == "post":
                             if effective_channel == "youtube":
