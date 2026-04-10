@@ -45,7 +45,7 @@ Operating rules:
 
 ## Epic 0: Setup and Baseline
 
-- [ ] T0.1 Create feature branch
+- [x] T0.1 Create feature branch
   - Depends on: none
   - Verify: branch exists and is active
 - [ ] T0.2 Collect user-provided baseline run artifacts for compare set
