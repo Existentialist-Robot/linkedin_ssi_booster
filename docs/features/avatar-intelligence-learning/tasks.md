@@ -150,25 +150,25 @@ Operating rules:
 
 ## Epic 1E: PROFILE_CONTEXT Migration
 
-- [ ] T7.1 Parse PROFILE_CONTEXT into persona graph entities
+- [x] T7.1 Parse PROFILE_CONTEXT into persona graph entities
   - Depends on: T1.6
   - Verify: persona graph contains all parseable projects/companies/skills from PROFILE_CONTEXT
-- [ ] T7.2 Populate and commit persona_graph.json
+- [x] T7.2 Populate and commit persona_graph.json
   - Depends on: T7.1
   - Verify: output passes schema validation; entity counts match expectations
-- [ ] T7.3 Switch retrieval to persona graph as sole identity source
+- [x] T7.3 Switch retrieval to persona graph as sole identity source
   - Depends on: T7.2, T1.9
   - Verify: retrieval uses graph facts; PROFILE_CONTEXT is not parsed for identity
-- [ ] T7.4 Remove PROFILE_CONTEXT parsing code from retrieval path
+- [x] T7.4 Remove PROFILE_CONTEXT parsing code from retrieval path
   - Depends on: T7.3
   - Verify: no PROFILE_CONTEXT text parsing remains in console_grounding.py retrieval
-- [ ] T7.5 Remove PROFILE_CONTEXT from .env and .env.example
+- [x] T7.5 Remove PROFILE_CONTEXT from .env and .env.example
   - Depends on: T7.4
   - Verify: app starts and runs without PROFILE_CONTEXT
-- [ ] T7.6 Remove PROFILE_CONTEXT_MAX_CHARS and related env var references
+- [x] T7.6 Remove PROFILE_CONTEXT_MAX_CHARS and related env var references
   - Depends on: T7.5
   - Verify: no references to PROFILE_CONTEXT or PROFILE_CONTEXT_MAX_CHARS in code or config
-- [ ] T7.7 Remove PROFILE_CONTEXT loading code from main.py and services
+- [x] T7.7 Remove PROFILE_CONTEXT loading code from main.py and services
   - Depends on: T7.6
   - Verify: no dead PROFILE_CONTEXT code remains
 

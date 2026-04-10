@@ -67,9 +67,9 @@ Quality constraints:
 
 ### Phase 1E: PROFILE_CONTEXT Migration
 
-- [ ] Step 12 — Populate persona graph from PROFILE_CONTEXT
-- [ ] Step 13 — Switch retrieval to persona graph
-- [ ] Step 14 — Remove PROFILE_CONTEXT and related code
+- [x] Step 12 — Populate persona graph from PROFILE_CONTEXT
+- [x] Step 13 — Switch retrieval to persona graph
+- [x] Step 14 — Remove PROFILE_CONTEXT and related code
 
 ## Phase 1A: Persona Graph Foundation (Read-Only)
 

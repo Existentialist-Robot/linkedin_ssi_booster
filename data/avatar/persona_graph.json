@@ -1,13 +1,262 @@
 {
   "schemaVersion": "1.0",
   "person": {
-    "name": "",
-    "title": "",
-    "location": "",
-    "links": []
+    "name": "Shawn Jackson Dyck",
+    "title": "Principal Software Engineer",
+    "location": "Ottawa/Remote",
+    "links": [
+      "github.com/samjd-zz",
+      "samjd-zz.github.io",
+      "linkedin.com/in/shawn-jackson-dyck-52aa74358"
+    ]
   },
-  "projects": [],
-  "companies": [],
-  "skills": [],
-  "claims": []
+  "companies": [
+    { "id": "personal",       "name": "Personal / Independent",    "aliases": ["samjd", "independent"] },
+    { "id": "govai-challenge", "name": "G7 GovAI Grand Challenge",  "aliases": ["g7 govai", "govai challenge"] },
+    { "id": "solace-hack",    "name": "Solace Build to Convert Hackathon", "aliases": ["solace hackathon"] },
+    { "id": "tpg",            "name": "TPG Technology Consulting",  "aliases": ["tpg", "usps"] },
+    { "id": "cihr",           "name": "CIHR",                       "aliases": ["canadian institutes of health research"] },
+    { "id": "ssc",            "name": "Shared Services Canada",     "aliases": ["shared services"] },
+    { "id": "pwc",            "name": "Public Works Canada",        "aliases": ["public works"] },
+    { "id": "cic",            "name": "Citizenship and Immigration Canada", "aliases": ["cic", "ircc"] },
+    { "id": "namemedia",      "name": "NameMedia / BuyDomains",     "aliases": ["namemedia", "buydomains"] },
+    { "id": "orange-labs",    "name": "Orange Labs / France Telecom R&D", "aliases": ["orange labs", "france telecom"] },
+    { "id": "idearc",         "name": "Idearc Media / Verizon",     "aliases": ["idearc", "superpages"] },
+    { "id": "verizon-biz",   "name": "Verizon Business",            "aliases": ["verizon"] },
+    { "id": "grade-a",        "name": "Grade A Solutions",          "aliases": ["grade a", "talentmap"] },
+    { "id": "samjd-tech",     "name": "SAMJD Technologies",         "aliases": ["samjd technologies"] },
+    { "id": "uhn",            "name": "University Health Network",  "aliases": ["uhn"] }
+  ],
+  "skills": [
+    { "id": "java",                  "name": "Java",                       "aliases": ["java 21", "java 17", "j2ee"], "scope": "domain" },
+    { "id": "spring-boot",          "name": "Spring Boot",                 "aliases": ["spring"], "scope": "domain" },
+    { "id": "spring-ai",            "name": "Spring AI",                   "aliases": [], "scope": "domain" },
+    { "id": "spring-batch",         "name": "Spring Batch",                "aliases": [], "scope": "domain" },
+    { "id": "virtual-threads",      "name": "Virtual Threads",             "aliases": ["java 21 virtual threads", "loom"], "scope": "project_specific" },
+    { "id": "jms",                  "name": "JMS",                         "aliases": ["java message service", "websphere mq", "ibm mq"], "scope": "domain" },
+    { "id": "oracle",               "name": "Oracle",                      "aliases": ["oracle 11g", "oracle 10g"], "scope": "domain" },
+    { "id": "weblogic",             "name": "Oracle WebLogic",             "aliases": ["weblogic"], "scope": "domain" },
+    { "id": "jsf",                  "name": "JSF",                         "aliases": ["java server faces", "adf", "oracle adf"], "scope": "domain" },
+    { "id": "vaadin",               "name": "Vaadin",                      "aliases": ["vaadin 24"], "scope": "domain" },
+    { "id": "python",               "name": "Python",                      "aliases": [], "scope": "domain" },
+    { "id": "fastapi",              "name": "FastAPI",                     "aliases": [], "scope": "domain" },
+    { "id": "scikit-learn",         "name": "scikit-learn",                "aliases": ["sklearn"], "scope": "domain" },
+    { "id": "gymnasium",            "name": "Gymnasium",                   "aliases": ["gym", "openai gym"], "scope": "domain" },
+    { "id": "stable-baselines3",    "name": "Stable-Baselines3",           "aliases": ["sb3"], "scope": "domain" },
+    { "id": "reinforcement-learning","name": "Reinforcement Learning",     "aliases": ["rl", "rl env"], "scope": "domain" },
+    { "id": "elasticsearch",        "name": "Elasticsearch",               "aliases": ["es", "elastic"], "scope": "domain" },
+    { "id": "solr",                 "name": "Apache Solr",                 "aliases": ["solr", "solr 4"], "scope": "domain" },
+    { "id": "lucene",               "name": "Apache Lucene",               "aliases": ["lucene"], "scope": "domain" },
+    { "id": "bm25",                 "name": "BM25",                        "aliases": ["best match 25", "term frequency"], "scope": "domain" },
+    { "id": "knn",                  "name": "kNN",                         "aliases": ["k-nearest neighbors", "vector similarity", "ann"], "scope": "domain" },
+    { "id": "neo4j",                "name": "Neo4j",                       "aliases": ["graph db", "graph database", "graph traversal"], "scope": "domain" },
+    { "id": "rag",                  "name": "RAG",                         "aliases": ["retrieval augmented generation", "rag pipeline", "rag architecture"], "scope": "domain" },
+    { "id": "hybrid-search",        "name": "Hybrid Search",               "aliases": ["bm25+vector", "hybrid retrieval"], "scope": "domain" },
+    { "id": "multi-agent",          "name": "Multi-Agent Orchestration",   "aliases": ["multi agent", "agentic", "agent orchestration"], "scope": "domain" },
+    { "id": "mcp",                  "name": "MCP",                         "aliases": ["model context protocol"], "scope": "domain" },
+    { "id": "fastmcp",              "name": "FastMCP",                     "aliases": ["fast mcp"], "scope": "domain" },
+    { "id": "nlp",                  "name": "NLP",                         "aliases": ["natural language processing", "text processing"], "scope": "domain" },
+    { "id": "sentence-transformers","name": "SentenceTransformers",        "aliases": ["sentence transformer", "dense embeddings", "bi-encoder"], "scope": "domain" },
+    { "id": "gatenlp",              "name": "GATE NLP",                    "aliases": ["gate", "jape", "nlp pipeline"], "scope": "project_specific" },
+    { "id": "solace",               "name": "Solace PubSub+",              "aliases": ["solace pubsub", "solace agent mesh", "event mesh"], "scope": "domain" },
+    { "id": "event-driven",         "name": "Event-Driven Architecture",   "aliases": ["eda", "event broker", "streaming"], "scope": "domain" },
+    { "id": "docker",               "name": "Docker",                      "aliases": ["container", "containerized"], "scope": "domain" },
+    { "id": "react",                "name": "React",                       "aliases": ["react typescript", "frontend"], "scope": "domain" },
+    { "id": "postgresql",           "name": "PostgreSQL",                  "aliases": ["postgres", "supabase"], "scope": "domain" },
+    { "id": "govtech",              "name": "GovTech",                     "aliases": ["government ai", "govtech ai", "public sector ai", "federal"], "scope": "domain" },
+    { "id": "ai-tdd",               "name": "AI-TDD",                      "aliases": ["ai tdd", "agentic tdd", "test driven development ai", "agentic harness"], "scope": "domain" }
+  ],
+  "projects": [
+    {
+      "id": "g7-govai-ria",
+      "name": "G7 GovAI Grand Challenge RIA",
+      "companyId": "govai-challenge",
+      "years": "2025",
+      "details": "Led 3-person team. Bilingual NLP hybrid search over 397k Canadian federal law docs (Justice Laws XML). Neo4j graph + Elasticsearch BM25+vector → sub-500ms Gemini RAG Q&A. Won G7 GovAI Grand Challenge. Tech: Python, FastAPI, Elasticsearch, Neo4j, SentenceTransformers, React/TypeScript, Docker.",
+      "skills": ["rag", "hybrid-search", "elasticsearch", "neo4j", "bm25", "knn", "python", "fastapi", "sentence-transformers", "nlp", "docker", "react", "govtech"],
+      "aliases": ["g7 ria", "govai ria", "justice laws", "federal law search", "bilingual nlp"]
+    },
+    {
+      "id": "signal-zero",
+      "name": "SIGNAL-ZERO",
+      "companyId": "solace-hack",
+      "years": "2025",
+      "details": "Winner 'Best Use of Solace Agent' at Solace Build to Convert Hackathon. 5-agent FastMCP bot/fake-review detection system with real-time Vaadin UI on Solace PubSub+ Agent Mesh. Tech: Java 17, Python FastMCP, Solace PubSub+, Spring Boot, Vaadin, PostgreSQL.",
+      "skills": ["fastmcp", "mcp", "multi-agent", "solace", "event-driven", "java", "spring-boot", "vaadin", "python", "postgresql"],
+      "aliases": ["signal zero", "solace hackathon winner", "bot detection", "fake review detection", "agent mesh"]
+    },
+    {
+      "id": "answer42",
+      "name": "Answer42",
+      "companyId": "personal",
+      "years": "2025",
+      "details": "9-agent Spring Batch pipeline for academic paper analysis. Multi-source discovery (Crossref, Semantic Scholar, Perplexity), three-mode AI chat (Claude/GPT-4/Perplexity). Tech: Java 21, Spring Boot/Batch/AI, Vaadin 24, PostgreSQL/Supabase, Ollama. Agentic harness and AI-TDD methodology applied throughout.",
+      "skills": ["java", "spring-boot", "spring-batch", "spring-ai", "virtual-threads", "multi-agent", "rag", "vaadin", "postgresql", "ai-tdd"],
+      "aliases": ["answer 42", "spring batch pipeline", "academic paper analysis", "9 agent"]
+    },
+    {
+      "id": "rl-environments",
+      "name": "RL Environments",
+      "companyId": "personal",
+      "years": "2025",
+      "details": "Gymnasium-compliant reinforcement learning environment for B2B SaaS support ticket routing by agent expertise and workload. Tech: Python, scikit-learn, Stable-Baselines3, Streamlit.",
+      "skills": ["reinforcement-learning", "gymnasium", "stable-baselines3", "scikit-learn", "python"],
+      "aliases": ["rl env", "ticket routing rl", "gymnasium env", "b2b saas rl"]
+    },
+    {
+      "id": "grizz-ai",
+      "name": "Grizz-AI",
+      "companyId": "personal",
+      "years": "2024",
+      "details": "Multi-model GenAI creative media studio orchestrating OpenAI, ElevenLabs TTS, Groq, Flux image models. Tech: Python, Flask/FastAPI, SQLite.",
+      "skills": ["python", "fastapi", "multi-agent"],
+      "aliases": ["grizz ai", "genai studio", "media studio"]
+    },
+    {
+      "id": "tpg-usps",
+      "name": "TPG/USPS JMS Platform",
+      "companyId": "tpg",
+      "years": "2014-2023",
+      "details": "9-year JMS lead processing millions of USPS shipment tracking events/day. Designed IBM WebSphere JMS queues + JAXB XML processing, RESTful services on Tapestry 5, jOOQ data abstraction, Quartz scheduling, Oracle 11g. Full-stack Java contract. No AI/LLM component — pure enterprise JMS/Java infrastructure.",
+      "skills": ["java", "jms", "oracle", "event-driven", "elasticsearch"],
+      "aliases": ["usps tracking", "jms lead", "websphere mq", "tpg technology"]
+    },
+    {
+      "id": "cihr-2013",
+      "name": "CIHR Federal Health Research Portal",
+      "companyId": "cihr",
+      "years": "2013",
+      "details": "Federal health research funding portal. Apache Solr 4 search over Oracle 10g, Spring Framework, custom PDF generation, WCAG 2.0. Ottawa GovTech.",
+      "skills": ["solr", "java", "spring-boot", "oracle", "govtech"],
+      "aliases": ["cihr portal", "health research funding", "solr 4 govtech"]
+    },
+    {
+      "id": "ssc-2011",
+      "name": "Shared Services Canada Telecom Ordering",
+      "companyId": "ssc",
+      "years": "2011-2012",
+      "details": "Nationwide telecom equipment ordering system. Oracle ADF/JSF, BC4J, ADF Security (nationwide SSO), Oracle WebLogic. Ottawa GovTech.",
+      "skills": ["jsf", "oracle", "weblogic", "java", "govtech"],
+      "aliases": ["ssc telecom", "nationwide sso", "oracle adf jsf", "adf security"]
+    },
+    {
+      "id": "pwc-2011",
+      "name": "Public Works Canada JVM Engineering",
+      "companyId": "pwc",
+      "years": "2011",
+      "details": "JVM performance engineering — resolved critical CMDB (ABITS) instability on Tomcat 5.5 using JRockit JVM and Oracle Mission Control. Java 32/64-bit memory analysis. Ottawa GovTech.",
+      "skills": ["java", "govtech"],
+      "aliases": ["abits", "jrockit", "jvm tuning", "oracle mission control"]
+    },
+    {
+      "id": "cic-2010",
+      "name": "Citizenship and Immigration Canada FCRO",
+      "companyId": "cic",
+      "years": "2010-2011",
+      "details": "FCRO tracking system for overseas credential recognition. Spring MVC/Tomcat, Sybase SQL stored procedures, Spring WebFlow, WCAG 2.0. Ottawa GovTech.",
+      "skills": ["java", "spring-boot", "govtech"],
+      "aliases": ["fcro", "credential recognition", "spring mvc govtech"]
+    },
+    {
+      "id": "namemedia-2008",
+      "name": "NameMedia / BuyDomains Search",
+      "companyId": "namemedia",
+      "years": "2008-2009",
+      "details": "Converted internal search to Apache Lucene/Solr — first Solr production deployment. Re-architected e-commerce checkout with Konakart (up-sell, cross-sell, coupons). Spring MVC, Hibernate, MySQL. Waltham MA.",
+      "skills": ["solr", "lucene", "java", "spring-boot"],
+      "aliases": ["buydomains", "first solr deployment", "namemedia search", "konakart"]
+    },
+    {
+      "id": "orange-labs-2008",
+      "name": "GiglGate — Orange Labs NLP",
+      "companyId": "orange-labs",
+      "years": "2008",
+      "details": "Built GiglGate: Java servlets integrating GATE NLP engine, JAPE grammars, SSML output for Loquendo TTS. GiglMix WAV sequencer with sound normalization. Classical rule-based NLP, not LLMs. Cambridge MA.",
+      "skills": ["nlp", "gatenlp", "java"],
+      "aliases": ["giglgate", "gate nlp", "jape grammars", "loquendo tts", "france telecom nlp"]
+    },
+    {
+      "id": "idearc-2007",
+      "name": "Idearc Media / Superpages Analytics",
+      "companyId": "idearc",
+      "years": "2007-2008",
+      "details": "BIRT analytics reporting platform + maps.superpages.com (MS Virtual Earth, DWR AJAX/JSON). Spring MVC, Hibernate, Oracle 10g/MySQL. Waltham MA.",
+      "skills": ["java", "spring-boot", "oracle"],
+      "aliases": ["superpages", "birt analytics", "verizon superpages", "ms virtual earth"]
+    },
+    {
+      "id": "verizon-xsd-2006",
+      "name": "Verizon Business XSD Data Mapping",
+      "companyId": "verizon-biz",
+      "years": "2006-2007",
+      "details": "Enterprise XSD data mapping tools (Java Swing + IBM WebSphere/DB2) for cross-application integration. Colorado Springs CO.",
+      "skills": ["java"],
+      "aliases": ["xsd mapper", "verizon xsd", "websphere db2 integration"]
+    },
+    {
+      "id": "grade-a-2005",
+      "name": "TalentExit HR Platform",
+      "companyId": "grade-a",
+      "years": "2005-2006",
+      "details": "TalentExit HR exit-survey platform for Talentmap. JSF, PostgreSQL, Container Managed Persistence, Sun Application Server. Ottawa.",
+      "skills": ["java", "jsf", "postgresql"],
+      "aliases": ["talentexit", "talentmap", "hr exit survey"]
+    },
+    {
+      "id": "samjd-tini-2003",
+      "name": "TiniTerra Embedded Java PLC",
+      "companyId": "samjd-tech",
+      "years": "2003-2005",
+      "details": "TiniTerra — embedded Java PLC for greenhouse environmental control. Custom Ladder Logic compiler with finite-state machine, TINI SIM (Dallas Semiconductors), threaded web server. Ottawa.",
+      "skills": ["java"],
+      "aliases": ["tiniterra", "tini sim", "ladder logic compiler", "embedded java plc"]
+    },
+    {
+      "id": "uhn-2002",
+      "name": "HAPI Compiler — HL7 XML",
+      "companyId": "uhn",
+      "years": "2002-2003",
+      "details": "HAPI Compiler — HL7 XML → Java class generator for healthcare integration. Xerces XML parser. Algonquin College capstone project, Toronto.",
+      "skills": ["java"],
+      "aliases": ["hapi compiler", "hl7 xml", "healthcare integration java", "xerces"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "rag-govtech",
+      "text": "Built sub-500ms Gemini RAG over 397k Canadian federal law documents using Neo4j graph + Elasticsearch BM25+vector hybrid search for the G7 GovAI Grand Challenge.",
+      "projectIds": ["g7-govai-ria"],
+      "confidenceHint": "high"
+    },
+    {
+      "id": "jms-scale",
+      "text": "Led JMS platform processing millions of USPS shipment tracking events per day for 9 years at TPG Technology Consulting (2014–2023).",
+      "projectIds": ["tpg-usps"],
+      "confidenceHint": "high"
+    },
+    {
+      "id": "solace-winner",
+      "text": "Won 'Best Use of Solace Agent' at the Solace Build to Convert Hackathon with SIGNAL-ZERO, a 5-agent FastMCP bot/fake-review detection system on Solace PubSub+ Agent Mesh.",
+      "projectIds": ["signal-zero"],
+      "confidenceHint": "high"
+    },
+    {
+      "id": "search-depth",
+      "text": "Three production Solr/Lucene/Elasticsearch deployments: NameMedia (2008, first Solr), CIHR (2013, Solr 4 over Oracle), TPG/Elasticsearch (2014–present). 20+ years Java; search since 2008.",
+      "projectIds": ["namemedia-2008", "cihr-2013", "tpg-usps"],
+      "confidenceHint": "high"
+    },
+    {
+      "id": "ai-tdd-harness",
+      "text": "Practitioner and advocate of AI-TDD (AI-driven Test-Driven Development) with a custom multi-agent agentic harness covering design, planning, implementation, and testing across the full stack.",
+      "projectIds": ["answer42"],
+      "confidenceHint": "high"
+    },
+    {
+      "id": "multi-agent-depth",
+      "text": "Built two multi-agent systems in 2025: Answer42 (9-agent Spring Batch/AI pipeline for academic paper analysis) and SIGNAL-ZERO (5-agent FastMCP on Solace PubSub+ Agent Mesh).",
+      "projectIds": ["answer42", "signal-zero"],
+      "confidenceHint": "high"
+    }
+  ]
 }

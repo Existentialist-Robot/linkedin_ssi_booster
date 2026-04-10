@@ -30,9 +30,7 @@ from services.ollama_service import OllamaService
 from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
 from services.content_curator import ContentCurator
 from services.ssi_tracker import SSITracker
-from services.github_service import build_github_profile_context
 from services.console_grounding import (
-    parse_profile_project_facts,
     parse_query_constraints,
     retrieve_relevant_facts,
     build_deterministic_grounded_reply,
@@ -62,7 +60,7 @@ logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 
 
-def run_console(ai: OllamaService, profile_context: str) -> None:
+def run_console(ai: OllamaService) -> None:
     """Run interactive persona chat mode in the terminal."""
     print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n🧠 Persona Console Mode" + str(Style.RESET_ALL))
     print("- No Buffer actions will be performed in this mode.")
@@ -70,7 +68,19 @@ def run_console(ai: OllamaService, profile_context: str) -> None:
 
     history: list[dict[str, str]] = []
     max_turns = 24
-    profile_facts = parse_profile_project_facts(profile_context)
+
+    # Load persona graph for deterministic grounding and persona chat context
+    from services.avatar_intelligence import (
+        load_avatar_state as _lav_console,
+        normalize_evidence_facts,
+        retrieve_evidence,
+        evidence_facts_to_project_facts,
+        build_grounding_context,
+    )
+    _avatar_state = _lav_console()
+    _avatar_facts = normalize_evidence_facts(_avatar_state)
+    _profile_facts = evidence_facts_to_project_facts(_avatar_facts)
+    _grounding_context = build_grounding_context(_avatar_facts)
 
     while True:
         try:
@@ -96,7 +106,7 @@ def run_console(ai: OllamaService, profile_context: str) -> None:
 
         constraints = parse_query_constraints(user_input)
         if constraints.requires_grounding:
-            facts = retrieve_relevant_facts(profile_facts, constraints, limit=8)
+            facts = retrieve_relevant_facts(_profile_facts, constraints, limit=8)
             reply = build_deterministic_grounded_reply(user_input, facts, constraints)
             history.append({"role": "user", "content": user_input})
             history.append({"role": "assistant", "content": reply})
@@ -110,7 +120,7 @@ def run_console(ai: OllamaService, profile_context: str) -> None:
             history = history[-max_turns * 2 :]
 
         try:
-            reply = ai.chat_as_persona(history, profile_context=profile_context, max_tokens=600)
+            reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
         except Exception as e:
             print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
             continue
@@ -175,7 +185,7 @@ def main():
                 + str(Style.RESET_ALL)
             )
             return
-        run_console(ai=ai, profile_context=PROFILE_CONTEXT)
+        run_console(ai=ai)
         return
 
     def build_buffer_service() -> BufferService:
@@ -227,7 +237,7 @@ def main():
         buffer = build_buffer_service()
         from services.shared import AVATAR_CONFIDENCE_POLICY
         confidence_policy = args.confidence_policy or AVATAR_CONFIDENCE_POLICY
-        curator = ContentCurator(ai_service=ai, buffer_service=buffer, profile_context=PROFILE_CONTEXT, confidence_policy=confidence_policy)
+        curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy)
         logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
         try:
             ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0, interactive=args.interactive)
@@ -262,30 +272,31 @@ def main():
 
         logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week}...")
         posts = []
-        profile_facts = parse_profile_project_facts(PROFILE_CONTEXT)
+        # Load persona graph for grounding (replaces PROFILE_CONTEXT parsing)
+        from services.avatar_intelligence import (
+            load_avatar_state as _lav_gen,
+            normalize_evidence_facts,
+            retrieve_evidence,
+            evidence_facts_to_project_facts,
+        )
+        _gen_avatar_state = _lav_gen()
+        _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
         if args.channel == "youtube" and not args.dry_run:
             Path("yt-vid-data").mkdir(exist_ok=True)
-
         if args.avatar_explain:
-            from services.avatar_intelligence import (
-                load_avatar_state as _load_avatar_state,
-                normalize_evidence_facts, retrieve_evidence,
-                build_explain_output, format_explain_output,
-            )
-            _avatar_state = _load_avatar_state()
-            _avatar_facts = normalize_evidence_facts(_avatar_state)
+            from services.avatar_intelligence import build_explain_output, format_explain_output
 
         for topic in week_topics:
             logger.info(f"  Generating: {topic['title']}")
             grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
-            constraints = parse_query_constraints(grounding_query)
-            grounding_facts = retrieve_relevant_facts(profile_facts, constraints, limit=5)
+            grounding_facts = evidence_facts_to_project_facts(
+                retrieve_evidence(grounding_query, _gen_avatar_facts, limit=5)
+            )
             post = ai.generate_linkedin_post(
                 title=topic["title"],
                 angle=topic["angle"],
                 ssi_component=topic["ssi_component"],
                 hashtags=topic.get("hashtags", []),
-                profile_context=PROFILE_CONTEXT,
                 grounding_facts=grounding_facts,
                 channel=args.channel,
                 interactive=args.interactive,
@@ -335,7 +346,7 @@ def main():
                 print(f"\n{post}\n")
 
             if args.avatar_explain:
-                _relevant = retrieve_evidence(grounding_query, _avatar_facts)  # type: ignore[possibly-undefined]
+                _relevant = retrieve_evidence(grounding_query, _gen_avatar_facts)
                 _explain = build_explain_output(  # type: ignore[possibly-undefined]
                     evidence_facts=_relevant,
                     article_ref=topic.get("title", ""),
@@ -376,63 +387,6 @@ def main():
                 return
             print(str(Fore.GREEN) + f"\n✅  Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully" + str(Style.RESET_ALL))
 
-
-# ---------------------------------------------------------------------------
-# Profile context — loaded from PROFILE_CONTEXT in .env (gitignored).
-# Extended at module load with live GitHub data if GITHUB_USER is set.
-# ---------------------------------------------------------------------------
-_PROFILE_CONTEXT_BASE = os.getenv("PROFILE_CONTEXT", "").strip()
-if not _PROFILE_CONTEXT_BASE:
-    raise ValueError(
-        "PROFILE_CONTEXT is not set in .env. "
-        "Copy the example from .env.example and fill in your details."
-    )
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
-
-
-def _assemble_profile_context(base_context: str, github_block: str, max_chars: int) -> str:
-    """Assemble profile context with deterministic section priority and hard budget."""
-    context = base_context.strip()
-    if not github_block:
-        return context[:max_chars]
-
-    remaining = max_chars - len(context)
-    if remaining <= 0:
-        return context[:max_chars]
-
-    separator = "\n\n"
-    budget_for_github = max(0, remaining - len(separator))
-    trimmed_github = github_block[:budget_for_github].rstrip()
-    if not trimmed_github:
-        return context[:max_chars]
-
-    return (context + separator + trimmed_github)[:max_chars]
-
-
-PROFILE_CONTEXT_MAX_CHARS = _env_int("PROFILE_CONTEXT_MAX_CHARS", 120000)
-GITHUB_CONTEXT_MAX_CHARS = _env_int("GITHUB_CONTEXT_MAX_CHARS", 30000)
-
-_github_block = build_github_profile_context(max_chars=GITHUB_CONTEXT_MAX_CHARS)
-PROFILE_CONTEXT = _assemble_profile_context(
-    _PROFILE_CONTEXT_BASE,
-    _github_block,
-    PROFILE_CONTEXT_MAX_CHARS,
-)
-
-logger.debug(
-    "Profile context assembled: base=%s chars, github=%s chars, final=%s chars",
-    len(_PROFILE_CONTEXT_BASE),
-    len(_github_block),
-    len(PROFILE_CONTEXT),
-)
 
 
 if __name__ == "__main__":

@@ -23,9 +23,6 @@ from services.console_grounding import (
     ProjectFact,
     TruthGateMeta,
     get_console_grounding_tag_expansions,
-    parse_profile_project_facts,
-    parse_query_constraints,
-    retrieve_relevant_facts,
     truth_gate_result,
 )
 
@@ -205,37 +202,32 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
 
 class ContentCurator:
 
-    def __init__(self, ai_service: OllamaService, buffer_service=None, profile_context: str = "", confidence_policy: str = "balanced"):
+    def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced"):
         self.ai = ai_service
         self.buffer = buffer_service
-        self.profile_context = profile_context
         self.confidence_policy = confidence_policy
         self.curation_grounding_keywords = _load_curation_grounding_keywords()
         self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
-        self.profile_facts = (
-            parse_profile_project_facts(profile_context, tech_keywords=self.curation_grounding_keywords)
-            if profile_context
-            else []
-        )
+        self._avatar_facts: list = []
         self._narrative_memory = None
         try:
             from services.shared import AVATAR_LEARNING_ENABLED
-            if AVATAR_LEARNING_ENABLED:
-                from services.avatar_intelligence import load_avatar_state
-                _state = load_avatar_state()
-                if _state.narrative_memory is not None:
-                    self._narrative_memory = _state.narrative_memory
+            from services.avatar_intelligence import load_avatar_state, normalize_evidence_facts
+            _state = load_avatar_state()
+            self._avatar_facts = normalize_evidence_facts(_state)
+            if AVATAR_LEARNING_ENABLED and _state.narrative_memory is not None:
+                self._narrative_memory = _state.narrative_memory
         except Exception as _exc:
-            logger.warning("Narrative memory init failed (continuing): %s", _exc)
+            logger.warning("Avatar state init failed (continuing): %s", _exc)
 
     def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
-        constraints = parse_query_constraints(
-            query,
-            tech_keywords=self.curation_grounding_keywords,
-            tag_expansions=self.curation_grounding_tag_expansions,
-        )
-        return retrieve_relevant_facts(self.profile_facts, constraints, limit=5)
+        if self._avatar_facts:
+            from services.avatar_intelligence import retrieve_evidence, evidence_facts_to_project_facts
+            hits = retrieve_evidence(query, self._avatar_facts, limit=5)
+            return evidence_facts_to_project_facts(hits)  # type: ignore[return-value]
+        # Fallback: no avatar graph loaded — return empty (post still generated, just ungrounded)
+        return []
 
     def _load_published_titles(self) -> set:
         if IDEAS_CACHE_PATH.exists():

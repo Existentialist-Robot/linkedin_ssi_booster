@@ -77,10 +77,8 @@ In short: retrieve relevant facts, generate with strict context, validate determ
 Every generated post is plain text — there's no audio or special format involved.  
 "Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
 
-**1. Your profile (`PROFILE_CONTEXT` in `.env`)**  
-Injected into every prompt: your name, role, location, specialties, and real project outcomes. Stored in `.env` (gitignored) so it stays private and out of source control. The profile is also enriched at startup with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
-
-> **Upcoming change:** The Avatar Intelligence feature (see `docs/features/avatar-intelligence-learning/`) will replace `PROFILE_CONTEXT` with a structured persona graph (`data/avatar/persona_graph.json`). Once implemented, `PROFILE_CONTEXT` and its related env vars will be removed — the persona graph becomes the sole identity source.
+**1. Your persona graph (`data/avatar/persona_graph.json`)**  
+The authoritative identity source for every generated post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Edited directly in the repo — no env var required. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
 GitHub enrichment details:
 
@@ -96,7 +94,6 @@ GitHub context controls in `.env`:
 - `GITHUB_REPO_MAX_COUNT` (default `12`)
 - `GITHUB_README_MAX_CHARS` (default `1200`)
 - `GITHUB_CONTEXT_MAX_CHARS` (default `30000`)
-- `PROFILE_CONTEXT_MAX_CHARS` (default `120000`)
 
 **2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)**  
 A detailed persona loaded into every AI call, covering:
@@ -141,7 +138,7 @@ Hashtags (for `--generate` targeting LinkedIn) and source article links (for `--
 
 `--generate` and `--curate` apply a three-layer grounding strategy:
 
-1. **Fact retrieval** — a small set of relevant facts is retrieved from `PROFILE_CONTEXT` and injected into each prompt.
+1. **Fact retrieval** — a small set of relevant facts is retrieved from the persona graph and injected into each prompt.
 2. **Balance rules** — prompt-level instructions require every factual claim to come from either the article text or the provided profile facts, cap personal references to at most one per post, and forbid invented numbers/dates/companies.
 3. **Truth gate** — a lightweight post-generation filter scans each sentence for numeric claims, year references, dollar amounts, company-name patterns, and project-technology misattributions. Any sentence whose specific token is not found in the article text or grounding facts is silently removed. General opinions, hooks, and rhetorical questions pass through untouched.
 
@@ -155,8 +152,8 @@ Large models are strong at style but can still invent plausible-sounding backgro
 
 #### Grounding Pipeline
 
-1. Parse profile facts  
-   The app parses project bullets from `PROFILE_CONTEXT` into structured records: project, company, years, details.
+1. Load persona facts  
+   The app loads structured facts from `data/avatar/persona_graph.json` via `load_avatar_state()` — project, company, years, details, skills.
 2. Detect constraints from the request  
    Query intent is analyzed for project/company lookups and technology tags (for example Java, Spring, RAG, Neo4j).
 3. Retrieve relevant facts  
@@ -261,7 +258,7 @@ If grounded outputs feel too generic or personal references are missing, this is
 Common symptoms and fixes:
 
 - Symptom: Output avoids personal project references even when relevant.  
-   Likely cause: `CONSOLE_GROUNDING_TECH_KEYWORDS` does not include terms used in your topic or `PROFILE_CONTEXT`.  
+   Likely cause: `CONSOLE_GROUNDING_TECH_KEYWORDS` does not include terms used in your topic or persona graph.  
    Fix: Add missing terms (for example: `spring ai`, `sentence transformers`, `pubsub+`, `fastmcp`) in lowercase.
 
 - Symptom: Broad prompts like "Java" or "Python" miss obvious related projects.  
@@ -284,7 +281,7 @@ Common symptoms and fixes:
    Likely cause: Retrieval signal is weak for that article domain, so evidence is too thin.  
    Fix: Add domain terms to `CURATOR_KEYWORDS` and expand umbrella terms in `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
 
-1. Start with a compact keyword set that mirrors your `PROFILE_CONTEXT` terms.
+1. Start with a compact keyword set that mirrors your persona graph skill and project tags.
 2. Add tag expansions for umbrella terms (`java`, `python`, `rag`).
 3. Run `--console` with factual prompts and confirm retrieved facts match expectations.
 4. Run `--generate --dry-run` and `--curate --dry-run` and inspect whether personal references are relevant and supported.
@@ -307,7 +304,7 @@ pip install -r requirements.txt
 # Configure API keys and persona
 cp .env.example .env
 # Edit .env and fill in ALL required values:
-#   PROFILE_CONTEXT       → your name, role, projects (see template in .env.example)
+#   data/avatar/persona_graph.json → your name, role, projects (edit directly — no env var needed)
 #   PERSONA_SYSTEM_PROMPT → your voice/persona (template in .env.example)
 #   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
 #   OLLAMA_BASE_URL       → default: http://localhost:11434
@@ -327,7 +324,6 @@ cp .env.example .env
 #   GITHUB_REPO_MAX_COUNT        → max repos included (default 12)
 #   GITHUB_README_MAX_CHARS      → max chars per README summary (default 1200)
 #   GITHUB_CONTEXT_MAX_CHARS     → max GitHub-derived context block size (default 30000)
-#   PROFILE_CONTEXT_MAX_CHARS    → max total profile context after assembly (default 120000)
 #   CONSOLE_GROUNDING_TECH_KEYWORDS → comma-separated tech terms for deterministic grounding
 #   CONSOLE_GROUNDING_TAG_EXPANSIONS → optional related-tag map (e.g. java:spring|jms|oracle)
 
@@ -398,20 +394,20 @@ python main.py --console
 
 ### `--generate` vs `--curate` vs `--dry-run`
 
-| Flag                 | Source                                                   | What it does                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                                                                                                                                                                                                                 |
-| `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                                                                                                                                                                                                               |
-| `--console`          | Persona + profile context                                | Opens an interactive terminal chat with your persona/context loaded. No Buffer actions are performed in this mode. Console commands: `/help`, `/reset`, `/exit`. For factual bio/project queries, a deterministic grounding layer extracts and cites matching records from loaded `PROFILE_CONTEXT` (project/company/year/details). Tech term matching is configurable via `CONSOLE_GROUNDING_TECH_KEYWORDS`. |
-| `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                                                                                                                                                                                                              |
-| `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing. LinkedIn: source URL and hashtags appended programmatically (body → URL → hashtags).                                                                                                                                                                                                                                |
-| `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: source URL and hashtags appended after the post body. X: single post, 280-char limit, no hashtags. Bluesky: single post, 300-char limit, no hashtags. YouTube: script printed to screen and saved to `yt-vid-data/` — not pushed to Buffer (see below).                                                                |
-| `--channel linkedin` | Either                                                   | Target LinkedIn only (default)                                                                                                                                                                                                                                                                                                                                                                                |
-| `--channel x`        | Either                                                   | Target X (Twitter) only — 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer                                                                                                                                                                                                                                                                              |
-| `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                                                                                                                                                                                                                 |
-| `--channel youtube`  | Either                                                   | Generates a **spoken Short script** (500-char / ~100–150 words) for use with lipsync.video or similar avatar tools; persona controlled by `YOUTUBE_SHORT_SYSTEM_PROMPT` in `.env`; script is printed to screen and saved to `yt-vid-data/<timestamp>_<title>.txt` — **not pushed to Buffer** (Buffer requires a video file)                                                                                   |
-| `--channel all`      | Either                                                   | Target LinkedIn, X, Bluesky, and YouTube in one run. LinkedIn/X/Bluesky are scheduled independently; YouTube is generated as a local script (printed + saved to `yt-vid-data/`) because Buffer YouTube requires a video upload. If X or Bluesky is not connected in Buffer, that channel is skipped with a warning (no crash).                                                                                |
-| `--interactive`      | Either                                                   | Pause on each truth gate flagged sentence for user confirmation (y/N) before removal. Without this flag, flagged sentences are removed automatically.                                                                                                                                                                                                                                                         |
+| Flag                 | Source                                                   | What it does                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--generate`         | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                                                                                                                                                                                                                         |
+| `--curate`           | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                                                                                                                                                                                                                       |
+| `--console`          | Persona graph + grounding                                | Opens an interactive terminal chat with your persona/context loaded. No Buffer actions are performed in this mode. Console commands: `/help`, `/reset`, `/exit`. For factual bio/project queries, a deterministic grounding layer extracts and cites matching records from `data/avatar/persona_graph.json` (project/company/year/details). Tech term matching is configurable via `CONSOLE_GROUNDING_TECH_KEYWORDS`. |
+| `--dry-run`          | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                                                                                                                                                                                                                      |
+| `--type idea`        | `--curate`                                               | _(default)_ Push curated posts to Buffer Ideas board for manual review before publishing. LinkedIn: source URL and hashtags appended programmatically (body → URL → hashtags).                                                                                                                                                                                                                                        |
+| `--type post`        | `--curate`                                               | Schedule curated posts **directly** to the next available Buffer queue slot. LinkedIn: source URL and hashtags appended after the post body. X: single post, 280-char limit, no hashtags. Bluesky: single post, 300-char limit, no hashtags. YouTube: script printed to screen and saved to `yt-vid-data/` — not pushed to Buffer (see below).                                                                        |
+| `--channel linkedin` | Either                                                   | Target LinkedIn only (default)                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--channel x`        | Either                                                   | Target X (Twitter) only — 280-char hard limit, single paragraph, no hashtags appended; requires an X account connected in Buffer                                                                                                                                                                                                                                                                                      |
+| `--channel bluesky`  | Either                                                   | Target Bluesky only — same thread format as X; requires a Bluesky account connected in Buffer                                                                                                                                                                                                                                                                                                                         |
+| `--channel youtube`  | Either                                                   | Generates a **spoken Short script** (500-char / ~100–150 words) for use with lipsync.video or similar avatar tools; persona controlled by `YOUTUBE_SHORT_SYSTEM_PROMPT` in `.env`; script is printed to screen and saved to `yt-vid-data/<timestamp>_<title>.txt` — **not pushed to Buffer** (Buffer requires a video file)                                                                                           |
+| `--channel all`      | Either                                                   | Target LinkedIn, X, Bluesky, and YouTube in one run. LinkedIn/X/Bluesky are scheduled independently; YouTube is generated as a local script (printed + saved to `yt-vid-data/`) because Buffer YouTube requires a video upload. If X or Bluesky is not connected in Buffer, that channel is skipped with a warning (no crash).                                                                                        |
+| `--interactive`      | Either                                                   | Pause on each truth gate flagged sentence for user confirmation (y/N) before removal. Without this flag, flagged sentences are removed automatically.                                                                                                                                                                                                                                                                 |
 
 **YouTube Short workflow:** The `--channel youtube` output is a **spoken script** for a lipsync.video avatar (or similar tool), targeting ~100–150 words (500-char hard cap). The script is printed to the terminal and saved to `yt-vid-data/<timestamp>_<title>.txt` for you to copy into lipsync.video. Buffer is **not** used — YouTube requires a video file, which must be uploaded manually after rendering. The avatar persona (name, intro line, subscribe CTA) is fully configurable via `YOUTUBE_SHORT_SYSTEM_PROMPT` in your `.env`.
 

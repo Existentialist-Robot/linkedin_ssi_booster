@@ -354,6 +354,28 @@ def normalize_evidence_facts(state: AvatarState) -> list[EvidenceFact]:
     return facts
 
 
+def evidence_facts_to_project_facts(facts: list[EvidenceFact]) -> list[Any]:
+    """Convert EvidenceFact items to ProjectFact objects for console_grounding functions.
+
+    Uses a lazy import to avoid a circular dependency with console_grounding.
+    Returns an empty list when *facts* is empty.
+    """
+    if not facts:
+        return []
+    from services.console_grounding import ProjectFact  # lazy — avoids circular import
+    return [
+        ProjectFact(
+            project=f.project,
+            company=f.company,
+            years=f.years,
+            details=f.details,
+            source=f"avatar:{f.source_project_id}",
+            tags=set(f.skills),
+        )
+        for f in facts
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Evidence retrieval (T1.8) — graph-backed
 # ---------------------------------------------------------------------------
