@@ -666,6 +666,29 @@ SSI_FOCUS_BUILD_RELATIONSHIPS=24
 
 The system uses these as-is — no formulas to think about. If `find_right_people` drops on your SSI page, move some points toward it from whichever pillar is healthiest.
 
+## Running the tests
+
+The project ships a [pytest](https://pytest.org) suite covering the Avatar Intelligence engine.
+
+```bash
+# install test dependency (one-time)
+pip install pytest
+
+# run all tests
+pytest tests/ -v
+```
+
+| Test file                               | What it covers                                                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_avatar_state_loader.py`     | Persona graph + narrative memory loader, schema validator, safe fallback on malformed input                                      |
+| `tests/test_evidence_mapping.py`        | Evidence ID stability, fact normalisation, retrieval scoring, grounding context, explain output                                  |
+| `tests/test_learning_report.py`         | JSONL event capture, moderation roundtrip, heuristic rules, report aggregation and formatting                                    |
+| `tests/test_confidence_scoring.py`      | Signal extraction, score thresholds (high/medium/low), full policy matrix (strict/balanced/draft-first)                          |
+| `tests/test_integration_flags.py`       | CLI flag registration (`--avatar-explain`, `--avatar-learn-report`, `--confidence-policy`), argparse rejection of invalid values |
+| `tests/test_persona_graph_retrieval.py` | Real `persona_graph.json` load (17 projects), retrieval quality spot-checks, app start without `PROFILE_CONTEXT`                 |
+
+All 109 tests pass with zero external API calls required.
+
 ## File Structure
 
 ```
@@ -675,6 +698,14 @@ linkedin_ssi_booster/
 ├── scheduler.py               # Buffer post scheduling logic
 ├── requirements.txt
 ├── .env.example               # Template — copy to .env and fill in keys/persona
+├── tests/
+│   ├── conftest.py            # Shared fixtures (minimal persona graph + narrative memory)
+│   ├── test_avatar_state_loader.py
+│   ├── test_evidence_mapping.py
+│   ├── test_learning_report.py
+│   ├── test_confidence_scoring.py
+│   ├── test_integration_flags.py
+│   └── test_persona_graph_retrieval.py
 ├── docs/
 │   ├── idea.md                # AI-TDD idea document (full platform scope)
 │   ├── prd.md                 # AI-TDD product requirements document

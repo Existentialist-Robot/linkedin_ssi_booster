@@ -299,23 +299,23 @@ Quality constraints:
 
 ### Gate B: Unit tests
 
-- [ ] Persona graph loader/validator
-- [ ] Evidence mapping and explain output
-- [ ] Learning report generation
+- [x] Persona graph loader/validator
+- [x] Evidence mapping and explain output
+- [x] Learning report generation
 - [x] Confidence scoring and policy routing
 
 ### Gate C: Integration tests
 
-- [ ] `--generate --dry-run` with and without new flags
-- [ ] `--curate --dry-run --interactive` learning capture path
-- [ ] Policy routing for `post` and `idea`
+- [ ] `--generate --dry-run` with and without new flags (skipped — user-executed only)
+- [ ] `--curate --dry-run --interactive` learning capture path (skipped — user-executed only)
+- [x] Policy routing for `post` and `idea`
 - [x] Retrieval using persona graph (PROFILE_CONTEXT removed)
 
 ### Gate D: Regression checks
 
-- [ ] Existing truth-gate reason behavior unchanged
-- [ ] Channel formatting constraints still pass (LinkedIn/X/Bluesky/YouTube)
-- [ ] No publish-path regressions when feature disabled
+- [x] Existing truth-gate reason behavior unchanged
+- [ ] Channel formatting constraints still pass (LinkedIn/X/Bluesky/YouTube) (user-executed)
+- [ ] No publish-path regressions when feature disabled (user-executed)
 - [x] App starts and runs correctly without PROFILE_CONTEXT
 
 ## Implementation Order (Dependency-Optimized)
