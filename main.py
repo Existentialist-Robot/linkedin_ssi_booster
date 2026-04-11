@@ -288,122 +288,121 @@ def main():
             logger.error(f"No content found for week {args.week}")
             return
 
-        logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week}...")
-        posts = []
-        # Load persona graph for grounding (replaces PROFILE_CONTEXT parsing)
-        from services.avatar_intelligence import (
-            load_avatar_state as _lav_gen,
-            normalize_evidence_facts,
-            retrieve_evidence,
-            evidence_facts_to_project_facts,
-        )
-        _gen_avatar_state = _lav_gen()
-        _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
-        if args.channel == "youtube" and not args.dry_run:
-            Path("yt-vid-data").mkdir(exist_ok=True)
-        if args.avatar_explain:
-            from services.avatar_intelligence import build_explain_output, format_explain_output
+        # Support multi-channel dry-run for --channel all
+        target_channels = [args.channel] if args.channel != "all" else ["linkedin", "x", "bluesky", "youtube"]
 
-        for topic in week_topics:
-            logger.info(f"  Generating: {topic['title']}")
-            grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
-            grounding_facts = evidence_facts_to_project_facts(
-                retrieve_evidence(grounding_query, _gen_avatar_facts, limit=5)
+        for channel in target_channels:
+            logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week} (channel: {channel})...")
+            posts = []
+            from services.avatar_intelligence import (
+                load_avatar_state as _lav_gen,
+                normalize_evidence_facts,
+                retrieve_evidence,
+                evidence_facts_to_project_facts,
             )
-            post = ai.generate_linkedin_post(
-                title=topic["title"],
-                angle=topic["angle"],
-                ssi_component=topic["ssi_component"],
-                hashtags=topic.get("hashtags", []),
-                grounding_facts=grounding_facts,
-                channel=args.channel,
-                interactive=args.interactive,
-            )
-            # Hashtags are only appended for LinkedIn-style posts.
-            if args.channel not in ("x", "youtube"):
-                hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))
-                if hashtag_str and hashtag_str not in post:
-                    post = post.rstrip() + f"\n\n{hashtag_str}"
-
-            if args.channel == "youtube":
-                if len(post) > 500:
-                    # Absolute safety cap for YouTube scripts.
-                    truncated = post[:500]
-                    for sep in (".", "!", "?"):
-                        idx = truncated.rfind(sep)
-                        if idx != -1:
-                            truncated = truncated[: idx + 1]
-                            break
-                    else:
-                        truncated = truncated[: truncated.rfind(" ")].rstrip()
-                    post = truncated
-                    logger.warning(f"YouTube generate script exceeded 500 chars; truncated to {len(post)}")
-
-                safe_title = re.sub(r"[^\w\-]", "_", topic["title"][:60]).strip("_")
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                script_path = Path("yt-vid-data") / f"{timestamp}_{safe_title}.txt"
-                script_content = (
-                    f"TITLE: {topic['title']}\n"
-                    f"SSI COMPONENT: {topic['ssi_component']}\n\n"
-                    f"{post}\n"
-                )
-                if not args.dry_run:
-                    script_path.write_text(script_content, encoding="utf-8")
-                print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL))
-                print(str(Fore.WHITE) + f"📄 TITLE:  {topic['title']}" + str(Style.RESET_ALL))
-                print(str(Fore.CYAN) + f"🎯 SSI:    {topic['ssi_component']}" + str(Style.RESET_ALL))
-                print(f"\n{post}\n")
-                if not args.dry_run:
-                    print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
-            posts.append({**topic, "generated_text": post})
-
-            if args.channel != "youtube":
-                print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
-                print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']}" + str(Style.RESET_ALL))
-                print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))
-                print(f"\n{post}\n")
-
+            _gen_avatar_state = _lav_gen()
+            _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
+            if channel == "youtube" and not args.dry_run:
+                Path("yt-vid-data").mkdir(exist_ok=True)
             if args.avatar_explain:
-                _relevant = retrieve_evidence(grounding_query, _gen_avatar_facts)
-                _explain = build_explain_output(  # type: ignore[possibly-undefined]
-                    evidence_facts=_relevant,
-                    article_ref=topic.get("title", ""),
-                    channel=args.channel,
-                    ssi_component=topic.get("ssi_component", ""),
-                )
-                print(format_explain_output(_explain))  # type: ignore[possibly-undefined]
+                from services.avatar_intelligence import build_explain_output, format_explain_output
 
-        if args.schedule and not args.dry_run:
-            if args.channel == "youtube":
-                print(
-                    str(Fore.YELLOW)
-                    + "\n⚠️  YouTube scripts were generated and saved locally, but not scheduled to Buffer.\n"
-                    + "   Buffer YouTube scheduling requires a video file upload (title/category/video).\n"
-                    + "   Render with lipsync.video, then upload manually."
-                    + str(Style.RESET_ALL)
+            for topic in week_topics:
+                logger.info(f"  Generating: {topic['title']}")
+                grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
+                grounding_facts = evidence_facts_to_project_facts(
+                    retrieve_evidence(grounding_query, _gen_avatar_facts, limit=5)
                 )
-                return
-            buffer = build_buffer_service()
-            scheduler = PostScheduler(buffer_service=buffer)
-            try:
-                scheduler.schedule_week(posts, week_number=args.week, channel=args.channel)
-            except BufferRateLimitError as e:
-                print(
-                    str(Fore.YELLOW)
-                    + f"\n⚠️  Buffer API rate limit reached while scheduling.\n   {e}\n"
-                    + "   Wait for the retry window, then rerun the schedule command."
-                    + str(Style.RESET_ALL)
-                )
-                return
-            except BufferChannelNotConnectedError as e:
-                print(
-                    str(Fore.YELLOW)
-                    + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
-                    + "   Connect the channel in Buffer or run with a different --channel value."
-                    + str(Style.RESET_ALL)
-                )
-                return
-            print(str(Fore.GREEN) + f"\n✅  Scheduled {len(posts)} posts to Buffer ({args.channel}) successfully" + str(Style.RESET_ALL))
+
+                if channel == "youtube":
+                    post = ai.generate_youtube_short_script(
+                        title=topic["title"],
+                        angle=topic["angle"],
+                        ssi_component=topic["ssi_component"],
+                        grounding_facts=grounding_facts,
+                        interactive=args.interactive,
+                    )
+                    safe_title = re.sub(r"[^\w\-]", "_", topic["title"][:60]).strip("_")
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    script_path = Path("yt-vid-data") / f"{timestamp}_{safe_title}.txt"
+                    script_content = (
+                        f"TITLE: {topic['title']}\n"
+                        f"SSI COMPONENT: {topic['ssi_component']}\n\n"
+                        f"{post}\n"
+                    )
+                    if not args.dry_run:
+                        script_path.write_text(script_content, encoding="utf-8")
+                    print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT (channel: {channel}):" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + f"📄 TITLE:  {topic['title']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI:    {topic['ssi_component']}" + str(Style.RESET_ALL))
+                    print(f"\n{post}\n")
+                    if not args.dry_run:
+                        print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
+                    posts.append({**topic, "generated_text": post})
+                else:
+                    post = ai.generate_linkedin_post(
+                        title=topic["title"],
+                        angle=topic["angle"],
+                        ssi_component=topic["ssi_component"],
+                        hashtags=topic.get("hashtags", []),
+                        grounding_facts=grounding_facts,
+                        channel=channel,
+                        interactive=args.interactive,
+                    )
+                    # Hashtags are only appended for LinkedIn-style posts.
+                    if channel not in ("x", "youtube"):
+                        hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in topic.get("hashtags", []))
+                        if hashtag_str and hashtag_str not in post:
+                            post = post.rstrip() + f"\n\n{hashtag_str}"
+                    posts.append({**topic, "generated_text": post})
+
+                if channel != "youtube":
+                    print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
+                    print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']} (channel: {channel})" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))
+                    print(f"\n{post}\n")
+
+                if args.avatar_explain:
+                    _relevant = retrieve_evidence(grounding_query, _gen_avatar_facts)
+                    _explain = build_explain_output(
+                        evidence_facts=_relevant,
+                        article_ref=topic.get("title", ""),
+                        channel=channel,
+                        ssi_component=topic.get("ssi_component", ""),
+                    )
+                    print(format_explain_output(_explain))
+
+            if args.schedule and not args.dry_run:
+                if channel == "youtube":
+                    print(
+                        str(Fore.YELLOW)
+                        + "\n⚠️  YouTube scripts were generated and saved locally, but not scheduled to Buffer.\n"
+                        + "   Buffer YouTube scheduling requires a video file upload (title/category/video).\n"
+                        + "   Render with lipsync.video, then upload manually."
+                        + str(Style.RESET_ALL)
+                    )
+                    continue
+                buffer = build_buffer_service()
+                scheduler = PostScheduler(buffer_service=buffer)
+                try:
+                    scheduler.schedule_week(posts, week_number=args.week, channel=channel)
+                except BufferRateLimitError as e:
+                    print(
+                        str(Fore.YELLOW)
+                        + f"\n⚠️  Buffer API rate limit reached while scheduling.\n   {e}\n"
+                        + "   Wait for the retry window, then rerun the schedule command."
+                        + str(Style.RESET_ALL)
+                    )
+                    continue
+                except BufferChannelNotConnectedError as e:
+                    print(
+                        str(Fore.YELLOW)
+                        + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
+                        + "   Connect the channel in Buffer or run with a different --channel value."
+                        + str(Style.RESET_ALL)
+                    )
+                    continue
+                print(str(Fore.GREEN) + f"\n✅  Scheduled {len(posts)} posts to Buffer ({channel}) successfully" + str(Style.RESET_ALL))
 
 
 
