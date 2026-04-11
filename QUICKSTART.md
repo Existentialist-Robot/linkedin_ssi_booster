@@ -28,7 +28,18 @@ cp content_calendar.example.py content_calendar.py
   python main.py --generate --schedule --week 1 --channel all
   ```
 
-## 3. Curate AI News
+## 3. Console Mode — Persona Chat & Tuning
+
+- **Chat with your persona (no Buffer calls):**
+  ```bash
+  python main.py --console
+  ```
+  - Test how well the system knows your background, projects, and skills.
+  - Try factual questions ("What projects did I do with Neo4j?"), career queries, or ask for advice.
+  - Use this mode to tune your persona graph and see how changes affect grounding.
+  - Console mode never writes to Buffer or posts anything — it's safe for experimentation.
+
+## 4. Curate AI News
 
 - **Preview curation (no Buffer calls):**
   ```bash
@@ -43,7 +54,7 @@ cp content_calendar.example.py content_calendar.py
   python main.py --curate --type post --channel linkedin
   ```
 
-## 4. Learning & Explainability
+## 5. Learning & Explainability
 
 - **Reconcile published posts (improves future curation ranking):**
   ```bash
@@ -58,7 +69,7 @@ cp content_calendar.example.py content_calendar.py
   python main.py --avatar-learn-report
   ```
 
-## 5. SSI Tracking
+## 6. SSI Tracking
 
 - **Record today's SSI scores:**
   ```bash
@@ -69,11 +80,12 @@ cp content_calendar.example.py content_calendar.py
   python main.py --report
   ```
 
-## 6. Test Everything
+## 7. Test Everything
 
 ```bash
 pytest tests/ -v
 ```
+
 
 ---
 
