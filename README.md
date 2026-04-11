@@ -5,6 +5,21 @@
 
 Automates LinkedIn post generation and scheduling via local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score.
 
+## 🧠 Intelligence Stack — Why This Is Smarter Than Just 'AI Writes Posts'
+
+**LinkedIn SSI Booster** isn't just a prompt wrapper — it's a full-stack, learning automation system for content, curation, and persona growth. Here's what makes it unique:
+
+- **Persona-grounded generation** — Every post is written in your real technical voice, with facts, projects, and outcomes pulled from your private persona graph (not just keywords or a bio blurb).
+- **Hybrid RAG + agent pipeline** — Combines BM25 retrieval, deterministic validation, and multi-step agent orchestration for high factuality and variety.
+- **Curation learning loop** — The system tracks every generated candidate, learns which ones you actually publish, and automatically floats the best sources/topics to the top in future runs (Beta-smoothed acceptance priors per source/SSI component).
+- **Truth gate** — Post-generation filter removes unsupported claims (numbers, dates, company names, project-tech mismatches) for maximum credibility.
+- **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
+- **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
+- **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, and generate advisory reports from moderation history.
+- **No cloud AI keys required** — All generation is local (Ollama), with persona and learning data stored only on your machine.
+
+**Result:**
+You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency and control.
 ## What is the LinkedIn SSI?
 
 The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
