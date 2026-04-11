@@ -203,14 +203,14 @@ def main():
     if args.reconcile:
         from services.selection_learning import reconcile_published
         buffer = build_buffer_service()
-        channel_ids: dict[str, str] = {"linkedin": buffer.get_linkedin_channel_id()}
+        channel_ids: dict[str, str | None] = {"linkedin": buffer.get_linkedin_channel_id()}
         x_id = os.getenv("BUFFER_X_CHANNEL_ID")
         bsky_id = os.getenv("BUFFER_BLUESKY_CHANNEL_ID")
         if x_id:
             channel_ids["x"] = x_id
         if bsky_id:
             channel_ids["bluesky"] = bsky_id
-        stats = reconcile_published(buffer, channel_ids)
+        stats = reconcile_published(buffer, {k: v for k, v in channel_ids.items() if v is not None})
         print(str(Fore.GREEN) + "\n✅  Reconcile complete" + str(Style.RESET_ALL))
         for k, v in stats.items():
             print(f"   {k}: {v}")
