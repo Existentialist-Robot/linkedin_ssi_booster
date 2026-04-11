@@ -288,3 +288,43 @@ class BufferService:
         data = self._query(query, {"channelId": channel_id})
         edges = data.get("channel", {}).get("posts", {}).get("edges", [])
         return [e["node"] for e in edges]
+
+    def get_published_posts(self, channel_id: str, limit: int = 50) -> list[dict]:
+        """Fetch confirmed-published (SENT) posts for *channel_id*.
+
+        Uses the top-level ``posts`` query with a SENT status filter and
+        forward pagination via Relay ``first`` / ``after`` cursors.
+        Returns a list of dicts with keys: id, text, status, dueAt.
+        """
+        query = """
+        query GetPublishedPosts($input: PostsInput!, $first: Int) {
+          posts(input: $input, first: $first) {
+            edges {
+              node {
+                id
+                text
+                status
+                dueAt
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+        """
+        org_id = self.get_organization_id()
+        variables = {
+            "input": {
+                "organizationId": org_id,
+                "filters": {
+                    "channelIds": [channel_id],
+                    "status": "SENT",
+                },
+            },
+            "first": limit,
+        }
+        data = self._query(query, variables)
+        edges = data.get("posts", {}).get("edges", [])
+        return [e["node"] for e in edges if e.get("node")]

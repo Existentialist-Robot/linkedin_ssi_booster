@@ -151,6 +151,8 @@ def main():
     parser.add_argument("--avatar-learn-report", action="store_true", help="Print learning report from captured moderation events and exit")
     parser.add_argument("--confidence-policy", choices=["strict", "balanced", "draft-first"], default=None,
                         help="Confidence policy for curate path: strict|balanced|draft-first (default: AVATAR_CONFIDENCE_POLICY env var, else balanced)")
+    parser.add_argument("--reconcile", action="store_true",
+                        help="Fetch published Buffer posts and reconcile with generated candidates to build acceptance priors")
     args = parser.parse_args()
 
     if args.debug:
@@ -196,6 +198,22 @@ def main():
 
     if args.report:
         tracker.print_report()
+        return
+
+    if args.reconcile:
+        from services.selection_learning import reconcile_published
+        buffer = build_buffer_service()
+        channel_ids: dict[str, str] = {"linkedin": buffer.get_linkedin_channel_id()}
+        x_id = os.getenv("BUFFER_X_CHANNEL_ID")
+        bsky_id = os.getenv("BUFFER_BLUESKY_CHANNEL_ID")
+        if x_id:
+            channel_ids["x"] = x_id
+        if bsky_id:
+            channel_ids["bluesky"] = bsky_id
+        stats = reconcile_published(buffer, channel_ids)
+        print(str(Fore.GREEN) + "\n✅  Reconcile complete" + str(Style.RESET_ALL))
+        for k, v in stats.items():
+            print(f"   {k}: {v}")
         return
 
     if args.avatar_learn_report:

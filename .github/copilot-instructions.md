@@ -70,4 +70,5 @@ linkedin_ssi_booster/
 - Always run `python -m py_compile <changed_files>` immediately after editing any `.py` file
 - Fix all syntax errors before considering a task complete
 - Example: `python -m py_compile services/claude_service.py services/gemini_service.py services/ollama_service.py`
+- **Write unit tests** for every new module or significant new function — place them in `tests/test_<module_name>.py` following the patterns in `tests/test_learning_report.py` and `tests/test_confidence_scoring.py`. Tests must pass before a task is considered complete.
 - **Update README.md** whenever you change how the tool is configured, how a feature works, or what env vars are required — keep the docs in sync with the code

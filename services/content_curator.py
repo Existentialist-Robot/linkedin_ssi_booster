@@ -13,6 +13,7 @@ import random
 import re
 import requests
 import time
+import uuid
 from colorama import Fore, Style
 from pathlib import Path
 from typing import Optional
@@ -27,6 +28,9 @@ from services.console_grounding import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Stable run identifier — shared across all candidates logged in this process.
+_CURATE_RUN_ID: str = str(uuid.uuid4())
 
 
 def _truncate_at_sentence(text: str, budget: int) -> str:
@@ -374,7 +378,15 @@ class ContentCurator:
         request_delay: seconds to wait between AI calls (rate-limit buffer).
         """
         articles = self.fetch_relevant_articles()
-        random.shuffle(articles)
+        # Re-rank articles using relevance + freshness + acceptance priors.
+        # Falls back to random shuffle if selection_learning data is unavailable.
+        try:
+            from services.selection_learning import compute_acceptance_priors, rank_articles as _rank_arts
+            _priors = compute_acceptance_priors()
+            articles = _rank_arts(articles, _priors, keywords=list(KEYWORDS))
+        except Exception as _rank_exc:
+            logger.warning("selection_learning: ranking failed, using random order: %s", _rank_exc)
+            random.shuffle(articles)
         published = set() if dry_run else self._load_published_titles()
         created_ideas = []
 
@@ -386,6 +398,7 @@ class ContentCurator:
                 continue
             if created_ideas:
                 time.sleep(request_delay)
+            _candidate_id = str(uuid.uuid4())
             # Weighted random pick: components with lower scores get more posts
             ssi_component = _pick_ssi_component()
             grounding_facts = self._grounding_facts_for_article(
@@ -484,7 +497,41 @@ class ContentCurator:
                     if yt_script:
                         print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}")
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
+                    # Still log the candidate when dry_run so priors learn from topic selection
+                    try:
+                        from services.selection_learning import log_candidate as _log_cand_all
+                        _log_cand_all(
+                            candidate_id=_candidate_id,
+                            article_url=article.get("link", ""),
+                            article_title=article.get("title", ""),
+                            article_source=article.get("source", ""),
+                            ssi_component=ssi_component,
+                            channel="all",
+                            post_text=li_text,
+                            buffer_id=None,
+                            route="post",
+                            run_id=_CURATE_RUN_ID,
+                        )
+                    except Exception as _cand_exc:
+                        logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
                 else:
+                    # Log candidate before push (route=post for all-channel mode)
+                    try:
+                        from services.selection_learning import log_candidate as _log_cand_all
+                        _log_cand_all(
+                            candidate_id=_candidate_id,
+                            article_url=article.get("link", ""),
+                            article_title=article.get("title", ""),
+                            article_source=article.get("source", ""),
+                            ssi_component=ssi_component,
+                            channel="all",
+                            post_text=li_text,
+                            buffer_id=None,
+                            route="post",
+                            run_id=_CURATE_RUN_ID,
+                        )
+                    except Exception as _cand_exc:
+                        logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
                     # Display generated posts for traceability
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
@@ -498,9 +545,14 @@ class ContentCurator:
                         print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
                     if self.buffer:
                         try:
-                            self.buffer.create_scheduled_post(
+                            _li_post = self.buffer.create_scheduled_post(
                                 self.buffer.get_linkedin_channel_id(), li_text
                             )
+                            try:
+                                from services.selection_learning import update_candidate_buffer_id as _upd_all
+                                _upd_all(_candidate_id, _li_post.get("id", ""))
+                            except Exception as _upd_exc:
+                                logger.warning("selection_learning: buffer_id update failed (continuing): %s", _upd_exc)
                             if x_post:
                                 try:
                                     self.buffer.create_scheduled_post(
@@ -626,6 +678,24 @@ class ContentCurator:
                     requested_mode=message_type,
                 )
 
+                # Log candidate for selection learning (before any buffer push)
+                try:
+                    from services.selection_learning import log_candidate as _log_cand
+                    _log_cand(
+                        candidate_id=_candidate_id,
+                        article_url=article.get("link", ""),
+                        article_title=article.get("title", ""),
+                        article_source=article.get("source", ""),
+                        ssi_component=ssi_component,
+                        channel=effective_channel,
+                        post_text=post_text,
+                        buffer_id=None,
+                        route=_conf_route,
+                        run_id=_CURATE_RUN_ID,
+                    )
+                except Exception as _cand_exc:
+                    logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
+
                 if dry_run:
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
@@ -689,6 +759,11 @@ class ContentCurator:
                                     channel_id, post_text, channel=effective_channel
                                 )
                                 self._save_published_title(article["title"])
+                                try:
+                                    from services.selection_learning import update_candidate_buffer_id as _upd
+                                    _upd(_candidate_id, post.get("id", ""))
+                                except Exception as _upd_exc:
+                                    logger.warning("selection_learning: buffer_id update failed (continuing): %s", _upd_exc)
                                 created_ideas.append(post)
                             except BufferQueueFullError as e:
                                 logger.warning(
@@ -702,6 +777,11 @@ class ContentCurator:
                                 title=f"[{channel}|{ssi_component}] {article['title'][:70]}"
                             )
                             self._save_published_title(article["title"])
+                            try:
+                                from services.selection_learning import update_candidate_buffer_id as _upd
+                                _upd(_candidate_id, idea.get("id", ""))
+                            except Exception as _upd_exc:
+                                logger.warning("selection_learning: buffer_id update failed (continuing): %s", _upd_exc)
                             created_ideas.append(idea)
                     else:
                         logger.warning("No buffer_service provided — skipping idea creation")
