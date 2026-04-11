@@ -21,10 +21,9 @@ from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHAR
 from services.buffer_service import BufferQueueFullError, BufferChannelNotConnectedError
 from services.console_grounding import (
     ProjectFact,
+    TruthGateMeta,
     get_console_grounding_tag_expansions,
-    parse_profile_project_facts,
-    parse_query_constraints,
-    retrieve_relevant_facts,
+    truth_gate_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,26 +202,32 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
 
 class ContentCurator:
 
-    def __init__(self, ai_service: OllamaService, buffer_service=None, profile_context: str = ""):
+    def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced"):
         self.ai = ai_service
         self.buffer = buffer_service
-        self.profile_context = profile_context
+        self.confidence_policy = confidence_policy
         self.curation_grounding_keywords = _load_curation_grounding_keywords()
         self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
-        self.profile_facts = (
-            parse_profile_project_facts(profile_context, tech_keywords=self.curation_grounding_keywords)
-            if profile_context
-            else []
-        )
+        self._avatar_facts: list = []
+        self._narrative_memory = None
+        try:
+            from services.shared import AVATAR_LEARNING_ENABLED
+            from services.avatar_intelligence import load_avatar_state, normalize_evidence_facts
+            _state = load_avatar_state()
+            self._avatar_facts = normalize_evidence_facts(_state)
+            if AVATAR_LEARNING_ENABLED and _state.narrative_memory is not None:
+                self._narrative_memory = _state.narrative_memory
+        except Exception as _exc:
+            logger.warning("Avatar state init failed (continuing): %s", _exc)
 
     def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
-        constraints = parse_query_constraints(
-            query,
-            tech_keywords=self.curation_grounding_keywords,
-            tag_expansions=self.curation_grounding_tag_expansions,
-        )
-        return retrieve_relevant_facts(self.profile_facts, constraints, limit=5)
+        if self._avatar_facts:
+            from services.avatar_intelligence import retrieve_evidence, evidence_facts_to_project_facts
+            hits = retrieve_evidence(query, self._avatar_facts, limit=5)
+            return evidence_facts_to_project_facts(hits)  # type: ignore[return-value]
+        # Fallback: no avatar graph loaded — return empty (post still generated, just ungrounded)
+        return []
 
     def _load_published_titles(self) -> set:
         if IDEAS_CACHE_PATH.exists():
@@ -248,6 +253,80 @@ class ContentCurator:
         except Exception as e:
             logger.debug(f"Could not fetch article text from {url}: {e}")
             return ""
+
+    def _score_and_route(
+        self,
+        post_text: str,
+        article_summary: str,
+        grounding_facts: list[ProjectFact],
+        channel: str,
+        article_ref: str,
+        requested_mode: str,
+    ) -> tuple[str, str]:
+        """Score post_text with confidence engine and return (route, reason).
+
+        route is 'post' | 'idea' | 'block'.  Falls back to *requested_mode* on any error.
+        Also logs the decision to the learning log when AVATAR_LEARNING_ENABLED is true.
+        """
+        try:
+            from services.avatar_intelligence import (
+                extract_confidence_signals,
+                score_confidence,
+                decide_publish_mode,
+                record_confidence_decision,
+                compute_repetition_score,
+            )
+            from services.shared import AVATAR_LEARNING_ENABLED
+
+            # T4.4: repetition signal from narrative memory
+            rep_score = (
+                compute_repetition_score(post_text, self._narrative_memory)
+                if self._narrative_memory is not None
+                else 0.0
+            )
+
+            # Assess the already-cleaned post against source article to get truth-gate meta.
+            _assessed_text, gate_meta = truth_gate_result(
+                post_text, article_summary, grounding_facts
+            )
+            signals = extract_confidence_signals(
+                removed_count=gate_meta.removed_count,
+                total_sentences=gate_meta.total_sentences,
+                reason_codes=gate_meta.reason_codes,
+                grounding_facts_count=len(grounding_facts),
+                max_grounding_facts=5,
+                channel=channel,
+                post_length=len(post_text),
+                narrative_repetition_score=rep_score,
+            )
+            result = score_confidence(signals)
+            cd = decide_publish_mode(self.confidence_policy, result, requested_mode)
+
+            logger.info(
+                "Confidence: score=%.2f level=%s policy=%s route=%s | %s",
+                result.score,
+                result.level,
+                self.confidence_policy,
+                cd.route,
+                cd.reason,
+            )
+
+            if AVATAR_LEARNING_ENABLED:
+                record_confidence_decision(
+                    decision=cd,
+                    confidence=result,
+                    channel=channel,
+                    article_ref=article_ref,
+                )
+
+            return cd.route, cd.reason
+        except Exception as exc:
+            logger.warning(
+                "Confidence scoring failed (falling back to requested mode '%s'): %s",
+                requested_mode,
+                exc,
+            )
+            return requested_mode, "confidence scoring unavailable — using requested mode"
 
     def fetch_relevant_articles(self, max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
         """Fetch recent articles matching our keyword list."""
@@ -468,6 +547,17 @@ class ContentCurator:
             # ----------------------------------------------------------------
             else:
                 effective_channel = "linkedin" if (message_type == "post" and channel == "linkedin") else channel
+                # T4.3: build continuity snippet from narrative memory (empty string if unavailable)
+                try:
+                    from services.avatar_intelligence import build_continuity_context
+                    _continuity = (
+                        build_continuity_context(self._narrative_memory)
+                        if self._narrative_memory is not None
+                        else ""
+                    )
+                except Exception:
+                    _continuity = ""
+
                 post_text = self.ai.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
@@ -476,10 +566,30 @@ class ContentCurator:
                     post_mode=(message_type == "post"),
                     grounding_facts=grounding_facts,
                     interactive=interactive,
+                    continuity_context=_continuity,
                 )
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
+
+                # T4.2 + T4.1: update narrative memory with themes/claims from this post
+                try:
+                    from services.shared import AVATAR_LEARNING_ENABLED
+                    from services.avatar_intelligence import (
+                        extract_narrative_updates,
+                        update_narrative_memory,
+                        save_narrative_memory,
+                    )
+                    if AVATAR_LEARNING_ENABLED and self._narrative_memory is not None:
+                        _updates = extract_narrative_updates(
+                            post_text, ssi_component, article["title"]
+                        )
+                        self._narrative_memory = update_narrative_memory(
+                            self._narrative_memory, **_updates
+                        )
+                        save_narrative_memory(self._narrative_memory)
+                except Exception as _mem_exc:
+                    logger.warning("Narrative memory update failed (continuing): %s", _mem_exc)
 
                 # Append URL then hashtags programmatically (order: body → URL → hashtags).
                 # For X/Bluesky: cap the LLM text first, THEN append URL so buffer_service
@@ -501,14 +611,27 @@ class ContentCurator:
                     if article["link"] and article["link"] not in post_text:
                         post_text = post_text.rstrip() + f"\n\n{article['link']}"
 
+                # ── Confidence scoring + policy routing (Phase 1C) ────────────────
+                # Only enforce routing when actually pushing to Buffer (not dry_run).
+                # In dry_run mode we display the decision for observability.
+                _conf_route, _conf_reason = self._score_and_route(
+                    post_text=post_text,
+                    article_summary=article["summary"],
+                    grounding_facts=grounding_facts,
+                    channel=effective_channel,
+                    article_ref=article.get("link", article["title"]),
+                    requested_mode=message_type,
+                )
+
                 if dry_run:
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"📡 CHANNEL: {channel}" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
-                    created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel})
+                    created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel, "confidence_route": _conf_route})
                 else:
                     # Display generated post for traceability
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
@@ -516,9 +639,22 @@ class ContentCurator:
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"📡 CHANNEL: {channel}" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
+
+                    # Confidence policy: block → skip this article entirely
+                    if _conf_route == "block":
+                        logger.warning(
+                            str(Fore.YELLOW)
+                            + f"⚠️  Confidence policy blocked publish for: {article['title'][:60]}"
+                            + str(Style.RESET_ALL)
+                        )
+                        continue
+
                     if self.buffer:
-                        if message_type == "post":
+                        # Confidence policy: idea takes precedence over post when policy downgrades.
+                        effective_message_type = "idea" if _conf_route == "idea" else message_type
+                        if effective_message_type == "post":
                             if effective_channel == "youtube":
                                 # Buffer YouTube requires a video file — can't post text-only.
                                 # Write the script to yt-vid-data/ for use with lipsync.video.

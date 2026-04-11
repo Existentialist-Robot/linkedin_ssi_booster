@@ -179,3 +179,23 @@ def parse_xml_thread(raw: str, source_url: str) -> Optional[list[str]]:
         f"XML thread parse failed — expected 2 <post_N> tags, got {len(parts)} for: {source_url}"
     )
     return None
+
+
+# ---------------------------------------------------------------------------
+# Avatar intelligence configuration defaults (Phase 1C — T3.7)
+# ---------------------------------------------------------------------------
+
+_VALID_CONFIDENCE_POLICIES = {"strict", "balanced", "draft-first"}
+
+AVATAR_CONFIDENCE_POLICY: str = os.getenv("AVATAR_CONFIDENCE_POLICY", "balanced")
+if AVATAR_CONFIDENCE_POLICY not in _VALID_CONFIDENCE_POLICIES:
+    logger.warning(
+        "Invalid AVATAR_CONFIDENCE_POLICY '%s'; falling back to 'balanced'. "
+        "Valid values: strict, balanced, draft-first",
+        AVATAR_CONFIDENCE_POLICY,
+    )
+    AVATAR_CONFIDENCE_POLICY = "balanced"
+
+AVATAR_LEARNING_ENABLED: bool = os.getenv("AVATAR_LEARNING_ENABLED", "true").lower() == "true"
+AVATAR_MAX_MEMORY_ITEMS: int = int(os.getenv("AVATAR_MAX_MEMORY_ITEMS", "200"))
+

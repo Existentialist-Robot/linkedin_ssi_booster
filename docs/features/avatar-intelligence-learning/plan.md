@@ -34,17 +34,53 @@ Quality constraints:
 
 ## Pre-Implementation Checklist
 
-- [ ] Confirm baseline behavior using current dry-run commands.
-- [ ] Create a feature branch.
-- [ ] Define acceptance test prompts/articles for regression comparisons.
-- [ ] Confirm local write permissions for `data/avatar/`.
+- [x] Confirm baseline behavior using current dry-run commands.
+- [x] Create a feature branch.
+- [x] Define acceptance test prompts/articles for regression comparisons.
+- [x] Confirm local write permissions for `data/avatar/`.
 - [ ] Confirm `.gitignore` behavior for local runtime data (if needed).
+
+## Progress Summary
+
+### Phase 1A: Persona Graph Foundation
+
+- [x] Step 1 — Add avatar data scaffolding
+- [x] Step 2 — Implement avatar intelligence core module
+- [x] Step 3 — Integrate graph-backed retrieval path
+
+### Phase 1B: Learning Capture and Explainability
+
+- [x] Step 4 — Add interactive learning event capture
+- [x] Step 5 — Add explain output mode
+- [x] Step 6 — Add learning report command
+
+### Phase 1C: Confidence Scoring and Policy
+
+- [x] Step 7 — Implement confidence score engine
+- [x] Step 8 — Add confidence policy enforcement
+- [x] Step 9 — Add config defaults and docs alignment
+
+### Phase 1D: Narrative Continuity Memory
+
+- [x] Step 10 — Implement narrative memory store
+- [x] Step 11 — Inject continuity into prompts and confidence
+
+### Phase 1E: PROFILE_CONTEXT Migration
+
+- [x] Step 12 — Populate persona graph from PROFILE_CONTEXT
+- [x] Step 13 — Switch retrieval to persona graph
+- [x] Step 14 — Remove PROFILE_CONTEXT and related code
+
+### Phase 2: Docs and Config Alignment
+
+- [x] Step 15 — Update .env.example with avatar controls
+- [x] Step 16 — Update README and add operational notes
 
 ## Phase 1A: Persona Graph Foundation (Read-Only)
 
 ### Step 1: Add avatar data scaffolding
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Create structured data files and minimal schema contract.
 - **Actions:**
@@ -59,7 +95,7 @@ Quality constraints:
 
 ### Step 2: Implement avatar intelligence core module
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 4-6h
 - **Description:** Create `services/avatar_intelligence.py` with loader + validator + retrieval adapter.
 - **Actions:**
@@ -74,7 +110,7 @@ Quality constraints:
 
 ### Step 3: Integrate graph-backed retrieval path
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-4h
 - **Description:** Wire retrieval path into generation/curation while preserving current fallback.
 - **Actions:**
@@ -90,7 +126,7 @@ Quality constraints:
 
 ### Step 4: Add interactive learning event capture
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Persist moderation outcomes from truth gate interactive decisions.
 - **Actions:**
@@ -104,7 +140,7 @@ Quality constraints:
 
 ### Step 5: Add explain output mode
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Expose evidence summary to user via CLI flag.
 - **Actions:**
@@ -118,7 +154,7 @@ Quality constraints:
 
 ### Step 6: Add learning report command
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-4h
 - **Description:** Convert captured events into actionable recommendations.
 - **Actions:**
@@ -134,7 +170,7 @@ Quality constraints:
 
 ### Step 7: Implement confidence score engine
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 4-6h
 - **Description:** Score each output using deterministic signals.
 - **Actions:**
@@ -148,7 +184,7 @@ Quality constraints:
 
 ### Step 8: Add confidence policy enforcement
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Route post vs idea vs block based on policy.
 - **Actions:**
@@ -162,7 +198,7 @@ Quality constraints:
 
 ### Step 9: Add config defaults and docs alignment
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Add environment controls and update docs.
 - **Actions:**
@@ -181,7 +217,7 @@ Quality constraints:
 
 ### Step 10: Implement narrative memory store
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-4h
 - **Description:** Persist recent themes/claims/arcs for continuity.
 - **Actions:**
@@ -192,10 +228,11 @@ Quality constraints:
   - Memory updates are stable across runs.
   - Store remains bounded by configured max items.
 - **Dependencies:** Step 2
+- **Progress:** `update_narrative_memory()`, `save_narrative_memory()` added to `avatar_intelligence.py`. FIFO-trim bounded by `AVATAR_MAX_MEMORY_ITEMS`. `extract_narrative_updates()` provides rule-based theme/claim extraction (no LLM call). Memory update hook injected into the single-channel curator path after each successful generation.
 
 ### Step 11: Inject continuity into prompts and confidence
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Use memory to improve coherence and reduce repetition.
 - **Actions:**
@@ -206,12 +243,13 @@ Quality constraints:
   - Repetition checks lower confidence for near-duplicate drafts.
   - Quality remains stable in manual sample review.
 - **Dependencies:** Steps 7, 10
+- **Progress:** `build_continuity_context()` produces ≤300-char prompt snippet. `continuity_context` param added to both `OllamaService.generate_linkedin_post()` and `OllamaService.summarise_for_curation()`. `compute_repetition_score()` computes token-overlap ratio against `recent_claims`; wired into `_score_and_route()` replacing the hardcoded `0.0` placeholder.
 
 ## Phase 1E: PROFILE_CONTEXT Migration
 
 ### Step 12: Populate persona graph from PROFILE_CONTEXT
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 4-6h
 - **Description:** Parse existing PROFILE_CONTEXT and populate persona graph during development.
 - **Actions:**
@@ -226,7 +264,7 @@ Quality constraints:
 
 ### Step 13: Switch retrieval to persona graph
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 3-5h
 - **Description:** Replace PROFILE_CONTEXT parsing with persona graph as sole identity source for retrieval.
 - **Actions:**
@@ -240,7 +278,7 @@ Quality constraints:
 
 ### Step 14: Remove PROFILE_CONTEXT and related code
 
-- **Status:** [ ] Not Started
+- **Status:** [x]
 - **Effort:** 2-3h
 - **Description:** Delete PROFILE_CONTEXT env var, parsing code, and all related references.
 - **Actions:**
@@ -257,28 +295,28 @@ Quality constraints:
 
 ### Gate A: Build and syntax
 
-- [ ] `python -m py_compile main.py services/avatar_intelligence.py services/console_grounding.py services/ollama_service.py services/content_curator.py`
+- [x] `python -m py_compile main.py services/avatar_intelligence.py services/console_grounding.py services/ollama_service.py services/content_curator.py`
 
 ### Gate B: Unit tests
 
-- [ ] Persona graph loader/validator
-- [ ] Evidence mapping and explain output
-- [ ] Learning report generation
-- [ ] Confidence scoring and policy routing
+- [x] Persona graph loader/validator
+- [x] Evidence mapping and explain output
+- [x] Learning report generation
+- [x] Confidence scoring and policy routing
 
 ### Gate C: Integration tests
 
-- [ ] `--generate --dry-run` with and without new flags
-- [ ] `--curate --dry-run --interactive` learning capture path
-- [ ] Policy routing for `post` and `idea`
-- [ ] Retrieval using persona graph (PROFILE_CONTEXT removed)
+- [ ] `--generate --dry-run` with and without new flags (skipped — user-executed only)
+- [ ] `--curate --dry-run --interactive` learning capture path (skipped — user-executed only)
+- [x] Policy routing for `post` and `idea`
+- [x] Retrieval using persona graph (PROFILE_CONTEXT removed)
 
 ### Gate D: Regression checks
 
-- [ ] Existing truth-gate reason behavior unchanged
-- [ ] Channel formatting constraints still pass (LinkedIn/X/Bluesky/YouTube)
-- [ ] No publish-path regressions when feature disabled
-- [ ] App starts and runs correctly without PROFILE_CONTEXT
+- [x] Existing truth-gate reason behavior unchanged
+- [ ] Channel formatting constraints still pass (LinkedIn/X/Bluesky/YouTube) (user-executed)
+- [ ] No publish-path regressions when feature disabled (user-executed)
+- [x] App starts and runs correctly without PROFILE_CONTEXT
 
 ## Implementation Order (Dependency-Optimized)
 
@@ -306,3 +344,124 @@ Quality constraints:
 
 - Evaluate whether to migrate persona graph to SQLite.
 - Add outcome-aware learning (engagement feedback) in future phase.
+
+---
+
+## Progress Notes
+
+### Epic 0 — 2026-04-10
+
+**Completed:**
+
+- T0.1: Feature branch `feature/avatar-intelligence-learning` created and pushed.
+- T0.2: Baseline dry-run artifacts documented in `tests/fixtures/baseline_run_2026-04-10.md`.
+- T0.3: Acceptance test set (TC-01, TC-02, TC-03) defined in `tests/fixtures/acceptance_test_set.md`.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None.
+
+### Epic 1A — 2026-04-10
+
+**Completed:**
+
+- T1.1: `data/avatar/` directory created with `.gitkeep`.
+- T1.2: `data/avatar/persona_graph.json` seeded (empty valid schema v1.0).
+- T1.3: `data/avatar/narrative_memory.json` seeded (empty valid structure).
+- T1.4: `learning_log.jsonl` append path verified (created on first write, not tracked).
+- T1.5: `services/avatar_intelligence.py` created — compiles and imports cleanly.
+- T1.6: `load_avatar_state()` implemented — valid files load, malformed JSON falls back safely with warnings.
+- T1.7: `normalize_evidence_facts()` with stable `E{idx:03d}-{6-char-hash}` IDs.
+- T1.8: `build_grounding_context()` emits evidence-ID-tagged prompt block.
+- T1.9: `get_grounding_context_for_query()` returns empty string for None/unloaded state (fallback verified).
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** `data/avatar/learning_log.jsonl` is runtime-created (not seeded) — append path verified via test only.
+
+### Epic 1B — 2026-04-10
+
+**Completed:**
+
+- T2.1: `ModerationEvent` dataclass added to `services/avatar_intelligence.py` with all required fields.
+- T2.2: `record_moderation_event()` append-only writer; hooked into `truth_gate()` interactive path in `console_grounding.py`.
+- T2.3: `--avatar-explain` flag added to `main.py`; recognized in `--help`.
+- T2.4: `build_explain_output()` + `format_explain_output()` implemented; emits evidence IDs only when flag enabled.
+- T2.5: `--avatar-learn-report` flag added to `main.py`; exits cleanly after printing report.
+- T2.6: `build_learning_report()` + `format_learning_report()` handle empty, small, and large logs.
+- T2.7: Three rule-based heuristics (domain_term, retrieval_expansion, prompt_length) — advisory only, no config mutation.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** `--avatar-explain` is wired into `--generate` flow only in this phase; `--curate` explain output deferred to integration step when persona graph is populated.
+
+### Epic 1C — 2026-04-10
+
+**Completed:**
+
+- T3.1: `ConfidenceSignals`, `ConfidenceResult` dataclasses + `score_confidence()` weighted scoring function added to `services/avatar_intelligence.py`. Determinism verified.
+- T3.2: `extract_confidence_signals()` populates all 6 signals from truth-gate meta + channel/length data. `TruthGateMeta` + `truth_gate_result()` added to `services/console_grounding.py`; existing `truth_gate()` refactored to call it (backward compatible).
+- T3.3: `decide_publish_mode(policy, confidence, requested_mode)` implements §7.2 matrix (strict/balanced/draft-first). Unknown policy values fall back to balanced with warning.
+- T3.4: `--confidence-policy strict|balanced|draft-first` added to `main.py`. CLI arg passed to `ContentCurator`; env default resolved from `AVATAR_CONFIDENCE_POLICY`.
+- T3.5: `ContentCurator._score_and_route()` helper runs confidence scoring on every generated post. Policy decisions (post/idea/block) enforced before Buffer calls in the single-channel curate path.
+- T3.6: `ConfidenceDecisionEvent` dataclass + `record_confidence_decision()` appends score, route, reason, and dominant_signal to `learning_log.jsonl`.
+- T3.7: `AVATAR_CONFIDENCE_POLICY`, `AVATAR_LEARNING_ENABLED`, `AVATAR_MAX_MEMORY_ITEMS` constants added to `services/shared.py` with validation and safe defaults.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** Confidence assessment in `_score_and_route()` runs `truth_gate_result()` on the already-cleaned post text (assess-only pass). `truth_gate_removed_count` therefore reflects residual issues in the cleaned output, not the pre-gate draft — this is intentional and consistent with the Phase 1C signal design.
+
+### Epic 1D — 2026-04-10
+
+**Completed:**
+
+- T4.1: `NarrativeMemory` dataclass + `load_narrative_memory()`, `update_narrative_memory()`, `trim_narrative_memory()` implemented in `services/avatar_intelligence.py`. Bounded by `AVATAR_MAX_MEMORY_ITEMS`.
+- T4.2: `extract_narrative_updates()` extracts recent themes and claim tokens from successful post output. Memory updated with channel, ssi_component, claim_tokens, and themes after each successful generation.
+- T4.3: `build_continuity_context()` produces a ≤300-char prompt snippet injected into the curate prompt assembly. `continuity_context` param added to `OllamaService.generate_linkedin_post()` and `summarise_for_curation()`.
+- T4.4: `compute_repetition_score()` computes token-overlap ratio against `recent_claims`; wired into `_score_and_route()` as `repetition_penalty` signal in confidence scoring.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None.
+
+### Epic 1E — 2026-04-10
+
+**Completed:**
+
+- T7.1: Real persona data parsed from `.env` PROFILE_CONTEXT — 17 projects, 37 skills, 15 companies, 6 verifiable claims — populated into `data/avatar/persona_graph.json`.
+- T7.2: Schema validation passes; `load_avatar_state()` confirms `is_loaded=True`, 17 projects, 37 skills. Retrieval ranking verified (G7 GovAI tops RAG queries; Answer42 tops Spring Batch queries).
+- T7.3: `evidence_facts_to_project_facts()` adapter added to `avatar_intelligence.py`. `content_curator.py` `__init__` and `_grounding_facts_for_article` updated to load avatar state and use `retrieve_evidence`. `ollama_service.py` `generate_linkedin_post` drops `profile_context` param; `chat_as_persona` replaces it with `grounding_context: str = ""`.
+- T7.4–T7.7: All PROFILE_CONTEXT parsing code removed. `main.py` module-level block deleted (`_PROFILE_CONTEXT_BASE`, `raise ValueError`, `_env_int`, `_assemble_profile_context`, `PROFILE_CONTEXT_MAX_CHARS`, `PROFILE_CONTEXT`). `run_console` and generate path load avatar state internally. `content_curator.py` dead imports removed. `.env.example` and `README.md` updated throughout.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None. App imports cleanly with no `PROFILE_CONTEXT` in environment.
+
+### Epic 2 — 2026-04-10
+
+**Completed:**
+
+- T5.1: Avatar controls block added to `.env.example` — `AVATAR_LEARNING_ENABLED`, `AVATAR_CONFIDENCE_POLICY`, `AVATAR_MAX_MEMORY_ITEMS` — each with inline documentation of valid values, defaults, and behavior description.
+- T5.2: README updated with all three new flags (`--avatar-explain`, `--avatar-learn-report`, `--confidence-policy`) in the usage block, the `## Setup` inline config comment, and the flag reference table.
+- T5.3: "Avatar Intelligence — Explain, Learn, Confidence" operational notes section added to README — runbook-level guidance for each overlay, example commands, and the confidence routing matrix table (`strict` / `balanced` / `draft-first` × High / Medium / Low).
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** None.
+
+### Epic 3 — 2026-04-10
+
+**Completed:**
+
+- T6.1: `tests/test_avatar_state_loader.py` — 20 tests covering `_validate_persona_graph`, `_validate_narrative_memory`, `_load_persona_graph`, `_load_narrative_memory`, and `load_avatar_state` for valid, missing, malformed JSON, and schema-error cases.
+- T6.2: `tests/test_evidence_mapping.py` — 23 tests covering `_make_evidence_id` (stability, format, hash), `normalize_evidence_facts` (field values, company resolution, unloaded state), `evidence_facts_to_project_facts`, `retrieve_evidence` (scoring, fallback, limit), `build_explain_output`, `format_explain_output`, `build_grounding_context`, and `get_grounding_context_for_query`.
+- T6.3: `tests/test_learning_report.py` — 21 tests covering `_load_learning_events` (empty, missing, malformed JSONL skip), `record_moderation_event` (roundtrip, invalid decision guard), `_apply_heuristics` (all three rules, threshold boundaries), `build_learning_report` (counts, sorted reason codes, recommendations), and `format_learning_report`.
+- T6.4: `tests/test_confidence_scoring.py` — 21 tests covering `score_confidence` (determinism, level thresholds high/medium/low, score clamping, dominant signal), `extract_confidence_signals` (zero removal, full removal, coverage cap, zero-sentence guard, unknown reason code), and `decide_publish_mode` (full policy matrix: strict / balanced / draft-first × high / medium / low, unknown-policy fallback).
+- T6.5: `tests/test_integration_flags.py` — 7 tests covering CLI flag presence in `--help` output (`--avatar-explain`, `--avatar-learn-report`, `--confidence-policy` with valid choices), rejection of invalid `--confidence-policy` value, and clean exit of `--avatar-learn-report` with an empty log.
+- T6.6: `tests/test_persona_graph_retrieval.py` — 12 tests against the real `data/avatar/persona_graph.json`: full load (17 projects), evidence ID uniqueness, retrieval quality (G7 GovAI tops RAG query, Answer42 tops Spring Batch query), limit enforcement, unrelated-query fallback, app start without `PROFILE_CONTEXT`, and `os.getenv` migration gate.
+- T6.7: `python -m py_compile` gate — all source and test files compile cleanly.
+- T6.8: `pytest tests/ -v` — **109 passed, 0 failed** in 2.26 s. Truth-gate reason semantics (`unsupported_numeric`, `unsupported_year`, `project_claim`, etc.) verified unchanged.
+
+**Blockers/Risks:** None.
+
+**Scope adjustments:** Added `pytest>=9.0.0` to `requirements.txt` (was absent). The PROFILE_CONTEXT migration gate in T6.6 checks for `os.getenv("PROFILE_CONTEXT")` absence rather than string absence — the legacy `parse_profile_project_facts` utility and its docstring are retained in `console_grounding.py` as a non-retrieval helper.

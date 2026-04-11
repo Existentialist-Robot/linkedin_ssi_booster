@@ -45,169 +45,169 @@ Operating rules:
 
 ## Epic 0: Setup and Baseline
 
-- [ ] T0.1 Create feature branch
+- [x] T0.1 Create feature branch
   - Depends on: none
   - Verify: branch exists and is active
-- [ ] T0.2 Collect user-provided baseline run artifacts for compare set
+- [x] T0.2 Collect user-provided baseline run artifacts for compare set
   - Depends on: T0.1
   - Verify: baseline artifacts are attached/available from user-run workflows (no agent app-run execution)
-- [ ] T0.3 Define acceptance prompt/article set for regression checks
+- [x] T0.3 Define acceptance prompt/article set for regression checks
   - Depends on: T0.1
   - Verify: test cases documented and reusable
 
 ## Epic 1A: Persona Graph Foundation
 
-- [ ] T1.1 Add avatar data directory scaffolding
+- [x] T1.1 Add avatar data directory scaffolding
   - Depends on: T0.1
   - Verify: `data/avatar/` created with required seed files
-- [ ] T1.2 Add seed file `persona_graph.json`
+- [x] T1.2 Add seed file `persona_graph.json`
   - Depends on: T1.1
   - Verify: valid JSON parse
-- [ ] T1.3 Add seed file `narrative_memory.json`
+- [x] T1.3 Add seed file `narrative_memory.json`
   - Depends on: T1.1
   - Verify: valid JSON parse
-- [ ] T1.4 Add learning log creation path (`learning_log.jsonl`)
+- [x] T1.4 Add learning log creation path (`learning_log.jsonl`)
   - Depends on: T1.1
   - Verify: append path works and file is newline-delimited JSON
-- [ ] T1.5 Create module `services/avatar_intelligence.py`
+- [x] T1.5 Create module `services/avatar_intelligence.py`
   - Depends on: T1.2, T1.3
   - Verify: module imports without errors
-- [ ] T1.6 Implement avatar state loader + validation
+- [x] T1.6 Implement avatar state loader + validation
   - Depends on: T1.5
   - Verify: valid files load; malformed files fallback safely
-- [ ] T1.7 Implement evidence fact normalization and ID assignment
+- [x] T1.7 Implement evidence fact normalization and ID assignment
   - Depends on: T1.6
   - Verify: IDs stable per run for same input order
-- [ ] T1.8 Implement grounding context builder from evidence facts
+- [x] T1.8 Implement grounding context builder from evidence facts
   - Depends on: T1.7
   - Verify: prompt block emitted with expected fact coverage
-- [ ] T1.9 Integrate graph-backed retrieval path in startup flow
+- [x] T1.9 Integrate graph-backed retrieval path in startup flow
   - Depends on: T1.8
   - Verify: runs with and without graph files produce expected fallback behavior
 
 ## Epic 1B: Learning Capture and Explainability
 
-- [ ] T2.1 Add interactive moderation event model
+- [x] T2.1 Add interactive moderation event model
   - Depends on: T1.5
   - Verify: event includes timestamp/channel/reason/decision/hash/runId
-- [ ] T2.2 Hook truth-gate interactive decisions into learning log writer
+- [x] T2.2 Hook truth-gate interactive decisions into learning log writer
   - Depends on: T2.1
   - Verify: each decision appends one valid JSONL record
-- [ ] T2.3 Add CLI flag `--avatar-explain`
+- [x] T2.3 Add CLI flag `--avatar-explain`
   - Depends on: T1.9
   - Verify: flag is recognized and help text updated
-- [ ] T2.4 Emit explain output (evidence IDs + support summary)
+- [x] T2.4 Emit explain output (evidence IDs + support summary)
   - Depends on: T2.3
   - Verify: explain output appears only when flag enabled
-- [ ] T2.5 Add CLI flag `--avatar-learn-report`
+- [x] T2.5 Add CLI flag `--avatar-learn-report`
   - Depends on: T2.2
   - Verify: flag is recognized and command path exits cleanly
-- [ ] T2.6 Implement learning report aggregation
+- [x] T2.6 Implement learning report aggregation
   - Depends on: T2.5
   - Verify: report handles empty, small, and large logs
-- [ ] T2.7 Add recommendation heuristics (advisory-only)
+- [x] T2.7 Add recommendation heuristics (advisory-only)
   - Depends on: T2.6
   - Verify: outputs suggestions without mutating config files
 
 ## Epic 1C: Confidence Scoring and Policy
 
-- [ ] T3.1 Define confidence signal model and score function
+- [x] T3.1 Define confidence signal model and score function
   - Depends on: T1.8, T2.2
   - Verify: deterministic score output for fixed inputs
-- [ ] T3.2 Implement signal extraction from generation + truth gate
+- [x] T3.2 Implement signal extraction from generation + truth gate
   - Depends on: T3.1
   - Verify: all required signals populated
-- [ ] T3.3 Add policy decision function (`strict|balanced|draft-first`)
+- [x] T3.3 Add policy decision function (`strict|balanced|draft-first`)
   - Depends on: T3.1
   - Verify: policy matrix behaves as specified for high/medium/low
-- [ ] T3.4 Add CLI flag `--confidence-policy`
+- [x] T3.4 Add CLI flag `--confidence-policy`
   - Depends on: T3.3
   - Verify: invalid values fallback with warning
-- [ ] T3.5 Enforce confidence policy in curate publish path
+- [x] T3.5 Enforce confidence policy in curate publish path
   - Depends on: T3.4
   - Verify: post/idea/block routing follows policy
-- [ ] T3.6 Integrate decision reason logging
+- [x] T3.6 Integrate decision reason logging
   - Depends on: T3.5
   - Verify: logs include score + reason + route
-- [ ] T3.7 Add env defaults and wiring in config/shared layer
+- [x] T3.7 Add env defaults and wiring in config/shared layer
   - Depends on: T3.4
   - Verify: defaults apply when env vars absent
 
 ## Epic 1D: Narrative Continuity Memory
 
-- [ ] T4.1 Implement narrative memory read/update/trim operations
+- [x] T4.1 Implement narrative memory read/update/trim operations
   - Depends on: T1.6
   - Verify: bounded memory persists across runs
-- [ ] T4.2 Extract recent themes/claims from successful outputs
+- [x] T4.2 Extract recent themes/claims from successful outputs
   - Depends on: T4.1
   - Verify: memory updates with expected fields
-- [ ] T4.3 Inject continuity snippets into prompt assembly
+- [x] T4.3 Inject continuity snippets into prompt assembly
   - Depends on: T4.2
   - Verify: prompt includes continuity context within budget
-- [ ] T4.4 Add repetition signal into confidence scoring
+- [x] T4.4 Add repetition signal into confidence scoring
   - Depends on: T4.3, T3.1
   - Verify: near-duplicate drafts reduce confidence score
 
 ## Epic 1E: PROFILE_CONTEXT Migration
 
-- [ ] T7.1 Parse PROFILE_CONTEXT into persona graph entities
+- [x] T7.1 Parse PROFILE_CONTEXT into persona graph entities
   - Depends on: T1.6
   - Verify: persona graph contains all parseable projects/companies/skills from PROFILE_CONTEXT
-- [ ] T7.2 Populate and commit persona_graph.json
+- [x] T7.2 Populate and commit persona_graph.json
   - Depends on: T7.1
   - Verify: output passes schema validation; entity counts match expectations
-- [ ] T7.3 Switch retrieval to persona graph as sole identity source
+- [x] T7.3 Switch retrieval to persona graph as sole identity source
   - Depends on: T7.2, T1.9
   - Verify: retrieval uses graph facts; PROFILE_CONTEXT is not parsed for identity
-- [ ] T7.4 Remove PROFILE_CONTEXT parsing code from retrieval path
+- [x] T7.4 Remove PROFILE_CONTEXT parsing code from retrieval path
   - Depends on: T7.3
   - Verify: no PROFILE_CONTEXT text parsing remains in console_grounding.py retrieval
-- [ ] T7.5 Remove PROFILE_CONTEXT from .env and .env.example
+- [x] T7.5 Remove PROFILE_CONTEXT from .env and .env.example
   - Depends on: T7.4
   - Verify: app starts and runs without PROFILE_CONTEXT
-- [ ] T7.6 Remove PROFILE_CONTEXT_MAX_CHARS and related env var references
+- [x] T7.6 Remove PROFILE_CONTEXT_MAX_CHARS and related env var references
   - Depends on: T7.5
   - Verify: no references to PROFILE_CONTEXT or PROFILE_CONTEXT_MAX_CHARS in code or config
-- [ ] T7.7 Remove PROFILE_CONTEXT loading code from main.py and services
+- [x] T7.7 Remove PROFILE_CONTEXT loading code from main.py and services
   - Depends on: T7.6
   - Verify: no dead PROFILE_CONTEXT code remains
 
 ## Epic 2: Docs and Config Alignment
 
-- [ ] T5.1 Update `.env.example` with avatar controls
+- [x] T5.1 Update `.env.example` with avatar controls
   - Depends on: T3.7, T7.6
   - Verify: new env vars documented with defaults and behavior; PROFILE_CONTEXT removed
-- [ ] T5.2 Update README command/options and behavior sections
+- [x] T5.2 Update README command/options and behavior sections
   - Depends on: T2.4, T2.6, T3.5, T7.7
   - Verify: docs match implemented flags and routing behavior; persona graph documented as identity source
-- [ ] T5.3 Add operational notes for explain/report/confidence workflow
+- [x] T5.3 Add operational notes for explain/report/confidence workflow
   - Depends on: T5.2
   - Verify: runbook-level guidance present
 
 ## Epic 3: Testing and Validation
 
-- [ ] T6.1 Add unit tests for avatar state loader and schema validation
+- [x] T6.1 Add unit tests for avatar state loader and schema validation
   - Depends on: T1.6
   - Verify: pass on valid and malformed fixtures
-- [ ] T6.2 Add unit tests for evidence mapping and explain output
+- [x] T6.2 Add unit tests for evidence mapping and explain output
   - Depends on: T1.7, T2.4
   - Verify: deterministic and correct mapping
-- [ ] T6.3 Add unit tests for learning report and recommendation rules
+- [x] T6.3 Add unit tests for learning report and recommendation rules
   - Depends on: T2.7
   - Verify: expected suggestions from synthetic logs
-- [ ] T6.4 Add unit tests for confidence scoring and policy routing
+- [x] T6.4 Add unit tests for confidence scoring and policy routing
   - Depends on: T3.5
   - Verify: thresholds and routes pass matrix tests
-- [ ] T6.5 Add integration tests for generate/curate with new flags
+- [x] T6.5 Add integration tests for generate/curate with new flags
   - Depends on: T2.4, T3.5
   - Verify: end-to-end flows complete without regression
-- [ ] T6.6 Add integration tests for persona graph retrieval cutover
+- [x] T6.6 Add integration tests for persona graph retrieval cutover
   - Depends on: T7.7
   - Verify: retrieval with persona graph active, app runs without PROFILE_CONTEXT
-- [ ] T6.7 Run syntax compilation gate
+- [x] T6.7 Run syntax compilation gate
   - Depends on: T6.1-T6.6
   - Verify: `python -m py_compile` passes for changed Python files
-- [ ] T6.8 Run regression checks for existing truth-gate behavior
+- [x] T6.8 Run regression checks for existing truth-gate behavior
   - Depends on: T6.5, T6.6
   - Verify: no breaking change in existing reason semantics
 

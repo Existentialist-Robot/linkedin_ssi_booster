@@ -7,9 +7,13 @@ deterministic cited answers without additional model calls.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass  # avoid circular import; avatar_intelligence imported lazily inside truth_gate
 
 
 DEFAULT_TECH_KEYWORDS = {
@@ -89,6 +93,15 @@ class ProjectFact:
     details: str
     source: str
     tags: set[str]
+
+
+@dataclass
+class TruthGateMeta:
+    """Metadata about what truth_gate evaluated — used for confidence scoring (Phase 1C)."""
+
+    removed_count: int
+    total_sentences: int
+    reason_codes: list[str] = field(default_factory=list)  # one entry per removed sentence
 
 
 @dataclass
@@ -347,29 +360,25 @@ def _check_project_claim(
     return None
 
 
-def truth_gate(
+def truth_gate_result(
     text: str,
     article_text: str,
     facts: list[ProjectFact],
     interactive: bool = False,
-) -> str:
-    """Lightweight post-generation truth gate.
+    article_ref: str = "",
+    channel: str = "linkedin",
+) -> tuple[str, TruthGateMeta]:
+    """Truth gate that returns both the filtered text and scoring metadata.
 
-    Scans each sentence in *text* for:
-    1. Numeric claims, year references, dollar amounts, and company-name
-       patterns whose key token does NOT appear in the article or facts.
-    2. Project-technology misattributions — when a sentence names a known
-       project but pairs it with a tech keyword that does not appear in
-       that project's detail or the article text.  Domain-wide terms
-       (configurable via ``TRUTH_GATE_DOMAIN_TERMS``) are always allowed.
+    Identical logic to :func:`truth_gate` but also returns a :class:`TruthGateMeta`
+    with removed_count, total_sentences, and reason_codes so callers can feed
+    the metadata into confidence scoring (Phase 1C).
 
-    When *interactive* is True, each flagged sentence is presented to the
-    user for confirmation before removal.
-
-    Returns the filtered text (may be identical to input if nothing was stripped).
+    When *interactive* is True, user decisions are still recorded to the
+    learning log exactly as in :func:`truth_gate`.
     """
     if not text:
-        return text
+        return text, TruthGateMeta(removed_count=0, total_sentences=0)
 
     allowed = _build_allowed_tokens(article_text, facts)
     tech_keywords = get_console_grounding_keywords()
@@ -382,7 +391,6 @@ def truth_gate(
     for sentence in sentences:
         reason: str | None = None
 
-        # Check numeric claims
         for m in _NUMERIC_CLAIM_RE.finditer(sentence):
             full_token = m.group(0).lower().strip()
             num_token = re.match(r"[\d,.]+", m.group(0))
@@ -390,14 +398,12 @@ def truth_gate(
                 reason = f"unsupported_numeric: '{m.group(0)}'"
                 break
 
-        # Check year references
         if not reason:
             for m in _YEAR_RE.finditer(sentence):
                 if m.group(0) not in allowed:
                     reason = f"unsupported_year: '{m.group(0)}'"
                     break
 
-        # Check dollar amounts
         if not reason:
             for m in _DOLLAR_RE.finditer(sentence):
                 nearby = sentence[m.start():m.start()+20]
@@ -406,20 +412,17 @@ def truth_gate(
                     reason = f"unsupported_dollar: '{nearby.strip()}'"
                     break
 
-        # Check org-name patterns ("at SomeCompany", "for BigCorp")
         if not reason:
             for m in _ORG_NAME_RE.finditer(sentence):
                 if m.group(1).lower() not in allowed:
                     reason = f"unsupported_org: '{m.group(1)}'"
                     break
 
-        # Semantic project-claim check (domain terms are exempt)
         if not reason:
             reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
 
         if reason:
             if interactive:
-                # Present full sentence and reason to user for confirmation
                 print(f"\n⚠️  Truth gate flagged sentence:")
                 print(f"    Reason : {reason}")
                 print(f"    Sentence: {sentence}")
@@ -427,27 +430,77 @@ def truth_gate(
                     answer = input("    Remove this sentence? [y/N]: ").strip().lower()
                 except (EOFError, KeyboardInterrupt):
                     answer = "n"
-                if answer in ("y", "yes"):
+                user_removed = answer in ("y", "yes")
+                if user_removed:
                     removed.append((sentence, reason))
                 else:
                     kept.append(sentence)
+                decision = "removed" if user_removed else "kept"
+                try:
+                    from services.avatar_intelligence import record_moderation_event
+                    record_moderation_event(
+                        sentence=sentence,
+                        reason_code=reason.split(":")[0],
+                        decision=decision,
+                        channel=channel,
+                        article_ref=article_ref,
+                    )
+                except Exception as _log_exc:  # noqa: BLE001
+                    _truth_logger.warning("Failed to record moderation event: %s", _log_exc)
             else:
                 removed.append((sentence, reason))
         else:
             kept.append(sentence)
 
-    # Log each removed sentence with its full text and reason code
     if removed:
         for full_sentence, reason in removed:
-            _truth_logger.info(
-                "Truth gate removed [%s]: %s",
-                reason,
-                full_sentence,
-            )
+            _truth_logger.info("Truth gate removed [%s]: %s", reason, full_sentence)
         _truth_logger.info(
             "Truth gate summary: removed %d of %d sentences",
             len(removed),
             len(sentences),
         )
 
-    return " ".join(kept).strip()
+    meta = TruthGateMeta(
+        removed_count=len(removed),
+        total_sentences=len(sentences),
+        reason_codes=[r.split(":")[0] for _, r in removed],
+    )
+    return " ".join(kept).strip(), meta
+
+
+def truth_gate(
+    text: str,
+    article_text: str,
+    facts: list[ProjectFact],
+    interactive: bool = False,
+    article_ref: str = "",
+    channel: str = "linkedin",
+) -> str:
+    """Lightweight post-generation truth gate.
+
+    Scans each sentence in *text* for:
+    1. Numeric claims, year references, dollar amounts, and company-name
+       patterns whose key token does NOT appear in the article or facts.
+    2. Project-technology misattributions — when a sentence names a known
+       project but pairs it with a tech keyword that does not appear in
+       that project's detail or the article text.  Domain-wide terms
+       (configurable via ``TRUTH_GATE_DOMAIN_TERMS``) are always allowed.
+
+    When *interactive* is True, each flagged sentence is presented to the
+    user for confirmation before removal.  Interactive decisions are recorded
+    in the avatar learning log when the avatar module is available.
+
+    *article_ref* and *channel* are forwarded to the learning log for context.
+
+    Returns the filtered text (may be identical to input if nothing was stripped).
+    """
+    filtered, _ = truth_gate_result(
+        text=text,
+        article_text=article_text,
+        facts=facts,
+        interactive=interactive,
+        article_ref=article_ref,
+        channel=channel,
+    )
+    return filtered
