@@ -78,7 +78,7 @@ Every generated post is plain text — there's no audio or special format involv
 "Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
 
 **1. Your persona graph (`data/avatar/persona_graph.json`)**  
-The authoritative identity source for every generated post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Edited directly in the repo — no env var required. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
+The authoritative identity source for every generated post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Copy from `data/avatar/persona_graph.example.json`, fill in your own details, and edit directly in the repo — no env var required. Gitignored so your personal career data stays private. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
 GitHub enrichment details:
 
@@ -363,7 +363,6 @@ pip install -r requirements.txt
 # Configure API keys and persona
 cp .env.example .env
 # Edit .env and fill in ALL required values:
-#   data/avatar/persona_graph.json → your name, role, projects (edit directly — no env var needed)
 #   PERSONA_SYSTEM_PROMPT → your voice/persona (template in .env.example)
 #   BUFFER_API_KEY        → https://publish.buffer.com/settings/api
 #   OLLAMA_BASE_URL       → default: http://localhost:11434
@@ -372,9 +371,8 @@ cp .env.example .env
 #
 # Optional — Bluesky stats (--bsky-stats):
 #   BLUESKY_HANDLE       → your handle, e.g. you.bsky.social (optional, only if using Bluesky integration)
-
 #   BLUESKY_APP_PASSWORD → generate at bsky.app → Settings → App Passwords (optional, only if using Bluesky integration)
-
+#
 # Optional — GitHub context enrichment and prompt budget tuning:
 #   GITHUB_USER                  → GitHub username (enables repo enrichment)
 #   GITHUB_TOKEN                 → optional token (higher API limits)
@@ -390,6 +388,16 @@ cp .env.example .env
 #   AVATAR_LEARNING_ENABLED    → true/false — enable learning log and narrative memory (default true)
 #   AVATAR_CONFIDENCE_POLICY   → strict|balanced|draft-first — curate routing policy (default balanced)
 #   AVATAR_MAX_MEMORY_ITEMS    → max narrative memory items before trimming (default 200)
+
+# Set up your persona graph (gitignored — keeps your personal data private)
+cp data/avatar/persona_graph.example.json data/avatar/persona_graph.json
+cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
+# Edit data/avatar/persona_graph.json and replace ALL placeholder fields with your real data:
+#   person   → your name, title, location, links
+#   companies → employers and clients (id + name + aliases)
+#   skills   → technologies you use (id + name + aliases + scope)
+#   projects  → real projects with years, details, skill refs, and aliases
+#   claims   → verifiable factual statements tied to specific projects
 
 # Set up your personal content calendar (gitignored — keeps your strategy private)
 cp content_calendar.example.py content_calendar.py
@@ -698,6 +706,13 @@ linkedin_ssi_booster/
 ├── scheduler.py               # Buffer post scheduling logic
 ├── requirements.txt
 ├── .env.example               # Template — copy to .env and fill in keys/persona
+├── data/
+│   └── avatar/
+│       ├── persona_graph.example.json    # Template — copy to persona_graph.json and fill in your details
+│       ├── narrative_memory.example.json # Template — copy to narrative_memory.json
+│       ├── persona_graph.json            # Your identity graph (gitignored — personal data)
+│       ├── narrative_memory.json         # Runtime narrative memory (gitignored)
+│       └── learning_log.jsonl            # Runtime moderation log (gitignored, auto-created)
 ├── tests/
 │   ├── conftest.py            # Shared fixtures (minimal persona graph + narrative memory)
 │   ├── test_avatar_state_loader.py

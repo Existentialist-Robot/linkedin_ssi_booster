@@ -56,3 +56,12 @@ ssi_history.json
 
 # Personal content — gitignored, copy from content_calendar.example.py
 content_calendar.py
+
+# Avatar identity data — personal career facts, runtime memory, and learning log.
+# Gitignored so forks don't expose real personal data.
+# Copy the examples and fill in your own details:
+#   cp data/avatar/persona_graph.example.json data/avatar/persona_graph.json
+#   cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
+data/avatar/persona_graph.json
+data/avatar/narrative_memory.json
+data/avatar/learning_log.jsonl

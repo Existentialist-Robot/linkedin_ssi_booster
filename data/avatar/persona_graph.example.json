@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0",
+  "person": {
+    "name": "Your Full Name",
+    "title": "Your Title",
+    "location": "Your City/Remote",
+    "links": [
+      "github.com/your-username",
+      "your-portfolio-site.com",
+      "linkedin.com/in/your-handle"
+    ]
+  },
+  "companies": [
+    { "id": "personal",    "name": "Personal / Independent", "aliases": ["independent", "freelance"] },
+    { "id": "company-a",   "name": "Company A",              "aliases": ["company a", "alias a"] },
+    { "id": "company-b",   "name": "Company B",              "aliases": ["company b", "alias b"] }
+  ],
+  "skills": [
+    { "id": "skill-1", "name": "Skill One",   "aliases": ["alias 1", "alias 1b"], "scope": "domain" },
+    { "id": "skill-2", "name": "Skill Two",   "aliases": ["alias 2"],             "scope": "domain" },
+    { "id": "skill-3", "name": "Skill Three", "aliases": [],                       "scope": "project_specific" }
+  ],
+  "projects": [
+    {
+      "id": "project-recent",
+      "name": "Your Most Recent Project",
+      "companyId": "personal",
+      "years": "2025",
+      "details": "What you built, key outcomes, and specific numbers. Tech: Language, Framework, Tool.",
+      "skills": ["skill-1", "skill-2"],
+      "aliases": ["short name", "other way people refer to it"]
+    },
+    {
+      "id": "project-legacy",
+      "name": "Legacy / Employer Project",
+      "companyId": "company-a",
+      "years": "2015-2023",
+      "details": "What you did at scale. Specific numbers. Key tech. Hard boundary note if relevant (e.g. no AI/LLM component).",
+      "skills": ["skill-3"],
+      "aliases": ["alternate name"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-1",
+      "text": "A verifiable factual claim about your work — specific numbers, outcomes, or credentials.",
+      "projectIds": ["project-recent"],
+      "confidenceHint": "high"
+    },
+    {
+      "id": "claim-2",
+      "text": "Another verifiable claim, ideally tied to a specific project and outcome.",
+      "projectIds": ["project-legacy"],
+      "confidenceHint": "high"
+    }
+  ]
+}
