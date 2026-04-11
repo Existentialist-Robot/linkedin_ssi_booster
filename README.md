@@ -20,6 +20,29 @@ Automates LinkedIn post generation and scheduling via local Ollama to systematic
 
 **Result:**
 You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency and control.
+
+## 🔍 Learning, Grounding, and Explainability Pipeline
+
+**How the system learns and adapts:**
+
+- **Candidate logging:** Every generated post and curated article candidate is logged, including source, topic, and all relevant metadata. This creates a full audit trail of what the system considered, not just what was published.
+- **Reconciliation & learning:** When you publish or reject posts (via Buffer or moderation), the system reconciles what actually went live. It updates acceptance rates (priors) for each source, topic, and SSI component, so future curation floats the best-performing sources and topics to the top.
+- **Ranking:** Article and post candidates are ranked using a combination of acceptance priors and BM25 retrieval scores, so the system learns your preferences over time and adapts what it suggests.
+
+**How deterministic grounding and the truth gate work:**
+
+- **Fact retrieval:** For every post or answer, the system retrieves relevant facts from your persona graph (projects, skills, outcomes) using BM25Okapi — a production-grade IR algorithm. This ensures rare, high-signal skills and projects are prioritized.
+- **Prompt balance rules:** Prompts require every factual claim to be grounded in either the article or your persona facts. Personal references are capped, and invented stats/dates/companies are forbidden.
+- **Truth gate:** After generation, a deterministic filter removes any sentence with unsupported numbers, dates, company names, or project-tech mismatches unless the claim is found in your evidence. This keeps outputs credible and on-brand.
+
+**Explainability and transparency:**
+
+- **Avatar explain mode:** Use `--avatar-explain` to see which facts grounded each post, so you know exactly where every claim came from.
+- **Learning reports:** Use `--avatar-learn-report` to print a summary of what the system has learned from your moderation and publishing history — see which sources, topics, and angles are working best.
+- **All learning data is local:** No cloud logging or external analytics — all logs, priors, and learning data are stored locally and gitignored for privacy.
+
+**Bottom line:**
+You get a transparent, adaptive, and fully auditable content engine that not only generates posts, but learns from your real publishing decisions and gives you full control over what gets scheduled, published, or blocked.
 ## What is the LinkedIn SSI?
 
 The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
