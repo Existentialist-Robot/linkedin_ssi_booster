@@ -350,6 +350,34 @@ AVATAR_CONFIDENCE_POLICY=balanced
 
 The `--interactive` flag works at a different layer — it lets you manually approve/reject individual truth-gate removals sentence by sentence, regardless of the confidence policy.
 
+#### Agent memory — preventing post repetition
+
+Every time a post is successfully generated or curated, the tool automatically updates `data/avatar/narrative_memory.json` with two things extracted from that post:
+
+- **Themes** — the key non-stopword tokens from the SSI component label and article title (e.g. `rag`, `retrieval`, `govtech`). Up to 10 per post, deduplicated.
+- **Claims** — sentences from the post body that match bold-assertion patterns (`"the key is"`, `"you should"`, `"will replace"`, `"is the most important"`, etc.). Up to 5 per post.
+
+Both lists are FIFO-trimmed to `AVATAR_MAX_MEMORY_ITEMS` (default 200) — oldest entries drop off as new ones are added.
+
+**How it helps generation quality:**
+
+The memory feeds back into every subsequent prompt in two ways:
+
+1. **Continuity hint** — the last 5 themes and 3 open arcs are injected into the prompt as a brief sentence before the main instruction: _"Recent topics you have written about: rag, govtech, retrieval…"_. This nudges the model to take a different angle rather than repeating the same framing.
+
+2. **Repetition penalty** — before scheduling, a `narrative_repetition_score` is computed: the fraction of recent stored claims whose key tokens overlap ≥ 50% with the new post. That score is fed into the confidence scoring formula (up to −0.10 on the final score), which can push a borderline post from `post` routing to `idea` routing under the `balanced` policy.
+
+Over weeks of use, this means the tool naturally diversifies your content — the same "RAG is the key to reliable AI" framing stops getting direct-posted and starts landing in the Ideas board for you to rework.
+
+**Controls:**
+
+```
+AVATAR_LEARNING_ENABLED=true        # set to false to disable all memory writes
+AVATAR_MAX_MEMORY_ITEMS=200         # max items per list before FIFO trim
+```
+
+The memory file is gitignored (`data/avatar/narrative_memory.json`). It only exists locally on your machine and is seeded from `data/avatar/narrative_memory.example.json` during setup.
+
 ## Setup
 
 ```bash
