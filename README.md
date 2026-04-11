@@ -65,12 +65,12 @@ You control whether curated content is reviewed before publishing or scheduled d
 
 This project is not just a single prompt call. It operates as a practical hybrid RAG + agent-style pipeline:
 
-- **Retrieval grounding**: profile facts are parsed and ranked per topic/article before generation.
+- **Retrieval grounding**: profile facts are scored and ranked per topic/article using **BM25Okapi** — the same algorithm used in production RAG systems (Elasticsearch, Lucene, OpenSearch). Rare, domain-specific skills score sharply higher than common words, so a query like `"Python"` doesn't pull in every project equally.
 - **Generation orchestration**: channel-aware generation rules are applied for LinkedIn/X/Bluesky/YouTube.
 - **Deterministic validation**: a truth gate removes unsupported numeric/date/company claim sentences post-generation.
 - **Operational automation**: curation, scheduling, and SSI-targeted content balancing are executed end-to-end.
 
-In short: retrieve relevant facts, generate with strict context, validate deterministically, then publish/schedule through Buffer.
+In short: retrieve relevant facts with BM25, generate with strict context, validate deterministically, then publish/schedule through Buffer.
 
 ## How post personalisation works
 
@@ -157,7 +157,7 @@ Large models are strong at style but can still invent plausible-sounding backgro
 2. Detect constraints from the request  
    Query intent is analyzed for project/company lookups and technology tags (for example Java, Spring, RAG, Neo4j).
 3. Retrieve relevant facts  
-   Facts are ranked and a top subset is selected for the current request.
+   Facts are ranked using **BM25Okapi** (`rank_bm25`) — a probabilistic IR algorithm that accounts for term-frequency saturation (a skill appearing many times doesn't keep adding score) and inverse document frequency (a rare skill like `fastmcp` scores sharply higher than a common one like `python`). The BM25 corpus is built per-query from all persona graph projects; skills are weighted 3× in the document tokens to reflect their signal value. Falls back to hand-weighted keyword overlap if `rank_bm25` is not installed.
 4. Apply balance rules in prompts (`--generate` and `--curate`)  
    The model is told that every factual claim must come from the article or profile facts. Personal references are capped at one per post. Invented stats, dates, and company names are explicitly forbidden. If the model mentions a specific project by name, it may only attribute technologies that appear in that project's detail field.
 5. Post-process output with the truth gate  
