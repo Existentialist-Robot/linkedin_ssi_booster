@@ -23,6 +23,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from rank_bm25 import BM25Okapi as _BM25Okapi
+    _BM25_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _BM25_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -381,6 +387,19 @@ def evidence_facts_to_project_facts(facts: list[EvidenceFact]) -> list[Any]:
 # ---------------------------------------------------------------------------
 
 
+def _fact_tokens(fact: EvidenceFact) -> list[str]:
+    """Build the BM25 document token list for one evidence fact.
+
+    Concatenates project name, company, years, detail text, and skill names
+    so the corpus field reflects everything the fact can match against.
+    Skill tokens are repeated three times to weight them above plain detail
+    words without hard-coded per-field multipliers.
+    """
+    base = f"{fact.project} {fact.company} {fact.years} {fact.details}"
+    skill_boost = " ".join(fact.skills * 3)  # repeat for IDF weight boost
+    return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + skill_boost).lower())
+
+
 def retrieve_evidence(
     query: str,
     facts: list[EvidenceFact],
@@ -388,17 +407,46 @@ def retrieve_evidence(
 ) -> list[EvidenceFact]:
     """Score and retrieve the most relevant evidence facts for a query.
 
-    Scoring:
-    - +10 per skill keyword matched in query
-    - +5 for project name/alias match in query
-    - +3 per query word found in details
-    - +2 extra for richer detail text
+    Uses BM25Okapi (rank_bm25) when available — accounts for term-frequency
+    saturation and corpus-level IDF so rare skills score higher than common
+    words like 'python'.  Falls back to hand-weighted keyword overlap when
+    rank_bm25 is not installed.
 
     Returns up to *limit* facts; falls back to all facts when nothing scores.
     """
     if not facts:
         return []
 
+    if _BM25_AVAILABLE:
+        return _retrieve_evidence_bm25(query, facts, limit)
+    return _retrieve_evidence_fallback(query, facts, limit)
+
+
+def _retrieve_evidence_bm25(
+    query: str,
+    facts: list[EvidenceFact],
+    limit: int,
+) -> list[EvidenceFact]:
+    """BM25Okapi-backed retrieval path."""
+    corpus = [_fact_tokens(f) for f in facts]
+    bm25 = _BM25Okapi(corpus)
+    q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
+    scores: list[float] = bm25.get_scores(q_tokens).tolist()
+
+    ranked = sorted(zip(scores, facts), key=lambda x: x[0], reverse=True)
+    top = [f for s, f in ranked if s > 0.0][:limit]
+    if top:
+        return top
+    # nothing scored — return top-N by raw order (all facts are equally unknown)
+    return [f for _, f in ranked[:limit]]
+
+
+def _retrieve_evidence_fallback(
+    query: str,
+    facts: list[EvidenceFact],
+    limit: int,
+) -> list[EvidenceFact]:
+    """Hand-weighted keyword fallback used when rank_bm25 is not installed."""
     q_lower = query.lower()
     q_words = set(q_lower.split())
 
@@ -417,7 +465,6 @@ def retrieve_evidence(
         detail_words = set(fact.details.lower().split())
         overlap = q_words & detail_words
         score += len(overlap) * 3
-
         score += min(len(fact.details) // 100, 2)
 
         scored.append((score, fact))
