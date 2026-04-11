@@ -585,7 +585,10 @@ class ContentCurator:
                             post_text, ssi_component, article["title"]
                         )
                         self._narrative_memory = update_narrative_memory(
-                            self._narrative_memory, **_updates
+                            self._narrative_memory,
+                            themes=_updates["themes"],
+                            claims=_updates["claims"],
+                            arcs=_updates["arcs"],
                         )
                         save_narrative_memory(self._narrative_memory)
                 except Exception as _mem_exc:
