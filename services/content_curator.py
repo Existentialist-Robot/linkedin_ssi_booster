@@ -1,3 +1,4 @@
+
 """
 Content Curator
 Fetches AI/GovTech news from RSS feeds and GitHub, 
@@ -27,11 +28,44 @@ from services.console_grounding import (
     truth_gate_result,
 )
 
+
+CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
+
 logger = logging.getLogger(__name__)
 
 # Stable run identifier — shared across all candidates logged in this process.
 _CURATE_RUN_ID: str = str(uuid.uuid4())
 
+# --- Fetch relevant articles from RSS feeds ---
+def fetch_relevant_articles(max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
+    """Fetch recent articles matching our keyword list."""
+    articles = []
+    for feed_info in RSS_FEEDS:
+        try:
+            feed = feedparser.parse(feed_info["url"])
+            for entry in feed.entries[:max_per_feed]:
+                title   = str(entry.get("title") or "")
+                summary = str(entry.get("summary") or "")
+                link    = str(entry.get("link") or "")
+                content = f"{title} {summary}".lower()
+
+                if any(kw.lower() in content for kw in KEYWORDS):
+                    # Enrich summary at collection time so the AI always has text to work with
+                    if len(summary.strip()) < 100 and link:
+                        logger.debug(f"RSS summary empty for '{title[:50]}' — fetching URL")
+                        summary = ContentCurator._fetch_article_text(link)
+                    articles.append({
+                        "source": feed_info["name"],
+                        "title":  title,
+                        "summary": summary,
+                        "link":   link,
+                        "published": entry.get("published", "")
+                    })
+                    logger.info(f"  Matched: [{feed_info['name']}] {title[:60]}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch {feed_info['name']}: {e}")
+    logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
+    return articles
 
 def _truncate_at_sentence(text: str, budget: int) -> str:
     """Ensure *text* fits within *budget* chars AND ends on a complete sentence.
@@ -243,7 +277,8 @@ class ContentCurator:
         titles.add(title)
         IDEAS_CACHE_PATH.write_text(json.dumps(sorted(titles), indent=2))
 
-    def _fetch_article_text(self, url: str, max_chars: int = 3000) -> str:
+    @staticmethod
+    def _fetch_article_text(url: str, max_chars: int = 3000) -> str:
         """Fetch a URL and return plain text (script/style stripped). Used when RSS has no summary."""
         try:
             resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
@@ -280,6 +315,7 @@ class ContentCurator:
                 record_confidence_decision,
                 compute_repetition_score,
             )
+
             from services.shared import AVATAR_LEARNING_ENABLED
 
             # T4.4: repetition signal from narrative memory
@@ -331,40 +367,21 @@ class ContentCurator:
                 exc,
             )
             return requested_mode, "confidence scoring unavailable — using requested mode"
-
-    def fetch_relevant_articles(self, max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
-        """Fetch recent articles matching our keyword list."""
-        articles = []
-        for feed_info in RSS_FEEDS:
-            try:
-                feed = feedparser.parse(feed_info["url"])
-                for entry in feed.entries[:max_per_feed]:
-                    title   = str(entry.get("title") or "")
-                    summary = str(entry.get("summary") or "")
-                    link    = str(entry.get("link") or "")
-                    content = f"{title} {summary}".lower()
-
-                    if any(kw.lower() in content for kw in KEYWORDS):
-                        # Enrich summary at collection time so the AI always has text to work with
-                        if len(summary.strip()) < 100 and link:
-                            logger.debug(f"RSS summary empty for '{title[:50]}' — fetching URL")
-                            summary = self._fetch_article_text(link)
-                        articles.append({
-                            "source": feed_info["name"],
-                            "title":  title,
-                            "summary": summary,
-                            "link":   link,
-                            "published": entry.get("published", "")
-                        })
-                        logger.info(f"  Matched: [{feed_info['name']}] {title[:60]}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch {feed_info['name']}: {e}")
         logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
         return articles
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False) -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False) -> list:
         """
         Main entry point: fetch articles, generate posts with the configured AI service,
+                        # --- Confidence scoring for all-channel mode (use LinkedIn post) ---
+                        _conf_route, _conf_reason = self._score_and_route(
+                            post_text=li_text,
+                            article_summary=article["summary"],
+                            grounding_facts=grounding_facts,
+                            channel="linkedin",
+                            article_ref=article.get("link", article["title"]),
+                            requested_mode=message_type,
+                        )
         and either push as Buffer Ideas (message_type='idea') or schedule directly to the
         next available queue slot (message_type='post').
 
@@ -376,8 +393,9 @@ class ContentCurator:
             all      → LinkedIn post + X thread + Bluesky thread per article
 
         request_delay: seconds to wait between AI calls (rate-limit buffer).
+        avatar_explain: if True, print evidence IDs and grounding summary after each generation.
         """
-        articles = self.fetch_relevant_articles()
+        articles = fetch_relevant_articles()
         # Re-rank articles using relevance + freshness + acceptance priors.
         # Falls back to random shuffle if selection_learning data is unavailable.
         try:
@@ -409,9 +427,11 @@ class ContentCurator:
             logger.info(f"Generating [{message_type}|{ssi_component}] for: {article['title'][:60]}...")
 
             # ----------------------------------------------------------------
-            # "all" channels post mode — LinkedIn + X + Bluesky single posts
+            # "all" channels mode — LinkedIn + X + Bluesky + YouTube posts
             # ----------------------------------------------------------------
-            if message_type == "post" and channel == "all":
+            if channel == "all":
+                _conf_route = "n/a"
+                _conf_reason = "not generated"
                 li_text = self.ai.summarise_for_curation(
                     article_text=article["summary"],
                     source_url=article["link"],
@@ -421,9 +441,21 @@ class ContentCurator:
                     grounding_facts=grounding_facts,
                     interactive=interactive,
                 )
+
                 if not li_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
                     continue
+
+                # --- Confidence scoring for all-channel mode (use LinkedIn post) ---
+                _conf_route, _conf_reason = self._score_and_route(
+                    post_text=li_text,
+                    article_summary=article["summary"],
+                    grounding_facts=grounding_facts,
+                    channel="linkedin",
+                    article_ref=article.get("link", article["title"]),
+                    requested_mode=message_type,
+                )
+
                 # Append URL then hashtags programmatically (order: body → URL → hashtags)
                 li_text = _append_url_and_hashtags(li_text, article["link"])
 
@@ -491,11 +523,33 @@ class ContentCurator:
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + "📡 CHANNEL: all" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n🔵 LINKEDIN POST:" + str(Style.RESET_ALL) + f"\n{li_text}")
                     print(str(Fore.BLUE) + f"\n𝕏  X POST:" + str(Style.RESET_ALL) + f"\n{x_post}")
                     print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
                     if yt_script:
-                        print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}")
+                        print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}\n")
+
+                    # Print avatar explanation if requested
+                    if avatar_explain:
+                        try:
+                            from services.avatar_intelligence import (
+                                retrieve_evidence,
+                                build_explain_output,
+                                format_explain_output,
+                            )
+                            grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _explain = build_explain_output(
+                                evidence_facts=_relevant,
+                                article_ref=article.get("title", ""),
+                                channel="all",
+                                ssi_component=ssi_component,
+                            )
+                            print(format_explain_output(_explain))
+                        except Exception as _exp_exc:
+                            logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                     # Still log the candidate when dry_run so priors learn from topic selection
                     try:
@@ -538,11 +592,33 @@ class ContentCurator:
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📄 ARTICLE: {article['title']}" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + "📡 CHANNEL: all" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
+                    print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n🔵 LINKEDIN POST:" + str(Style.RESET_ALL) + f"\n{li_text}")
                     if x_post:
                         print(str(Fore.BLUE) + f"\n𝕏  X POST:" + str(Style.RESET_ALL) + f"\n{x_post}")
                     if bsky_post:
                         print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
+                    
+                    # Print avatar explanation if requested
+                    if avatar_explain:
+                        try:
+                            from services.avatar_intelligence import (
+                                retrieve_evidence,
+                                build_explain_output,
+                                format_explain_output,
+                            )
+                            grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _explain = build_explain_output(
+                                evidence_facts=_relevant,
+                                article_ref=article.get("title", ""),
+                                channel="all",
+                                ssi_component=ssi_component,
+                            )
+                            print(format_explain_output(_explain))
+                        except Exception as _exp_exc:
+                            logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    
                     if self.buffer:
                         try:
                             _li_post = self.buffer.create_scheduled_post(
@@ -704,6 +780,27 @@ class ContentCurator:
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
                     print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
+                    
+                    # Print avatar explanation if requested
+                    if avatar_explain:
+                        try:
+                            from services.avatar_intelligence import (
+                                retrieve_evidence,
+                                build_explain_output,
+                                format_explain_output,
+                            )
+                            grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _explain = build_explain_output(
+                                evidence_facts=_relevant,
+                                article_ref=article.get("title", ""),
+                                channel=effective_channel,
+                                ssi_component=ssi_component,
+                            )
+                            print(format_explain_output(_explain))
+                        except Exception as _exp_exc:
+                            logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    
                     created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel, "confidence_route": _conf_route})
                 else:
                     # Display generated post for traceability
@@ -714,6 +811,26 @@ class ContentCurator:
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
                     print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
+                    
+                    # Print avatar explanation if requested
+                    if avatar_explain:
+                        try:
+                            from services.avatar_intelligence import (
+                                retrieve_evidence,
+                                build_explain_output,
+                                format_explain_output,
+                            )
+                            grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _explain = build_explain_output(
+                                evidence_facts=_relevant,
+                                article_ref=article.get("title", ""),
+                                channel=effective_channel,
+                                ssi_component=ssi_component,
+                            )
+                            print(format_explain_output(_explain))
+                        except Exception as _exp_exc:
+                            logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
 
                     # Confidence policy: block → skip this article entirely
                     if _conf_route == "block":
