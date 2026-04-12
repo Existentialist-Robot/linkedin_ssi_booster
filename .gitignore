@@ -65,3 +65,5 @@ content_calendar.py
 data/avatar/persona_graph.json
 data/avatar/narrative_memory.json
 data/avatar/learning_log.jsonl
+
+data/selection/generated_candidates.jsonl
