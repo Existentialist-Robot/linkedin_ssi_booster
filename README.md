@@ -479,26 +479,27 @@ cp content_calendar.example.py content_calendar.py
 
 ```bash
 
+
 # Generate + preview week 1 posts (dry run — no Buffer calls)
-python main.py --generate --week 1 --dry-run
+python main.py --schedule --week 1 --dry-run
 
 # Multi-channel dry run: generate and display posts/scripts for all supported channels (LinkedIn, X, Bluesky, YouTube)
-python main.py --generate --week 1 --dry-run --channel all
+python main.py --schedule --week 1 --dry-run --channel all
 
 This will generate and print posts/scripts for **all** supported channels (LinkedIn, X, Bluesky, YouTube) to the terminal, without making any Buffer API calls. The output matches the behavior of `--curate --channel all --dry-run`.
 
 # Generate + schedule week 1 posts to Buffer (LinkedIn, default)
-python main.py --generate --schedule --week 1
+python main.py --schedule --week 1
 
 # Schedule to X instead of LinkedIn
-python main.py --generate --schedule --week 1 --channel x
+python main.py --schedule --week 1 --channel x
 
 # Schedule to LinkedIn, X, Bluesky, and YouTube simultaneously
-python main.py --generate --schedule --week 1 --channel all
+python main.py --schedule --week 1 --channel all
 
 # Generate YouTube Short scripts (hard-capped at 500 chars), print to screen, and save to yt-vid-data/
 # Buffer scheduling is skipped because YouTube requires a video file upload
-python main.py --generate --schedule --week 1 --channel youtube
+python main.py --schedule --week 1 --channel youtube
 
 # Curate AI news and push as Buffer Ideas (default — review before publishing)
 python main.py --curate --dry-run

@@ -7,11 +7,11 @@ Social Selling Index (SSI) across all four components.
 AI backend: Ollama (local) — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-  python main.py --generate [--week N] [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all]
-  python main.py --schedule [--week N] [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all]
-  python main.py --curate               [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
+    python main.py --schedule [--week N] [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all]
+            # --schedule: generate and schedule posts (or preview with --dry-run)
+    python main.py --curate               [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
     python main.py --console
-  python main.py --report
+    python main.py --report
 """
 
 import os
@@ -131,8 +131,7 @@ def run_console(ai: OllamaService) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="LinkedIn SSI Booster via Buffer API")
-    parser.add_argument("--generate",  action="store_true", help="Generate posts from content calendar")
-    parser.add_argument("--schedule",  action="store_true", help="Push scheduled posts to Buffer")
+    parser.add_argument("--schedule",  action="store_true", help="Generate and schedule posts to Buffer (use with --dry-run to preview only)")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
     parser.add_argument("--console",   action="store_true", help="Open interactive persona chat mode (no Buffer calls)")
     parser.add_argument("--report",    action="store_true", help="Print SSI component report")
@@ -282,7 +281,8 @@ def main():
         print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({args.channel})" + str(Style.RESET_ALL))
         return
 
-    if args.generate or args.schedule:
+
+    if args.schedule:
         week_topics = CONTENT_CALENDAR.get(f"week_{args.week}", [])
         if not week_topics:
             logger.error(f"No content found for week {args.week}")
@@ -372,7 +372,8 @@ def main():
                     )
                     print(format_explain_output(_explain))
 
-            if args.schedule and not args.dry_run:
+            # Only schedule if not dry-run and not YouTube
+            if not args.dry_run:
                 if channel == "youtube":
                     print(
                         str(Fore.YELLOW)
