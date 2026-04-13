@@ -167,8 +167,6 @@ def main():
 
     if args.console:
         incompatible = []
-        if args.generate:
-            incompatible.append("--generate")
         if args.schedule:
             incompatible.append("--schedule")
         if args.curate:

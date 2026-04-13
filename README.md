@@ -88,10 +88,10 @@ You control whether curated content is reviewed before publishing or scheduled d
      - Draw topics from real projects, technical wins, and lessons learned, not generic AI content
      - Provide a distinct "angle" for each post, so every week’s content feels fresh and specific
 
-2. **AI generation** — Ollama generates posts as plain text, personalised to you (see below)
+2. **AI post creation** — Ollama writes posts as plain text, personalised to you (see below)
 
 3. **Post scheduling** — The scheduler distributes posts from the calendar to Buffer at configured weekdays/times (default: Tue/Wed/Fri 4 PM Toronto time). Each week, max posts per channel equals the number of configured scheduler slots.
-   - Scheduling is CLI-triggered (`python main.py --generate --schedule --week N`) — there is no always-running local background scheduler process in this repo.
+   - Scheduling is CLI-triggered (`python main.py --schedule --week N`) — there is no always-running local background scheduler process in this repo.
    - The scheduler uses your `.env` SSI focus weights to determine how many posts per week should target each SSI component (e.g., if `establish_brand` is set to 40%, it will get more posts that week).
    - If there are not enough posts for a component, the scheduler fills remaining slots with available topics, always ensuring variety.
    - Posts are never repeated within a week, and the order within each component is preserved.
@@ -109,15 +109,15 @@ This project is not just a single prompt call. It operates as a practical hybrid
 - **Deterministic validation**: a truth gate removes unsupported numeric/date/company claim sentences post-generation.
 - **Operational automation**: curation, scheduling, and SSI-targeted content balancing are executed end-to-end.
 
-In short: retrieve relevant facts with BM25, generate with strict context, validate deterministically, then publish/schedule through Buffer.
+In short: retrieve relevant facts with BM25, write with strict context, validate deterministically, then publish/schedule through Buffer.
 
 ## How post personalisation works
 
-Every generated post is plain text — there's no audio or special format involved.  
+Every post is plain text — there's no audio or special format involved.  
 "Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
 
 **1. Your persona graph (`data/avatar/persona_graph.json`)**  
-The authoritative identity source for every generated post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Copy from `data/avatar/persona_graph.example.json`, fill in your own details, and edit directly in the repo — no env var required. Gitignored so your personal career data stays private. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
+The authoritative identity source for every post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Copy from `data/avatar/persona_graph.example.json`, fill in your own details, and edit directly in the repo — no env var required. Gitignored so your personal career data stays private. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
 GitHub enrichment details:
 
@@ -172,16 +172,17 @@ Each topic in the calendar has:
 
 For curated posts (`--curate`), `content_curator.py` filters RSS feeds by your niche keywords (RAG, Neo4j, GovTech, MCP, Spring AI…) so only domain-relevant articles are ever posted — not random tech news.
 
-**Guaranteed output integrity**  
-Hashtags (for `--generate` targeting LinkedIn) and source article links (for `--curate`) are always appended programmatically _after_ the model responds — never left to the model to include or place correctly. X posts skip hashtag appending entirely — X's 280-character limit leaves no room for them, and the prompt instructs the model to write a single tight paragraph instead of the multi-paragraph LinkedIn format.
+**Guaranteed output integrity**
 
-`--generate` and `--curate` apply a three-layer grounding strategy:
+Hashtags (for `--schedule` targeting LinkedIn) and source article links (for `--curate`) are always appended programmatically _after_ the model responds — never left to the model to include or place correctly. X posts skip hashtag appending entirely — X's 280-character limit leaves no room for them, and the prompt instructs the model to write a single tight paragraph instead of the multi-paragraph LinkedIn format.
+
+`--schedule` and `--curate` apply a three-layer grounding strategy:
 
 1. **Fact retrieval** — a small set of relevant facts is retrieved from the persona graph and injected into each prompt.
 2. **Balance rules** — prompt-level instructions require every factual claim to come from either the article text or the provided profile facts, cap personal references to at most one per post, and forbid invented numbers/dates/companies.
 3. **Truth gate** — a lightweight post-generation filter scans each sentence for numeric claims, year references, dollar amounts, company-name patterns, and project-technology misattributions. Any sentence whose specific token is not found in the article text or grounding facts is silently removed. General opinions, hooks, and rhetorical questions pass through untouched.
 
-### How Deterministic Grounding Works (Console, Generate, Curate)
+### How Deterministic Grounding Works (Console, Schedule, Curate)
 
 Deterministic grounding is a safety layer that reduces hallucinated personal claims by forcing outputs to stay anchored to known profile facts.
 
@@ -197,7 +198,7 @@ Large models are strong at style but can still invent plausible-sounding backgro
    Query intent is analyzed for project/company lookups and technology tags (for example Java, Spring, RAG, Neo4j).
 3. Retrieve relevant facts  
    Facts are ranked using **BM25Okapi** (`rank_bm25`) — a probabilistic IR algorithm that accounts for term-frequency saturation (a skill appearing many times doesn't keep adding score) and inverse document frequency (a rare skill like `fastmcp` scores sharply higher than a common one like `python`). The BM25 corpus is built per-query from all persona graph projects; skills are weighted 3× in the document tokens to reflect their signal value. Falls back to hand-weighted keyword overlap if `rank_bm25` is not installed.
-4. Apply balance rules in prompts (`--generate` and `--curate`)  
+4. Apply balance rules in prompts (`--schedule` and `--curate`)  
    The model is told that every factual claim must come from the article or profile facts. Personal references are capped at one per post. Invented stats, dates, and company names are explicitly forbidden. If the model mentions a specific project by name, it may only attribute technologies that appear in that project's detail field.
 5. Post-process output with the truth gate  
    A lightweight deterministic filter strips sentences containing unsupported numeric/date/company claims or project-technology misattributions. The rest of the post is left intact — no rewriting occurs.
@@ -206,9 +207,9 @@ Large models are strong at style but can still invent plausible-sounding backgro
 
 When a question is factual (for example: what projects, where, when, what stack), console mode can answer deterministically from parsed facts with source references instead of relying on free-form generation.
 
-#### Generate and Curate Behavior
+#### Schedule and Curate Behavior
 
-For weekly generation and article curation:
+For weekly scheduling and article curation:
 
 - Relevant facts are selected per topic/article.
 - Balance rules in the prompt cap personal references, require article-grounded claims, and prohibit attributing technologies to a named project unless those technologies appear in the project's detail.
@@ -220,7 +221,7 @@ This keeps posts authentic while lowering risk of fabricated bio details.
 
 You can tune tech matching with:
 
-- `CONSOLE_GROUNDING_TECH_KEYWORDS` — tech terms for deterministic retrieval (used by `--console`, `--generate`, and `--curate`)
+- `CONSOLE_GROUNDING_TECH_KEYWORDS` — tech terms for deterministic retrieval (used by `--console` and `--curate`)
 - `CONSOLE_GROUNDING_TAG_EXPANSIONS` — maps umbrella terms to related stack terms (e.g. `java:spring|jms|oracle`)
 - `TRUTH_GATE_DOMAIN_TERMS` — comma-separated domain-wide terms that bypass truth gate project-claim checks (e.g. `llm,ai,ml,api,model`). Defaults are built-in; set this to override.
 
@@ -280,13 +281,13 @@ In other words: `TRUTH_GATE_DOMAIN_TERMS` only affects `project_claim` filtering
 
 Interactive mode:
 
-- Use `--interactive` with `--generate` or `--curate` to pause on each flagged sentence and confirm removal (y/N).
+- Use `--interactive` with `--schedule` or `--curate` to pause on each flagged sentence and confirm removal (y/N).
 - Without `--interactive`, flagged sentences are removed automatically as before.
 
 Operational notes:
 
 - The gate logs each removed sentence in full (no truncation) with a reason code (for example: `unsupported_numeric`, `unsupported_year`, `unsupported_org`, `project_claim`) followed by a summary count.
-- Generated posts are now displayed to the screen in both `--dry-run` and regular mode for traceability tuning.
+- Posts are now displayed to the screen in both `--dry-run` and regular mode for traceability tuning.
 - The gate does not rewrite text; it only removes unsupported claim sentences.
 - The gate is intentionally conservative and not a full external fact-checker.
 
@@ -323,7 +324,7 @@ Common symptoms and fixes:
 1. Start with a compact keyword set that mirrors your persona graph skill and project tags.
 2. Add tag expansions for umbrella terms (`java`, `python`, `rag`).
 3. Run `--console` with factual prompts and confirm retrieved facts match expectations.
-4. Run `--generate --dry-run` and `--curate --dry-run` and inspect whether personal references are relevant and supported.
+4. Run `--schedule --dry-run` and `--curate --dry-run` and inspect whether personal references are relevant and supported.
 5. Iterate by adding/removing only a few terms at a time.
 
 #### Important Scope
@@ -336,7 +337,7 @@ The Avatar Intelligence system adds three complementary overlays to generation a
 
 #### `--avatar-explain` — Transparency into grounding decisions
 
-Add `--avatar-explain` to any `--generate` or `--curate` run to see, after each post:
+Add `--avatar-explain` to any `--schedule` or `--curate` run to see, after each post:
 
 - Which evidence IDs from `data/avatar/persona_graph.json` were retrieved
 - Each fact's score and the skill/tag tokens that matched the query
@@ -345,13 +346,13 @@ Add `--avatar-explain` to any `--generate` or `--curate` run to see, after each 
 Useful when a post feels vaguely grounded or uses the wrong project. The output shows exactly which facts scored highest so you can tune `CONSOLE_GROUNDING_TECH_KEYWORDS` or the persona graph itself.
 
 ```bash
-python main.py --generate --week 1 --dry-run --avatar-explain
+python main.py --schedule --week 1 --dry-run --avatar-explain
 python main.py --curate --dry-run --avatar-explain
 ```
 
 #### `--avatar-learn-report` — Advisory report from moderation history
 
-Every time the truth gate removes or passes a sentence during a `--curate` or `--generate` run, the decision is logged to `data/avatar/learning_log.jsonl`. Run the report at any time to see:
+Every time the truth gate removes or passes a sentence during a `--curate` or `--schedule` run, the decision is logged to `data/avatar/learning_log.jsonl`. Run the report at any time to see:
 
 - Which reason codes fired most often (e.g. `unsupported_numeric`, `project_mismatch`)
 - Which topic or channel types triggered the most removals
@@ -537,8 +538,9 @@ python main.py --bsky-stats
 # Open interactive persona chat console (no Buffer calls)
 python main.py --console
 
+
 # Avatar Intelligence — learning and explainability
-python main.py --generate --week 1 --avatar-explain       # show evidence IDs + grounding summary after each post
+python main.py --schedule --week 1 --avatar-explain       # show evidence IDs + grounding summary after each post
 python main.py --curate --avatar-explain                  # show which facts grounded each curated post
 
 python main.py --avatar-learn-report                      # print learning report from captured moderation events
@@ -549,11 +551,11 @@ python main.py --curate --confidence-policy balanced      # default: high+medium
 python main.py --curate --confidence-policy draft-first   # all posts → Ideas board regardless of score
 ```
 
-### `--generate` vs `--curate` vs `--dry-run`
+### `--schedule` vs `--curate` vs `--dry-run`
 
 | Flag                    | Source                                                   | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--generate`            | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; `--schedule` pushes them to Buffer as **scheduled posts**                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--schedule`            | Your content calendar (`content_calendar.py`)            | Writes posts from your pre-planned topics + angles; pushes them to Buffer as **scheduled posts**                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `--curate`              | Live RSS feeds (Anthropic, HuggingFace, Google AI, etc.) | Fetches today's articles, filters by your niche keywords, generates commentary; default behaviour pushes to Buffer as **Ideas** (unscheduled drafts for review)                                                                                                                                                                                                                                                                                                                                                   |
 | `--console`             | Persona graph + grounding                                | Opens an interactive terminal chat with your persona/context loaded. No Buffer actions are performed in this mode. Console commands: `/help`, `/reset`, `/exit`. For factual bio/project queries, a deterministic grounding layer extracts and cites matching records from `data/avatar/persona_graph.json` (project/company/year/details). Tech term matching is configurable via `CONSOLE_GROUNDING_TECH_KEYWORDS`.                                                                                             |
 | `--dry-run`             | Either                                                   | Prints generated posts to the terminal only — no calls to Buffer                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -565,7 +567,7 @@ python main.py --curate --confidence-policy draft-first   # all posts → Ideas 
 | `--channel youtube`     | Either                                                   | Generates a **spoken Short script** (500-char / ~100–150 words) for use with lipsync.video or similar avatar tools; persona controlled by `YOUTUBE_SHORT_SYSTEM_PROMPT` in `.env`; script is printed to screen and saved to `yt-vid-data/<timestamp>_<title>.txt` — **not pushed to Buffer** (Buffer requires a video file)                                                                                                                                                                                       |
 | `--channel all`         | Either                                                   | Target LinkedIn, X, Bluesky, and YouTube in one run. In **dry-run mode**, generates and displays posts/scripts for all supported channels (LinkedIn, X, Bluesky, YouTube) in the terminal, matching curate behavior. In scheduled mode, LinkedIn/X/Bluesky are scheduled independently; YouTube is generated as a local script (printed + saved to `yt-vid-data/`) because Buffer YouTube requires a video upload. If X or Bluesky is not connected in Buffer, that channel is skipped with a warning (no crash). |
 | `--interactive`         | Either                                                   | Pause on each truth gate flagged sentence for user confirmation (y/N) before removal. Without this flag, flagged sentences are removed automatically.                                                                                                                                                                                                                                                                                                                                                             |
-| `--avatar-explain`      | `--generate`, `--curate`                                 | After each post is generated, print the evidence IDs and grounding summary used: which persona graph facts were retrieved, how they scored, and which claim tokens were matched. Useful for diagnosing why a post is weakly or incorrectly grounded.                                                                                                                                                                                                                                                              |
+| `--avatar-explain`      | `--schedule`, `--curate`                                 | After each post is created, print the evidence IDs and grounding summary used: which persona graph facts were retrieved, how they scored, and which claim tokens were matched. Useful for diagnosing why a post is weakly or incorrectly grounded.                                                                                                                                                                                                                                                                |
 | `--avatar-learn-report` | Standalone                                               | Read `data/avatar/learning_log.jsonl`, aggregate moderation events, and print a learning report: reason-code frequencies, commonly removed claim types, and advisory recommendations for tuning keywords or grounding config. Does not modify any file.                                                                                                                                                                                                                                                           |
 | `--confidence-policy`   | `--curate`                                               | Override the curate publish routing for this run: `strict` (high-confidence only → scheduled; medium → Ideas; low → blocked), `balanced` (default; high+medium → scheduled; low → Ideas), `draft-first` (all output → Ideas board). Env default: `AVATAR_CONFIDENCE_POLICY`.                                                                                                                                                                                                                                      |
 | `--reconcile`           | Standalone                                               | Fetches all SENT (published) posts from Buffer and reconciles them against the local `data/selection/generated_candidates.jsonl` log. Matches by Buffer post id, article URL, or Jaccard text similarity. Labels matched candidates as `selected=True` and candidates outside the 14-day acceptance window as `selected=False`. These labels build Beta-smoothed acceptance priors used to rank RSS articles on the next `--curate` run.                                                                          |
@@ -694,7 +696,7 @@ Current scores are tracked in `ssi_history.json` (runtime file, gitignored). The
 1. **Calendar structure:**
    - The calendar (`content_calendar.py`) is a 4-week plan, with each week containing 3 topics. Each topic is mapped to an SSI component and has a unique angle.
 2. **Scheduling logic:**
-   - When you run `python main.py --generate --schedule --week N`, the scheduler:
+   - When you run `python main.py --schedule --week N`, the scheduler:
      - Loads the topics for week N
      - Uses your `.env` SSI focus weights to allocate posts per component (e.g., if `engage_with_insights` is set to 40%, it will try to schedule more posts from that pillar)
      - Ensures no component is neglected, and fills any gaps with available topics
@@ -736,7 +738,7 @@ SCHEDULER_POSTING_SLOTS=monday@09:30,tuesday@16:00,thursday@11:00,friday@16:00
 
 Important runtime behavior:
 
-- Scheduling runs only when you execute `--generate --schedule`.
+- Scheduling runs only when you execute `--schedule`.
 - The app computes future timestamps and writes them to Buffer.
 - Buffer performs the actual publish at those scheduled times.
 - There is no daemon/cron loop in this repo that continuously schedules in the background.
