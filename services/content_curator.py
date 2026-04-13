@@ -551,23 +551,7 @@ class ContentCurator:
                             logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
                     
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
-                    # Still log the candidate when dry_run so priors learn from topic selection
-                    try:
-                        from services.selection_learning import log_candidate as _log_cand_all
-                        _log_cand_all(
-                            candidate_id=_candidate_id,
-                            article_url=article.get("link", ""),
-                            article_title=article.get("title", ""),
-                            article_source=article.get("source", ""),
-                            ssi_component=ssi_component,
-                            channel="all",
-                            post_text=li_text,
-                            buffer_id=None,
-                            route="post",
-                            run_id=_CURATE_RUN_ID,
-                        )
-                    except Exception as _cand_exc:
-                        logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
+                    # Do NOT log candidates in dry_run mode. Only log when user is actually reviewing or publishing, to avoid biasing acceptance priors with unreviewed content.
                 else:
                     # Log candidate before push (route=post for all-channel mode)
                     try:
