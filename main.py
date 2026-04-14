@@ -50,6 +50,8 @@ def print_startup_notice():
     cutoff_date = today + timedelta(days=ACCEPTANCE_WINDOW_DAYS)
     print(str(Fore.WHITE) + f"Latest date for 'new' post acceptance: {cutoff_date.isoformat()} (today + {ACCEPTANCE_WINDOW_DAYS}d)" + str(Style.RESET_ALL))
 
+    print(str(Fore.YELLOW) + "\n⚠️  IMPORTANT: Posts scheduled beyond the acceptance window, or posts that are deleted from Buffer before they are published, will be considered 'not accepted' if you run the reconcile process before they are published. If you delete a scheduled post or run reconcile before Buffer marks the post as 'sent', it will be treated as missed or rejected. Only run reconcile after all intended posts have been published to avoid losing track of scheduled content." + str(Style.RESET_ALL))
+
     # Try to connect to Buffer and check scheduled posts
     buffer_api_key = os.getenv("BUFFER_API_KEY")
     if not buffer_api_key:

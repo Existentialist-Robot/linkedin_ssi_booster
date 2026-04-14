@@ -268,7 +268,11 @@ class BufferService:
         return idea
 
     def get_scheduled_posts(self, channel_id: str, limit: int = 50) -> list:
-        """Get all pending scheduled posts for a channel (status: scheduled)."""
+        """
+        Get all pending scheduled posts for a channel (status: scheduled).
+
+        WARNING: Posts scheduled beyond the acceptance window, or posts that are deleted from Buffer before they are published, will be considered 'not accepted' if you run the reconcile process before they are published. If you delete a scheduled post or run reconcile before Buffer marks the post as 'sent', it will be treated as missed or rejected. Only run reconcile after all intended posts have been published to avoid losing track of scheduled content.
+        """
         query = """
         query GetScheduledPosts($input: PostsInput!, $first: Int) {
           posts(input: $input, first: $first) {
