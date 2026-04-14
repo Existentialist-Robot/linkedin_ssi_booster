@@ -567,23 +567,24 @@ class ContentCurator:
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                     # Do NOT log candidates in dry_run mode. Only log when user is actually reviewing or publishing, to avoid biasing acceptance priors with unreviewed content.
                 else:
-                    # Log candidate before push (route=post for all-channel mode)
-                    try:
-                        from services.selection_learning import log_candidate as _log_cand_all
-                        _log_cand_all(
-                            candidate_id=_candidate_id,
-                            article_url=article.get("link", ""),
-                            article_title=article.get("title", ""),
-                            article_source=article.get("source", ""),
-                            ssi_component=ssi_component,
-                            channel="all",
-                            post_text=li_text,
-                            buffer_id=None,
-                            route="post",
-                            run_id=_CURATE_RUN_ID,
-                        )
-                    except Exception as _cand_exc:
-                        logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
+                    # Log candidate before push (route=post for all-channel mode), but only if not dry_run
+                    if not dry_run:
+                        try:
+                            from services.selection_learning import log_candidate as _log_cand_all
+                            _log_cand_all(
+                                candidate_id=_candidate_id,
+                                article_url=article.get("link", ""),
+                                article_title=article.get("title", ""),
+                                article_source=article.get("source", ""),
+                                ssi_component=ssi_component,
+                                channel="all",
+                                post_text=li_text,
+                                buffer_id=None,
+                                route="post",
+                                run_id=_CURATE_RUN_ID,
+                            )
+                        except Exception as _cand_exc:
+                            logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
                     # Display generated posts for traceability
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📰 SOURCE: {article['source']}" + str(Style.RESET_ALL))
@@ -752,23 +753,24 @@ class ContentCurator:
                     requested_mode=message_type,
                 )
 
-                # Log candidate for selection learning (before any buffer push)
-                try:
-                    from services.selection_learning import log_candidate as _log_cand
-                    _log_cand(
-                        candidate_id=_candidate_id,
-                        article_url=article.get("link", ""),
-                        article_title=article.get("title", ""),
-                        article_source=article.get("source", ""),
-                        ssi_component=ssi_component,
-                        channel=effective_channel,
-                        post_text=post_text,
-                        buffer_id=None,
-                        route=_conf_route,
-                        run_id=_CURATE_RUN_ID,
-                    )
-                except Exception as _cand_exc:
-                    logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
+                # Log candidate for selection learning (before any buffer push), but only if not dry_run
+                if not dry_run:
+                    try:
+                        from services.selection_learning import log_candidate as _log_cand
+                        _log_cand(
+                            candidate_id=_candidate_id,
+                            article_url=article.get("link", ""),
+                            article_title=article.get("title", ""),
+                            article_source=article.get("source", ""),
+                            ssi_component=ssi_component,
+                            channel=effective_channel,
+                            post_text=post_text,
+                            buffer_id=None,
+                            route=_conf_route,
+                            run_id=_CURATE_RUN_ID,
+                        )
+                    except Exception as _cand_exc:
+                        logger.warning("selection_learning: candidate log failed (continuing): %s", _cand_exc)
 
                 if dry_run:
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))

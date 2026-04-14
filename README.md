@@ -1,4 +1,4 @@
-# LinkedIn SSI Booster — Buffer API Integration
+# LinkedIn SSI Booster — Persona Graph · Truth-Grounded Learning · Hybrid RAG Agent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version: alpha-v0.0.1.4](https://img.shields.io/badge/version-alpha--v0.0.1.4-orange.svg)]()
@@ -102,9 +102,9 @@ You control whether curated content is reviewed before publishing or scheduled d
 
 ### Hybrid RAG + Agent Workflow
 
-This project is not just a single prompt call. It operates as a practical hybrid RAG + agent-style pipeline:
+This project is not just a single prompt call. It operates as a practical **Persona Graph · Truth-Grounded Learning · Hybrid RAG** agent-style pipeline:
 
-- **Retrieval grounding**: profile facts are scored and ranked per topic/article using **BM25Okapi** — the same algorithm used in production RAG systems (Elasticsearch, Lucene, OpenSearch). Rare, domain-specific skills score sharply higher than common words, so a query like `"Python"` doesn't pull in every project equally.
+- **Retrieval grounding**: profile facts are scored and ranked per topic/article using **BM25Okapi** — the same algorithm used in production hybrid RAG systems (Elasticsearch, Lucene, OpenSearch). Rare, domain-specific skills score sharply higher than common words, so a query like `"Python"` doesn't pull in every project equally.
 - **Generation orchestration**: channel-aware generation rules are applied for LinkedIn/X/Bluesky/YouTube.
 - **Deterministic validation**: a truth gate removes unsupported numeric/date/company claim sentences post-generation.
 - **Operational automation**: curation, scheduling, and SSI-targeted content balancing are executed end-to-end.

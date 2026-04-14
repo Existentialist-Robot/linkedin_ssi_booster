@@ -43,7 +43,7 @@ PUBLISHED_CACHE_PATH: Path = _DEFAULT_SELECTION_DIR / "published_posts_cache.jso
 
 # Acceptance window: candidates older than this without a published match are
 # labelled selected=False (implicit rejection by the user).
-ACCEPTANCE_WINDOW_DAYS: int = 14
+ACCEPTANCE_WINDOW_DAYS: int = 21
 
 # Minimum Jaccard token overlap required to consider two text snippets a match.
 _JACCARD_THRESHOLD: float = 0.25
@@ -52,7 +52,7 @@ _JACCARD_THRESHOLD: float = 0.25
 _DEFAULT_RANK_ALPHA: float = 0.30
 
 # Freshness half-life (days): score decays to 0.5 at this age.
-_FRESHNESS_HALF_LIFE_DAYS: float = 7.0
+_FRESHNESS_HALF_LIFE_DAYS: float = 10.5
 
 
 # ---------------------------------------------------------------------------
