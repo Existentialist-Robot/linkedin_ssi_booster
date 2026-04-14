@@ -1,4 +1,4 @@
-# LinkedIn SSI Booster — Persona Graph · Truth-Grounded Learning · Hybrid RAG Agent
+# LinkedIn SSI Booster — Truth-Grounded Learning · Hybrid RAG Agent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version: alpha-v0.0.1.4](https://img.shields.io/badge/version-alpha--v0.0.1.4-orange.svg)]()
