@@ -154,19 +154,33 @@ _DEFAULT_RSS_FEEDS = [
     {"name": "Google AI Blog",              "url": "https://blog.research.google/atom.xml"},
     {"name": "AWS Machine Learning",        "url": "https://aws.amazon.com/blogs/machine-learning/feed/"},
     {"name": "LangChain Blog",              "url": "https://blog.langchain.dev/rss/"},
+    {"name": "DeepMind Blog",               "url": "https://deepmind.com/blog/feed/basic/"},
+    {"name": "OpenAI Blog",                 "url": "https://openai.com/blog/rss.xml"},
     # Search / graph / data engineering
     {"name": "Elastic Blog",                "url": "https://www.elastic.co/blog/feed"},
     {"name": "Neo4j Blog",                  "url": "https://neo4j.com/blog/feed/"},
+    {"name": "TigerGraph Blog",             "url": "https://www.tigergraph.com/feed/"},
     # Java / Spring ecosystem
     {"name": "Spring Blog",                 "url": "https://spring.io/blog.atom"},
+    {"name": "Vaadin Blog",                 "url": "https://vaadin.com/blog/rss.xml"},
     {"name": "Inside Java",                 "url": "https://inside.java/feed.xml"},
     {"name": "InfoQ",                       "url": "https://feed.infoq.com/"},
+    {"name": "Baeldung",                    "url": "https://feeds.feedburner.com/Baeldung"},
+    {"name": "JetBrains Blog",              "url": "https://blog.jetbrains.com/feed/"},
     # Event-driven / messaging / multi-agent
     {"name": "Solace Blog",                 "url": "https://solace.com/blog/feed/"},
+    {"name": "Confluent Blog",              "url": "https://www.confluent.io/blog/feed/"},
+    {"name": "Apache Pulsar Blog",          "url": "https://pulsar.apache.org/blog/index.xml"},
+    {"name": "Temporal Blog",               "url": "https://temporal.io/blog/rss.xml"},
+    {"name": "Prefect Blog",                "url": "https://www.prefect.io/blog/rss.xml"},
     # ML engineering & RL
     {"name": "Towards Data Science",        "url": "https://towardsdatascience.com/feed"},
     {"name": "PyTorch Blog",                "url": "https://pytorch.org/blog/feed.xml"},
+    # Cloud / Infra
+    {"name": "AWS Open Source Blog",        "url": "https://aws.amazon.com/blogs/opensource/feed/"},
+    {"name": "Google Cloud Blog",           "url": "https://cloud.google.com/blog/topics/developers-practitioners/rss.xml"},
     # GovTech / broader tech
+    {"name": "Apolitical",                  "url": "https://apolitical.co/en/feeds/articles"},
     {"name": "The New Stack",               "url": "https://thenewstack.io/feed/"},
 ]
 _rss_env = os.getenv("CURATOR_RSS_FEEDS", "")

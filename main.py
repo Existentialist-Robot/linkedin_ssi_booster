@@ -26,6 +26,7 @@ from colorama import Fore, Style, init as _colorama_init
 
 _colorama_init(autoreset=True)
 
+
 from services.ollama_service import OllamaService
 from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
 from services.content_curator import ContentCurator
@@ -37,6 +38,49 @@ from services.console_grounding import (
 )
 from scheduler import PostScheduler
 from content_calendar import CONTENT_CALENDAR
+
+# --- Intelligent Startup Notice ---
+from services.selection_learning import ACCEPTANCE_WINDOW_DAYS
+from datetime import timedelta, timezone
+
+def print_startup_notice():
+    print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n👋 Welcome to LinkedIn SSI Booster!" + str(Style.RESET_ALL))
+    print(str(Fore.WHITE) + f"Acceptance window: {ACCEPTANCE_WINDOW_DAYS} days" + str(Style.RESET_ALL))
+    today = datetime.now(timezone.utc).date()
+    cutoff_date = today + timedelta(days=ACCEPTANCE_WINDOW_DAYS)
+    print(str(Fore.WHITE) + f"Latest date for 'new' post acceptance: {cutoff_date.isoformat()} (today + {ACCEPTANCE_WINDOW_DAYS}d)" + str(Style.RESET_ALL))
+
+    # Try to connect to Buffer and check scheduled posts
+    buffer_api_key = os.getenv("BUFFER_API_KEY")
+    if not buffer_api_key:
+        print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY not set. Buffer queue check skipped." + str(Style.RESET_ALL))
+        return
+    try:
+        buffer = BufferService(api_key=buffer_api_key)
+        channels = buffer.get_channels()
+        for ch in channels:
+            ch_id = ch.get("id")
+            ch_name = ch.get("name")
+            ch_service = ch.get("service")
+            scheduled = buffer.get_scheduled_posts(ch_id)
+            if not scheduled:
+                continue
+            # Find the latest scheduled post date
+            max_due = None
+            for post in scheduled:
+                due = post.get("dueAt")
+                if due:
+                    try:
+                        due_dt = datetime.fromisoformat(due.replace("Z", "+00:00"))
+                        if not max_due or due_dt > max_due:
+                            max_due = due_dt
+                    except Exception:
+                        continue
+            if max_due and max_due.date() > cutoff_date:
+                print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for '{ch_name}' ({ch_service}) has posts scheduled beyond the acceptance window (latest: {max_due.date()})." + str(Style.RESET_ALL))
+                print(str(Fore.YELLOW) + f"   Posts scheduled after {cutoff_date} will be auto-rejected by the learning system. Adjust your cadence or acceptance window if needed." + str(Style.RESET_ALL))
+    except Exception as e:
+        print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
 
 load_dotenv()
 
@@ -130,6 +174,7 @@ def run_console(ai: OllamaService) -> None:
 
 
 def main():
+    print_startup_notice()
     parser = argparse.ArgumentParser(description="LinkedIn SSI Booster via Buffer API")
     parser.add_argument("--schedule",  action="store_true", help="Generate and schedule posts to Buffer (use with --dry-run to preview only)")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
