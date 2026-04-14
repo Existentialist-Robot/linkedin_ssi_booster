@@ -269,7 +269,7 @@ Recommended tuning approach:
 1. Start with current default-like set.
 2. Run generate/curate and watch truth gate removals.
 3. Add only terms that are repeatedly false positives.
-4. Avoid adding specific proprietary tech names that should remain project-validated.
+4. Avoid adding specific proprietary tech names that should remain project-validate.
 
 Also, this variable does not change:
 
@@ -855,3 +855,22 @@ linkedin_ssi_booster/
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+## Running BufferService API tests with .env
+
+To run tests that require environment variables (like `BUFFER_API_KEY`), use [python-dotenv](https://pypi.org/project/python-dotenv/):
+
+```bash
+# Install test dependencies (one-time)
+pip install -r requirements.txt
+
+# Run all tests with .env loaded
+env $(grep -v '^#' .env | xargs) pytest tests/ -v  # (only works if no spaces/quotes in .env values)
+
+# Recommended: use python-dotenv for robust .env loading
+python -m dotenv run -- python -m pytest tests/test_buffer_service.py -v
+```
+
+- The last command is safest for .env files with spaces, quotes, or special characters.
+- `python-dotenv` is included in requirements.txt for this purpose.
+- This ensures your Buffer API key and other secrets are loaded for integration tests.

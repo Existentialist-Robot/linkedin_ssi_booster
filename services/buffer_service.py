@@ -267,32 +267,49 @@ class BufferService:
         logger.info(f"Idea created: id={idea.get('id')}")
         return idea
 
-    def get_scheduled_posts(self, channel_id: str) -> list:
-        """Get all pending scheduled posts for a channel."""
+    def get_scheduled_posts(self, channel_id: str, limit: int = 50) -> list:
+        """Get all pending scheduled posts for a channel (status: scheduled)."""
         query = """
-        query GetScheduledPosts($channelId: String!) {
-          channel(id: $channelId) {
-            posts(status: scheduled) {
-              edges {
-                node {
-                  id
-                  text
-                  dueAt
-                  status
-                }
+        query GetScheduledPosts($input: PostsInput!, $first: Int) {
+          posts(input: $input, first: $first) {
+            edges {
+              node {
+                id
+                text
+                dueAt
+                status
               }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
             }
           }
         }
         """
-        data = self._query(query, {"channelId": channel_id})
-        edges = data.get("channel", {}).get("posts", {}).get("edges", [])
-        return [e["node"] for e in edges]
+        org_id = self.get_organization_id()
+        variables = {
+            "input": {
+                "organizationId": org_id,
+                "sort": [
+                    {"field": "dueAt", "direction": "asc"},
+                    {"field": "createdAt", "direction": "desc"}
+                ],
+                "filter": {
+                    "status": ["scheduled"],
+                    "channelIds": [channel_id],
+                },
+            },
+            "first": limit,
+        }
+        data = self._query(query, variables)
+        edges = data.get("posts", {}).get("edges", [])
+        return [e["node"] for e in edges if e.get("node")]
 
     def get_published_posts(self, channel_id: str, limit: int = 50) -> list[dict]:
-        """Fetch confirmed-published (SENT) posts for *channel_id*.
+        """Fetch confirmed-published (sent) posts for *channel_id*.
 
-        Uses the top-level ``posts`` query with a SENT status filter and
+        Uses the top-level ``posts`` query with a sent status filter and
         forward pagination via Relay ``first`` / ``after`` cursors.
         Returns a list of dicts with keys: id, text, status, dueAt.
         """
@@ -318,9 +335,9 @@ class BufferService:
         variables = {
             "input": {
                 "organizationId": org_id,
-                "filters": {
+                "filter": {
                     "channelIds": [channel_id],
-                    "status": "SENT",
+                    "status": ["sent"],
                 },
             },
             "first": limit,
