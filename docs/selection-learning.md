@@ -111,8 +111,6 @@ spaCy powers most of the NLP signals (themes, sentiment, similarity, fact sugges
 
 The README identifies `data/selection/generated_candidates.jsonl` and `data/selection/published_posts_cache.jsonl` as local, auto-created, gitignored files. It also notes a local ideas cache whose path can be overridden with `IDEAS_CACHE_PATH` in `.env`.
 
-### Published Posts Cache Schema (Mermaid)
-
 Below is a class diagram of the published posts cache structure (`published_posts_cache.jsonl`):
 
 ```mermaid
