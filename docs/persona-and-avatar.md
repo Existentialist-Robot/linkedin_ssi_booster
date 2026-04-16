@@ -6,7 +6,104 @@ This guide covers how the project personalizes output to the user and how the op
 
 The primary identity source is `data/avatar/persona_graph.json`, which stores name, role, location, companies, skills, projects, and verifiable claims in structured JSON. At startup, `load_avatar_state()` converts this graph into ranked `EvidenceFact` objects used for grounding, retrieval, and persona chat.
 
+Below is a visual schema of the persona graph (see `data/avatar/persona_graph.json`):
+
+```mermaid
+classDiagram
+    class Person {
+        string name
+        string title
+        string location
+        string[] links
+    }
+    class Company {
+        string id
+        string name
+        string[] aliases
+    }
+    class Skill {
+        string id
+        string name
+        string[] aliases
+        string scope
+    }
+    class Project {
+        string id
+        string name
+        string companyId
+        string years
+        string details
+        string[] skills
+        string[] aliases
+    }
+    class Claim {
+        string id
+        string text
+        string[] projectIds
+        string confidenceHint
+    }
+
+    Person "1" -- "*" Project : has
+    Company "1" -- "*" Project : employs
+    Project "*" -- "*" Skill : uses
+    Project "*" -- "*" Claim : supports
+    Claim "*" -- "*" Project : about
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.
+
 The persona graph can also be enriched with live GitHub data through `services/github_service.py`, including repository metadata and compact README summaries. The README notes cached metadata in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` with a 24-hour TTL.
+
+### GitHub Repos Cache Schema (Mermaid)
+
+Below is a class diagram of the GitHub repos cache structure (`github_repos_cache.json`):
+
+```mermaid
+classDiagram
+    class GithubReposCache {
+        float fetched_at
+        Repo[] repos
+    }
+    class Repo {
+        int id
+        string node_id
+        string name
+        string full_name
+        bool private
+        Owner owner
+        string html_url
+        string description
+        bool fork
+        string url
+        string language
+        int stargazers_count
+        int watchers_count
+        int forks_count
+        int open_issues_count
+        string default_branch
+        License license
+        ... (many other GitHub API fields)
+    }
+    class Owner {
+        string login
+        int id
+        string avatar_url
+        string html_url
+        ...
+    }
+    class License {
+        string key
+        string name
+        string spdx_id
+        string url
+        ...
+    }
+    GithubReposCache --> "*" Repo : contains
+    Repo --> Owner : owned by
+    Repo --> License : licensed under
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.
 
 ## Persona system prompt
 
@@ -31,8 +128,6 @@ Every topic in `content_calendar.py` carries both a unique `angle` and an `ssi_c
 ## Learning report
 
 `--avatar-learn-report` reads moderation decisions from `data/avatar/learning_log.jsonl` and aggregates reason-code frequencies, common removals, and advisory recommendations. The documentation explicitly states that this report is read-only and does not modify the persona graph or configuration files.
-
-### Learning Log Schema
 
 Below is a class diagram of the learning log entry structure (`data/avatar/learning_log.jsonl`):
 
@@ -96,54 +191,6 @@ classDiagram
     NarrativeMemory : recentClaims - FIFO list of bold claims
     NarrativeMemory : openNarrativeArcs - (future) unresolved story arcs
     NarrativeMemory : lastUpdated - ISO timestamp
-```
-
-If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.
-
-## Persona Graph Schema
-
-Below is a visual schema of the persona graph (see `data/avatar/persona_graph.json`):
-
-```mermaid
-classDiagram
-    class Person {
-        string name
-        string title
-        string location
-        string[] links
-    }
-    class Company {
-        string id
-        string name
-        string[] aliases
-    }
-    class Skill {
-        string id
-        string name
-        string[] aliases
-        string scope
-    }
-    class Project {
-        string id
-        string name
-        string companyId
-        string years
-        string details
-        string[] skills
-        string[] aliases
-    }
-    class Claim {
-        string id
-        string text
-        string[] projectIds
-        string confidenceHint
-    }
-
-    Person "1" -- "*" Project : has
-    Company "1" -- "*" Project : employs
-    Project "*" -- "*" Skill : uses
-    Project "*" -- "*" Claim : supports
-    Claim "*" -- "*" Project : about
 ```
 
 If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.
