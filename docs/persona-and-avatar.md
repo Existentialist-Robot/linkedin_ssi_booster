@@ -32,6 +32,38 @@ Every topic in `content_calendar.py` carries both a unique `angle` and an `ssi_c
 
 `--avatar-learn-report` reads moderation decisions from `data/avatar/learning_log.jsonl` and aggregates reason-code frequencies, common removals, and advisory recommendations. The documentation explicitly states that this report is read-only and does not modify the persona graph or configuration files.
 
+### Learning Log Schema
+
+Below is a class diagram of the learning log entry structure (`data/avatar/learning_log.jsonl`):
+
+```mermaid
+classDiagram
+    class LearningLogEntry {
+        string timestamp
+        string channel
+        string route
+        string policy
+        float confidence_score
+        string confidence_level
+        string dominant_signal
+        string reason
+        string article_ref
+        string run_id
+    }
+    LearningLogEntry : timestamp - ISO timestamp
+    LearningLogEntry : channel - e.g. linkedin, youtube, all
+    LearningLogEntry : route - post, idea, etc.
+    LearningLogEntry : policy - routing policy
+    LearningLogEntry : confidence_score - float (0.0–1.0)
+    LearningLogEntry : confidence_level - high/medium/low
+    LearningLogEntry : dominant_signal - main signal for decision
+    LearningLogEntry : reason - human-readable explanation
+    LearningLogEntry : article_ref - source article URL
+    LearningLogEntry : run_id - batch/run identifier
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSONL for structure.
+
 ## Confidence policy
 
 Curated posts receive a confidence score based on truth-gate signal, grounding quality, and narrative repetition. The routing policy can then be set to `strict`, `balanced`, or `draft-first`, controlling whether high-, medium-, or low-confidence outputs are scheduled, sent to Ideas, or blocked.
@@ -47,6 +79,26 @@ Curated posts receive a confidence score based on truth-gate signal, grounding q
 The local memory file `data/avatar/narrative_memory.json` stores extracted themes and bold-assertion claims from generated posts. These memory items are FIFO-trimmed to `AVATAR_MAX_MEMORY_ITEMS`, and the most recent items feed back into prompts as continuity hints while also contributing to a repetition penalty in confidence scoring.
 
 The intended effect is to discourage repetitive framing across weeks, so recurring messages like the same RAG thesis gradually shift from direct scheduling toward draft review under the policy system.
+
+## Narrative Memory Schema
+
+Below is a class diagram of the narrative memory structure (`data/avatar/narrative_memory.json`):
+
+```mermaid
+classDiagram
+    class NarrativeMemory {
+        string[] recentThemes
+        string[] recentClaims
+        string[] openNarrativeArcs
+        string lastUpdated
+    }
+    NarrativeMemory : recentThemes - FIFO list of extracted themes
+    NarrativeMemory : recentClaims - FIFO list of bold claims
+    NarrativeMemory : openNarrativeArcs - (future) unresolved story arcs
+    NarrativeMemory : lastUpdated - ISO timestamp
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.
 
 ## Persona Graph Schema
 
