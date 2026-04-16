@@ -4,11 +4,7 @@
 
 [![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0015](https://img.shields.io/badge/version-alpha--v0.0.1.5-orange.svg)]()
 
-## What it is
-
-**LinkedIn SSI Booster** isn't just a prompt wrapper — it's a full-stack, adaptive learning automation system for content, curation, and persona growth. 
-
-It is a content automation system that combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
+**LinkedIn SSI Booster** isn't just a prompt wrapper — it's a full-stack, adaptive learning automation system for content, curation, and persona growth. It is a content automation system that combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
 
 ## 🧠 Intelligence Stack — Why This Is Smarter Than Just 'AI Writes Posts'
 
