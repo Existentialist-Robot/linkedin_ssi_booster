@@ -6,6 +6,35 @@ Adaptive selection learning is the mechanism that helps the curation pipeline pr
 
 Every generated article candidate and post is logged to `data/selection/generated_candidates.jsonl` together with metadata such as source, topic, SSI component, route, and run ID. This creates the training signal for later reconciliation and ranking.
 
+### Generated Candidates Schema (Mermaid)
+
+Below is a class diagram of the generated candidates structure (`generated_candidates.jsonl`):
+
+```mermaid
+classDiagram
+    class CandidateRecord {
+        string candidate_id
+        string timestamp
+        string article_url
+        string article_title
+        string article_source
+        string ssi_component
+        string channel
+        string text_hash
+        string text_snippet
+        string|None buffer_id
+        string route
+        bool|None selected
+        string|None selected_at
+        string run_id
+        string[] themes
+        dict sentiment
+        dict user_feedback
+    }
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSONL for structure.
+
 ## Reconciliation
 
 Running `python main.py --reconcile` fetches published posts and matches them against logged candidates. The documented matching cascade is exact Buffer post ID first, then article URL, then Jaccard token similarity between generated and published text.
@@ -18,8 +47,8 @@ The system computes a Beta-smoothed acceptance rate for each `(source, ssi_compo
 
 ## Learning Signals and spaCy NLP
 
-
 ### Captured Attributes for Each Candidate
+
 Each generated post candidate is logged with metadata such as:
 
 - **Text snippet** (the generated post)
@@ -35,21 +64,23 @@ Each generated post candidate is logged with metadata such as:
 - **spaCy-extracted features** (see below)
 
 ### Signals Used for Learning and Ranking
+
 The learning and ranking system uses a combination of:
 
 - **SSI component** (which pillar the post targets)
 - **Source** (where the article or idea came from)
 - **spaCy NLP features:**
-	- **Themes/topics** (extracted via NER and noun chunking)
-	- **Sentiment/tone** (rule-based, using spaCy tokenization)
-	- **Semantic similarity** (for repetition detection and matching)
-	- **Fact grounding** (matching claims to persona graph facts)
-	- **Repetition score** (semantic similarity to recent posts, penalizes repeated content)
-	- **Confidence signals** (from the truth gate, spaCy, and other heuristics)
+  - **Themes/topics** (extracted via NER and noun chunking)
+  - **Sentiment/tone** (rule-based, using spaCy tokenization)
+  - **Semantic similarity** (for repetition detection and matching)
+  - **Fact grounding** (matching claims to persona graph facts)
+  - **Repetition score** (semantic similarity to recent posts, penalizes repeated content)
+  - **Confidence signals** (from the truth gate, spaCy, and other heuristics)
 - **Acceptance priors** (Beta-smoothed rate of selection for each (source, ssi_component) bucket)
 - **User feedback** (if you upvote/downvote or override a candidate)
 
 ### spaCy’s Role
+
 spaCy is used for:
 
 - **Theme extraction** (NER + noun chunks)
@@ -60,18 +91,18 @@ spaCy is used for:
 
 ### Summary Table
 
-| Attribute           | Source/Method         | Used for...                        |
-|---------------------|----------------------|-------------------------------------|
-| Text snippet        | Generated            | Matching, learning, reporting       |
-| SSI component       | Candidate metadata   | Acceptance priors, allocation       |
-| Source/article URL  | Candidate metadata   | Acceptance priors, matching         |
-| Channel             | Candidate metadata   | Channel-specific reconciliation     |
-| spaCy themes        | spaCy NER/chunks     | Learning, repetition, priors        |
-| Sentiment/tone      | spaCy (rule-based)   | Confidence, learning                |
-| Semantic similarity | spaCy vectors        | Repetition, matching, learning      |
-| Fact suggestion     | spaCy + persona      | Truth gate, learning                |
-| Confidence signals  | Heuristics + spaCy   | Routing, learning                   |
-| User feedback       | Manual/CLI           | Learning, priors                    |
+| Attribute           | Source/Method      | Used for...                     |
+| ------------------- | ------------------ | ------------------------------- |
+| Text snippet        | Generated          | Matching, learning, reporting   |
+| SSI component       | Candidate metadata | Acceptance priors, allocation   |
+| Source/article URL  | Candidate metadata | Acceptance priors, matching     |
+| Channel             | Candidate metadata | Channel-specific reconciliation |
+| spaCy themes        | spaCy NER/chunks   | Learning, repetition, priors    |
+| Sentiment/tone      | spaCy (rule-based) | Confidence, learning            |
+| Semantic similarity | spaCy vectors      | Repetition, matching, learning  |
+| Fact suggestion     | spaCy + persona    | Truth gate, learning            |
+| Confidence signals  | Heuristics + spaCy | Routing, learning               |
+| User feedback       | Manual/CLI         | Learning, priors                |
 
 In short:
 spaCy powers most of the NLP signals (themes, sentiment, similarity, fact suggestion) that drive learning, ranking, and post selection in the system. All these signals are logged and used to adapt future content and curation.
@@ -79,6 +110,24 @@ spaCy powers most of the NLP signals (themes, sentiment, similarity, fact sugges
 ## Local files
 
 The README identifies `data/selection/generated_candidates.jsonl` and `data/selection/published_posts_cache.jsonl` as local, auto-created, gitignored files. It also notes a local ideas cache whose path can be overridden with `IDEAS_CACHE_PATH` in `.env`.
+
+### Published Posts Cache Schema (Mermaid)
+
+Below is a class diagram of the published posts cache structure (`published_posts_cache.jsonl`):
+
+```mermaid
+classDiagram
+  class PublishedRecord {
+    string buffer_id
+    string channel
+    string text_snippet
+    string published_at
+    string fetched_at
+    string|None candidate_id
+  }
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSONL for structure.
 
 ## Workflow
 
