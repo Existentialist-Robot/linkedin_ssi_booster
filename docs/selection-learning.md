@@ -6,8 +6,6 @@ Adaptive selection learning is the mechanism that helps the curation pipeline pr
 
 Every generated article candidate and post is logged to `data/selection/generated_candidates.jsonl` together with metadata such as source, topic, SSI component, route, and run ID. This creates the training signal for later reconciliation and ranking.
 
-### Generated Candidates Schema (Mermaid)
-
 Below is a class diagram of the generated candidates structure (`generated_candidates.jsonl`):
 
 ```mermaid
@@ -39,7 +37,7 @@ If your Markdown viewer does not support Mermaid, see the schema fields above or
 
 Running `python main.py --reconcile` fetches published posts and matches them against logged candidates. The documented matching cascade is exact Buffer post ID first, then article URL, then Jaccard token similarity between generated and published text.
 
-Candidates matched to published posts become `selected=True`, while candidates older than the 14-day acceptance window become `selected=False`; newer unmatched candidates stay pending as `selected=None`. These labels are then used to compute acceptance priors.
+Candidates matched to published posts become `selected=True`, while candidates older than the 21-day acceptance window become `selected=False`; newer unmatched candidates stay pending as `selected=None`. These labels are then used to compute acceptance priors.
 
 ## Acceptance priors
 
