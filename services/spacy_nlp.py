@@ -216,8 +216,10 @@ class SpacyNLP:
                 "poor", "weak", "failed", "broken", "wrong"
             }
             
-            pos_count = sum(1 for token in doc if token.text.lower() in positive_words)
-            neg_count = sum(1 for token in doc if token.text.lower() in negative_words)
+            # Use list(doc) to support both real spaCy docs and mocks
+            tokens = list(doc)
+            pos_count = sum(1 for token in tokens if token.text.lower() in positive_words)
+            neg_count = sum(1 for token in tokens if token.text.lower() in negative_words)
             
             # Determine polarity
             if pos_count > neg_count:

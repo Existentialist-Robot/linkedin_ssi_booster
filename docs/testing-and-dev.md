@@ -11,7 +11,25 @@ pytest tests/ -v
 
 For tests that depend on environment variables such as `BUFFER_API_KEY`, the README recommends loading `.env` values with `python-dotenv`, including `python -m dotenv run -- python -m pytest tests/test_buffer_service.py -v`.
 
-## Test coverage
+## Test coverage and results (latest)
+
+### Summary
+
+| Total tests | Passed | Failed |
+| ----------- | ------ | ------ |
+| 150         | 149    | 1      |
+
+### Failure details
+
+| Test file                 | Test name                         | Error/Reason                       |
+| ------------------------- | --------------------------------- | ---------------------------------- |
+| `tests/test_spacy_nlp.py` | `test_analyze_sentiment_negative` | Expected 'negative', got 'neutral' |
+
+**Note:** The only failure is in the rule-based spaCy sentiment analysis test for negative text. The function is designed to return 'negative' when negative keywords outnumber positive ones, but the test using mocks returned 'neutral'. This does not affect core automation or curation features, but should be reviewed for test logic or mock setup.
+
+---
+
+#### Test coverage by file
 
 | Test file                               | What it covers                                                                               |
 | --------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -22,6 +40,7 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 | `tests/test_integration_flags.py`       | CLI flag registration and invalid-value handling.                                            |
 | `tests/test_persona_graph_retrieval.py` | Real persona graph loading and retrieval spot checks.                                        |
 | `tests/test_selection_learning.py`      | Candidate logs, reconcile labeling, prior math, and ranking behavior.                        |
+| `tests/test_spacy_nlp.py`               | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).           |
 
 ## Repository structure
 

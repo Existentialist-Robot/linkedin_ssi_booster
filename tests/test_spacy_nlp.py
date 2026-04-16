@@ -162,24 +162,18 @@ class TestSpacyNLP:
         """Test sentiment analysis for negative text."""
         mock_token1 = Mock()
         mock_token1.text = "bad"
-        
         mock_token2 = Mock()
         mock_token2.text = "terrible"
-        
+        # Both doc and sent should yield the tokens
         mock_sent = Mock()
         mock_sent.__iter__ = Mock(return_value=iter([mock_token1, mock_token2]))
-        
         mock_doc = Mock()
         mock_doc.__iter__ = Mock(return_value=iter([mock_token1, mock_token2]))
         mock_doc.sents = [mock_sent]
-        
         mock_nlp = Mock(return_value=mock_doc)
-        
         nlp_engine = SpacyNLP()
         nlp_engine._nlp = mock_nlp
-        
         result = nlp_engine.analyze_sentiment("This is bad and terrible.")
-        
         assert result["polarity"] == "negative"
         assert result["confidence"] > 0.5
     
