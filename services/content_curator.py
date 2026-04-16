@@ -53,7 +53,7 @@ def fetch_relevant_articles(max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
                     # Enrich summary at collection time so the AI always has text to work with
                     if len(summary.strip()) < 100 and link:
                         logger.debug(f"RSS summary empty for '{title[:50]}' — fetching URL")
-                        summary = ContentCurator._fetch_article_text(link)
+                        summary = _fetch_article_text_static(link)
                     articles.append({
                         "source": feed_info["name"],
                         "title":  title,
@@ -229,6 +229,26 @@ def _load_curation_grounding_keywords() -> set[str]:
     return {kw.strip().lower() for kw in KEYWORDS if kw.strip()}
 
 
+
+def _fetch_article_text_static(url: str, max_chars: int = 3000) -> str:
+    """Fetch a URL and return plain text (script/style stripped). Used when RSS has no summary.
+    
+    Static version for use in module-level functions.
+    """
+    try:
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        html = resp.text
+        # Remove script and style blocks entirely
+        html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:max_chars]
+    except Exception as e:
+        logger.debug(f"Could not fetch article text from {url}: {e}")
+        return ""
+
+
 def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
     """Load curation-specific tag expansions with console defaults fallback.
 
@@ -254,14 +274,25 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
 
 class ContentCurator:
 
-    def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced"):
+    def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced", enable_spacy_summarization: bool = True):
         self.ai = ai_service
         self.buffer = buffer_service
         self.confidence_policy = confidence_policy
+        self.enable_spacy_summarization = enable_spacy_summarization
         self.curation_grounding_keywords = _load_curation_grounding_keywords()
         self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
         self._avatar_facts: list = []
         self._narrative_memory = None
+        self._spacy_nlp = None
+        
+        # Load spaCy for article summarization if enabled
+        if self.enable_spacy_summarization:
+            try:
+                from services.spacy_nlp import get_spacy_nlp
+                self._spacy_nlp = get_spacy_nlp()
+            except Exception as _nlp_exc:
+                logger.debug("spaCy NLP unavailable for article summarization: %s", _nlp_exc)
+        
         try:
             from services.shared import AVATAR_LEARNING_ENABLED
             from services.avatar_intelligence import load_avatar_state, normalize_evidence_facts
@@ -291,9 +322,11 @@ class ContentCurator:
         titles.add(title)
         IDEAS_CACHE_PATH.write_text(json.dumps(sorted(titles), indent=2))
 
-    @staticmethod
-    def _fetch_article_text(url: str, max_chars: int = 3000) -> str:
-        """Fetch a URL and return plain text (script/style stripped). Used when RSS has no summary."""
+    def _fetch_article_text_with_summary(self, url: str, max_chars: int = 3000) -> str:
+        """Fetch a URL and return plain text (script/style stripped), with spaCy summarization if enabled.
+        
+        Instance method version that uses spaCy summarization.
+        """
         try:
             resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
             resp.raise_for_status()
@@ -302,6 +335,21 @@ class ContentCurator:
             html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<[^>]+>", " ", html)
             text = re.sub(r"\s+", " ", text).strip()
+            
+            # Use spaCy summarization if enabled and available
+            if self._spacy_nlp and len(text) > 500:
+                try:
+                    summary = self._spacy_nlp.summarize_article(
+                        article_text=text[:max_chars],
+                        max_sentences=5,
+                        focus_entities=True,
+                    )
+                    if summary:
+                        logger.debug("spaCy summarized article from %d to %d chars", len(text[:max_chars]), len(summary))
+                        return summary
+                except Exception as _sum_exc:
+                    logger.debug("spaCy summarization failed, using truncated text: %s", _sum_exc)
+            
             return text[:max_chars]
         except Exception as e:
             logger.debug(f"Could not fetch article text from {url}: {e}")

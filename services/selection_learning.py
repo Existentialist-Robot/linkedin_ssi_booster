@@ -31,6 +31,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from services.spacy_nlp import get_spacy_nlp
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -78,6 +80,9 @@ class CandidateRecord:
     selected: bool | None       # None=pending, True=chosen, False=rejected
     selected_at: str | None     # ISO-8601 UTC when labelled
     run_id: str                 # UUID identifying the current tool run
+    themes: list[str] = field(default_factory=list)  # NLP-extracted themes
+    sentiment: dict[str, Any] = field(default_factory=dict)  # Sentiment analysis
+    user_feedback: dict[str, Any] = field(default_factory=dict)  # User ratings, manual overrides
 
 
 @dataclass
@@ -182,12 +187,31 @@ def log_candidate(
     route: str,
     run_id: str,
     path: Path | None = None,
+    enable_nlp: bool = True,
 ) -> CandidateRecord:
     """Append one CandidateRecord to the candidates log and return it.
 
     *path* defaults to ``CANDIDATES_LOG_PATH``.  Pass an alternative path in
     tests to avoid writing to the real data directory.
+    *enable_nlp* controls whether to run spaCy NLP analysis (can disable for dry-run).
     """
+    # Extract themes and sentiment using spaCy if enabled
+    themes: list[str] = []
+    sentiment: dict[str, Any] = {}
+    
+    if enable_nlp:
+        try:
+            nlp = get_spacy_nlp()
+            themes = nlp.extract_themes(post_text)
+            sentiment = nlp.analyze_sentiment(post_text)
+            logger.debug(
+                "selection_learning: extracted %d themes, sentiment=%s",
+                len(themes),
+                sentiment.get("polarity", "unknown"),
+            )
+        except Exception as exc:
+            logger.warning("selection_learning: NLP analysis failed (continuing): %s", exc)
+    
     record = CandidateRecord(
         candidate_id=candidate_id,
         timestamp=datetime.now(timezone.utc).isoformat(),
@@ -203,6 +227,8 @@ def log_candidate(
         selected=None,
         selected_at=None,
         run_id=run_id,
+        themes=themes,
+        sentiment=sentiment,
     )
     target = path or CANDIDATES_LOG_PATH
     try:
@@ -237,6 +263,63 @@ def update_candidate_buffer_id(
             "selection_learning: candidate_id %s not found — buffer_id not updated", candidate_id
         )
     return found
+
+
+# ---------------------------------------------------------------------------
+# Similarity-based repetition detection
+# ---------------------------------------------------------------------------
+
+
+def find_similar_candidates(
+    post_text: str,
+    candidates: list[dict[str, Any]] | None = None,
+    similarity_threshold: float = 0.75,
+    path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Find candidates similar to *post_text* using spaCy semantic similarity.
+    
+    This helps detect repetitive content before publishing. Returns candidates
+    with similarity >= *similarity_threshold*, sorted by similarity (highest first).
+    
+    Args:
+        post_text: The post text to check for similarity
+        candidates: List of candidate dicts to check against (if None, loads from path)
+        similarity_threshold: Minimum similarity score (0.0–1.0) to consider a match
+        path: Override path for candidates log (tests)
+        
+    Returns:
+        List of similar candidate dicts with added 'similarity_score' field
+    """
+    if candidates is None:
+        target = path or CANDIDATES_LOG_PATH
+        candidates = _read_jsonl(target)
+    
+    nlp = get_spacy_nlp()
+    similar: list[tuple[float, dict[str, Any]]] = []
+    
+    for candidate in candidates:
+        candidate_text = candidate.get("text_snippet", "")
+        if not candidate_text:
+            continue
+        
+        try:
+            similarity = nlp.compute_similarity(post_text, candidate_text)
+            if similarity >= similarity_threshold:
+                # Add similarity score to the candidate dict
+                enriched = candidate.copy()
+                enriched["similarity_score"] = similarity
+                similar.append((similarity, enriched))
+        except Exception as exc:
+            logger.debug(
+                "selection_learning: similarity computation failed for candidate %s: %s",
+                candidate.get("candidate_id", "unknown"),
+                exc,
+            )
+            continue
+    
+    # Sort by similarity (highest first)
+    similar.sort(key=lambda x: x[0], reverse=True)
+    return [candidate for _, candidate in similar]
 
 
 # ---------------------------------------------------------------------------
@@ -449,28 +532,53 @@ def reconcile_published(
 
 @dataclass
 class FeaturePrior:
-    """Beta-smoothed acceptance rate for one (source, ssi_component) bucket."""
+    """Beta-smoothed acceptance rate for one feature bucket."""
 
-    source: str
-    ssi_component: str
+    feature_key: str         # e.g., "source:Hugging Face Blog" or "theme:llm"
+    feature_value: str       # The actual value
     n_selected: int
     n_total: int
     acceptance_rate: float   # (n_selected + 1) / (n_total + 2) — Beta(1,1) smoothing
+    boost_factor: float = 1.0  # Multiplier for ranking (can be >1 to boost, <1 to suppress)
+
+    # Legacy fields for backward compatibility
+    @property
+    def source(self) -> str:
+        """Extract source from feature_key if it's a source feature."""
+        if self.feature_key == "source":
+            return self.feature_value
+        return ""
+    
+    @property
+    def ssi_component(self) -> str:
+        """Extract ssi_component from feature_key if it's an ssi feature."""
+        if self.feature_key == "ssi_component":
+            return self.feature_value
+        return ""
 
 
-def compute_acceptance_priors(path: Path | None = None) -> dict[tuple[str, str], FeaturePrior]:
+def compute_acceptance_priors(
+    path: Path | None = None,
+    include_themes: bool = True,
+    min_theme_count: int = 3,
+) -> dict[tuple[str, str], FeaturePrior]:
     """Read labeled candidates and compute Beta-smoothed priors per (source, ssi_component).
 
     Only candidates with selected != None (i.e. labelled) contribute.
     Low-count buckets are smoothed towards 0.5 via Beta(1,1) prior
     (effectively Laplace smoothing: add 1 to numerator and 2 to denominator).
 
+    Args:
+        path: Override path for candidates log (tests)
+        include_themes: Whether to compute theme-based priors in addition to source/ssi
+        min_theme_count: Minimum occurrences for a theme to get its own prior
+    
     Returns a dict mapping (source, ssi_component) → FeaturePrior.
     """
     target = path or CANDIDATES_LOG_PATH
     records = [r for r in _read_jsonl(target) if r.get("selected") is not None]
 
-    # Aggregate counts
+    # Aggregate counts for source+ssi combinations
     counts: dict[tuple[str, str], list[int]] = {}  # key → [n_selected, n_total]
     for rec in records:
         key = (rec.get("article_source", ""), rec.get("ssi_component", ""))
@@ -482,13 +590,65 @@ def compute_acceptance_priors(path: Path | None = None) -> dict[tuple[str, str],
 
     priors: dict[tuple[str, str], FeaturePrior] = {}
     for (source, ssi), (n_sel, n_tot) in counts.items():
+        # Compute boost factor based on performance
+        # High performers (>70% acceptance) get boosted, low performers (<30%) get suppressed
+        raw_rate = n_sel / max(1, n_tot)
+        if n_tot >= 5:  # Only apply boost/suppress with sufficient data
+            if raw_rate > 0.70:
+                boost = 1.2  # 20% boost for high performers
+            elif raw_rate < 0.30:
+                boost = 0.8  # 20% suppression for low performers
+            else:
+                boost = 1.0
+        else:
+            boost = 1.0  # Neutral for low-count sources
+        
         priors[(source, ssi)] = FeaturePrior(
-            source=source,
-            ssi_component=ssi,
+            feature_key="source+ssi",
+            feature_value=f"{source}|{ssi}",
             n_selected=n_sel,
             n_total=n_tot,
             acceptance_rate=(n_sel + 1) / (n_tot + 2),
+            boost_factor=boost,
         )
+    
+    # Also compute theme-based priors if enabled
+    if include_themes:
+        theme_counts: dict[str, list[int]] = {}  # theme → [n_selected, n_total]
+        for rec in records:
+            themes = rec.get("themes", [])
+            selected = rec.get("selected") is True
+            for theme in themes:
+                if theme not in theme_counts:
+                    theme_counts[theme] = [0, 0]
+                theme_counts[theme][1] += 1
+                if selected:
+                    theme_counts[theme][0] += 1
+        
+        # Only create priors for themes with sufficient data
+        for theme, (n_sel, n_tot) in theme_counts.items():
+            if n_tot >= min_theme_count:
+                raw_rate = n_sel / max(1, n_tot)
+                if n_tot >= 5:
+                    if raw_rate > 0.70:
+                        boost = 1.15  # Smaller boost for themes (they're more granular)
+                    elif raw_rate < 0.30:
+                        boost = 0.85
+                    else:
+                        boost = 1.0
+                else:
+                    boost = 1.0
+                
+                # Use a composite key (theme, "") to distinguish from source priors
+                priors[(f"theme:{theme}", "")] = FeaturePrior(
+                    feature_key="theme",
+                    feature_value=theme,
+                    n_selected=n_sel,
+                    n_total=n_tot,
+                    acceptance_rate=(n_sel + 1) / (n_tot + 2),
+                    boost_factor=boost,
+                )
+    
     return priors
 
 
@@ -506,12 +666,49 @@ def get_acceptance_rate(
         return priors[key].acceptance_rate
 
     # Fallback 1: source only (average across all ssi_components for this source)
-    source_rates = [p.acceptance_rate for (s, _), p in priors.items() if s == source]
+    source_rates = [p.acceptance_rate for (s, _), p in priors.items() 
+                    if not s.startswith("theme:") and s == source]
     if source_rates:
         return sum(source_rates) / len(source_rates)
 
     # Fallback 2: global uninformative prior
     return 0.5
+
+
+def get_boost_factor(
+    source: str,
+    ssi_component: str,
+    themes: list[str],
+    priors: dict[tuple[str, str], FeaturePrior],
+) -> float:
+    """Return the combined boost factor for an article based on source, ssi, and themes.
+    
+    Combines boost factors from multiple signals:
+    - Source+SSI combination
+    - Individual themes (if available)
+    
+    Returns a multiplier to apply to the article's ranking score.
+    """
+    boost = 1.0
+    
+    # Get source+ssi boost
+    key = (source, ssi_component)
+    if key in priors:
+        boost *= priors[key].boost_factor
+    
+    # Get theme boosts (average across all matching themes)
+    theme_boosts: list[float] = []
+    for theme in themes:
+        theme_key = (f"theme:{theme}", "")
+        if theme_key in priors:
+            theme_boosts.append(priors[theme_key].boost_factor)
+    
+    if theme_boosts:
+        avg_theme_boost = sum(theme_boosts) / len(theme_boosts)
+        boost *= avg_theme_boost
+    
+    # Cap the total boost to prevent extreme values
+    return max(0.5, min(2.0, boost))
 
 
 # ---------------------------------------------------------------------------
@@ -562,12 +759,19 @@ def rank_articles(
     keywords: list[str] | None = None,
     alpha: float = _DEFAULT_RANK_ALPHA,
     freshness_half_life_days: float = _FRESHNESS_HALF_LIFE_DAYS,
+    use_boost_factors: bool = True,
+    extract_themes: bool = True,
 ) -> list[dict[str, Any]]:
-    """Re-rank *articles* using relevance, freshness, and acceptance prior.
+    """Re-rank *articles* using relevance, freshness, acceptance prior, and boost factors.
 
     Scoring formula (all components 0.0–1.0, higher = better):
-        score = (1 - alpha) * (0.5 * relevance + 0.5 * freshness)
-                + alpha * acceptance_rate
+        base_score = (1 - alpha) * (0.5 * relevance + 0.5 * freshness) + alpha * acceptance_rate
+        final_score = base_score * boost_factor (if use_boost_factors=True)
+
+    The boost_factor is computed from historical performance:
+    - High-performing sources/themes (>70% acceptance) get boosted (1.2x or 1.15x)
+    - Low-performing sources/themes (<30% acceptance) get suppressed (0.8x or 0.85x)
+    - Average performers stay neutral (1.0x)
 
     When *alpha* is 0 the ranking degenerates to pure relevance+freshness.
     When the acceptance history is sparse the Beta prior ensures new sources
@@ -580,16 +784,165 @@ def rank_articles(
         keywords:               Grounding keywords for relevance scoring.
         alpha:                  Weight for the acceptance prior term.
         freshness_half_life_days: Age in days where freshness score = 0.5.
+        use_boost_factors:      Apply boost/suppress multipliers based on historical performance.
+        extract_themes:         Extract themes from articles using spaCy for theme-based ranking.
     """
     kw_list = keywords or []
+    
+    # Optionally extract themes from articles using spaCy
+    if extract_themes:
+        try:
+            nlp = get_spacy_nlp()
+            for article in articles:
+                if "themes" not in article:  # Only extract if not already present
+                    text = f"{article.get('title', '')} {article.get('summary', '')}"
+                    article["themes"] = nlp.extract_themes(text[:1000])  # Limit text length
+        except Exception as exc:
+            logger.debug("selection_learning: theme extraction failed (continuing): %s", exc)
+    
     scored: list[tuple[float, dict[str, Any]]] = []
     for article in articles:
         source = article.get("source", "")
+        themes = article.get("themes", [])
+        
+        # Compute base score
         rel = _relevance_score(article, kw_list)
         fresh = _freshness_score(article.get("published", ""), freshness_half_life_days)
         acc = get_acceptance_rate(source, ssi_component, priors)
-        score = (1.0 - alpha) * (0.5 * rel + 0.5 * fresh) + alpha * acc
-        scored.append((score, article))
+        base_score = (1.0 - alpha) * (0.5 * rel + 0.5 * fresh) + alpha * acc
+        
+        # Apply boost factor if enabled
+        if use_boost_factors:
+            boost = get_boost_factor(source, ssi_component, themes, priors)
+            final_score = base_score * boost
+            logger.debug(
+                "selection_learning: ranked article '%s' - base=%.3f boost=%.2f final=%.3f",
+                article.get("title", "")[:50],
+                base_score,
+                boost,
+                final_score,
+            )
+        else:
+            final_score = base_score
+        
+        scored.append((final_score, article))
 
     scored.sort(key=lambda x: x[0], reverse=True)
     return [a for _, a in scored]
+    return [a for _, a in scored]
+
+
+# ---------------------------------------------------------------------------
+# Feedback mechanism
+# ---------------------------------------------------------------------------
+
+
+def record_user_feedback(
+    candidate_id: str,
+    feedback_type: str,
+    feedback_value: Any,
+    *,
+    path: Path | None = None,
+) -> bool:
+    """Record user feedback (rating, manual override) for a candidate.
+    
+    This allows users to provide explicit feedback on generated posts,
+    which can be used to refine the learning algorithm.
+    
+    Args:
+        candidate_id: The UUID of the candidate to update
+        feedback_type: Type of feedback (e.g., "rating", "override", "upvote", "downvote")
+        feedback_value: The feedback value (e.g., 5 for a 1-5 rating, True for upvote)
+        path: Override path for candidates log (tests)
+    
+    Returns:
+        True if the candidate was found and updated, False otherwise
+    """
+    target = path or CANDIDATES_LOG_PATH
+    records = _read_jsonl(target)
+    found = False
+    
+    for rec in records:
+        if rec.get("candidate_id") == candidate_id:
+            if "user_feedback" not in rec:
+                rec["user_feedback"] = {}
+            rec["user_feedback"][feedback_type] = feedback_value
+            rec["user_feedback"]["last_updated"] = datetime.now(timezone.utc).isoformat()
+            found = True
+            break
+    
+    if found:
+        _rewrite_jsonl(target, records)
+        logger.info(
+            "selection_learning: recorded %s feedback for candidate %s: %s",
+            feedback_type,
+            candidate_id,
+            feedback_value,
+        )
+    else:
+        logger.warning(
+            "selection_learning: candidate_id %s not found — feedback not recorded",
+            candidate_id,
+        )
+    
+    return found
+
+
+def apply_user_feedback_to_selection(
+    *,
+    path: Path | None = None,
+    upvote_as_selected: bool = True,
+    downvote_as_rejected: bool = False,
+) -> int:
+    """Apply user feedback to candidate selection labels.
+    
+    This processes user_feedback entries and updates the selected field
+    accordingly. For example, upvotes can be treated as explicit selections.
+    
+    Args:
+        path: Override path for candidates log (tests)
+        upvote_as_selected: Treat upvotes as selected=True
+        downvote_as_rejected: Treat downvotes as selected=False
+    
+    Returns:
+        Number of candidates updated
+    """
+    target = path or CANDIDATES_LOG_PATH
+    records = _read_jsonl(target)
+    updated = 0
+    
+    for rec in records:
+        feedback = rec.get("user_feedback", {})
+        if not feedback:
+            continue
+        
+        # Skip if already labeled by reconciliation
+        if rec.get("selected") is not None:
+            continue
+        
+        # Apply upvote feedback
+        if upvote_as_selected and feedback.get("upvote") is True:
+            rec["selected"] = True
+            rec["selected_at"] = datetime.now(timezone.utc).isoformat()
+            updated += 1
+        
+        # Apply downvote feedback
+        elif downvote_as_rejected and feedback.get("downvote") is True:
+            rec["selected"] = False
+            rec["selected_at"] = datetime.now(timezone.utc).isoformat()
+            updated += 1
+        
+        # Apply manual override (highest priority)
+        if "override" in feedback:
+            rec["selected"] = feedback["override"]
+            rec["selected_at"] = datetime.now(timezone.utc).isoformat()
+            updated += 1
+    
+    if updated > 0:
+        _rewrite_jsonl(target, records)
+        logger.info(
+            "selection_learning: applied user feedback to %d candidates",
+            updated,
+        )
+    
+    return updated

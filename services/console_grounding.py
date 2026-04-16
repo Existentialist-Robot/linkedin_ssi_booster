@@ -367,6 +367,7 @@ def truth_gate_result(
     interactive: bool = False,
     article_ref: str = "",
     channel: str = "linkedin",
+    suggest_facts: bool = True,
 ) -> tuple[str, TruthGateMeta]:
     """Truth gate that returns both the filtered text and scoring metadata.
 
@@ -376,6 +377,9 @@ def truth_gate_result(
 
     When *interactive* is True, user decisions are still recorded to the
     learning log exactly as in :func:`truth_gate`.
+    
+    When *suggest_facts* is True, uses spaCy to suggest matching facts from the
+    persona graph for sentences that are dropped by the truth gate.
     """
     if not text:
         return text, TruthGateMeta(removed_count=0, total_sentences=0)
@@ -387,6 +391,15 @@ def truth_gate_result(
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
     removed: list[tuple[str, str]] = []  # (full_sentence, reason)
+    
+    # Lazy import spaCy NLP for fact suggestion
+    spacy_nlp = None
+    if suggest_facts and facts:
+        try:
+            from services.spacy_nlp import get_spacy_nlp
+            spacy_nlp = get_spacy_nlp()
+        except Exception as _nlp_exc:
+            _truth_logger.debug("spaCy NLP unavailable for fact suggestion: %s", _nlp_exc)
 
     for sentence in sentences:
         reason: str | None = None
@@ -426,6 +439,24 @@ def truth_gate_result(
                 print(f"\n⚠️  Truth gate flagged sentence:")
                 print(f"    Reason : {reason}")
                 print(f"    Sentence: {sentence}")
+                
+                # Suggest matching facts using spaCy if enabled
+                if spacy_nlp and facts:
+                    try:
+                        fact_texts = [f"{f.project} | {f.details}" for f in facts]
+                        suggestions = spacy_nlp.suggest_matching_facts(
+                            dropped_sentence=sentence,
+                            available_facts=fact_texts,
+                            top_n=3,
+                        )
+                        if suggestions:
+                            print(f"\n    💡 Suggested facts to support this claim:")
+                            for i, sugg in enumerate(suggestions, 1):
+                                print(f"       {i}. [{sugg['similarity']:.2f}] {sugg['fact'][:80]}...")
+                                print(f"          → {sugg['suggestion']}")
+                    except Exception as _sugg_exc:
+                        _truth_logger.debug("Fact suggestion failed: %s", _sugg_exc)
+                
                 try:
                     answer = input("    Remove this sentence? [y/N]: ").strip().lower()
                 except (EOFError, KeyboardInterrupt):
@@ -476,6 +507,7 @@ def truth_gate(
     interactive: bool = False,
     article_ref: str = "",
     channel: str = "linkedin",
+    suggest_facts: bool = True,
 ) -> str:
     """Lightweight post-generation truth gate.
 
@@ -494,6 +526,9 @@ def truth_gate(
     *article_ref* and *channel* are forwarded to the learning log for context.
 
     Returns the filtered text (may be identical to input if nothing was stripped).
+    
+    When *suggest_facts* is True, uses spaCy to suggest matching facts from the
+    persona graph for sentences that are dropped by the truth gate (interactive mode only).
     """
     filtered, _ = truth_gate_result(
         text=text,
@@ -502,5 +537,6 @@ def truth_gate(
         interactive=interactive,
         article_ref=article_ref,
         channel=channel,
+        suggest_facts=suggest_facts,
     )
     return filtered
