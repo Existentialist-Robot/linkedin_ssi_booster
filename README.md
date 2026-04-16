@@ -4,15 +4,13 @@
 
 [![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0015](https://img.shields.io/badge/version-alpha--v0.0.1.5-orange.svg)]()
 
-Automates LinkedIn post generation and scheduling via local Ollama to systematically grow your LinkedIn Social Selling Index (SSI) score. The project combines persona grounding, hybrid retrieval, deterministic validation, and local learning loops so content stays on-brand, evidence-backed, and adaptive over time.
-
 ## What it is
 
-LinkedIn SSI Booster is more than a prompt wrapper. It is a content automation system that combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
+**LinkedIn SSI Booster** isn't just a prompt wrapper — it's a full-stack, adaptive learning automation system for content, curation, and persona growth. 
+
+It is a content automation system that combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
 
 ## 🧠 Intelligence Stack — Why This Is Smarter Than Just 'AI Writes Posts'
-
-**LinkedIn SSI Booster** isn't just a prompt wrapper — it's a full-stack, learning automation system for content, curation, and persona growth. Here's what makes it unique:
 
 - **Advanced NLP with spaCy** — Theme/claim extraction, semantic similarity, sentiment/tone analysis, and two advanced curation/grounding features:
   - **Fact Suggestion:** When the truth gate drops a sentence, spaCy suggests the closest matching fact or evidence from your persona graph, or recommends how to rephrase for grounding.
@@ -28,6 +26,8 @@ LinkedIn SSI Booster is more than a prompt wrapper. It is a content automation s
 
 **Result:** You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency and control.
 
+****
+
 ## 🔍 Learning, Grounding, and Explainability Pipeline
 
 **How the system learns and adapts:**
@@ -41,6 +41,21 @@ LinkedIn SSI Booster is more than a prompt wrapper. It is a content automation s
 - **Fact retrieval:** For every post or answer, the system retrieves relevant facts from your persona graph (projects, skills, outcomes) using BM25Okapi — a production-grade IR algorithm. This ensures rare, high-signal skills and projects are prioritized.
 - **Prompt balance rules:** Prompts require every factual claim to be grounded in either the article or your persona facts. Personal references are capped, and invented stats/dates/companies are forbidden.
 - **Truth gate:** After generation, a deterministic filter removes any sentence with unsupported numbers, dates, company names, or project-tech mismatches unless the claim is found in your evidence. This keeps outputs credible and on-brand.
+
+****
+
+## 🚀 Adaptive Learning Features
+
+* **Adaptive Curation Ranking:** The system tracks every generated and published post, learning which sources, topics, and themes you actually approve. Over time, it floats the best-performing sources and topics to the top using Beta-smoothed acceptance priors and theme-based ranking.
+* **Semantic Repetition Detection:** Uses spaCy-powered semantic similarity to detect and penalize repeated or paraphrased content, keeping your feed fresh and non-redundant.
+* **User Feedback Integration:** You can upvote, downvote, or override candidate posts, and this feedback is incorporated into future ranking and selection.
+* **Fact Suggestion for Truth Gate:** When a sentence is dropped for lacking evidence, the system suggests the closest matching facts from your persona graph to help you rephrase or ground your claims.
+* **Memory & Narrative Learning:** The system maintains a local memory of recent themes and claims, using this to diversify future outputs and avoid repetition.
+* **Explainability & Learning Reports:** CLI flags like `--avatar-explain` and `--avatar-learn-report` let you see exactly what the system has learned, which facts grounded each post, and which sources or topics are most effective.
+
+**Bottom line:** The more you use it, the smarter and more tailored your content pipeline becomes — adapting to your preferences, audience, and SSI goals.
+
+****
 
 Core capabilities include:
 
@@ -84,10 +99,6 @@ python main.py --schedule --week 1 --dry-run
 ```
 
 The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
-
-## Existing docs
-
-The repository already includes `docs/idea.md`, `docs/prd.md`, `docs/design.md`, and `docs/nlp-basics.md`, plus a feature-specific Avatar Intelligence documentation subtree under `docs/features/avatar-intelligence-learning/`.
 
 ## License
 
