@@ -17,15 +17,9 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 150         | 149    | 1      |
+| 166         | 166    | 0      |
 
-### Failure details
-
-| Test file                 | Test name                         | Error/Reason                       |
-| ------------------------- | --------------------------------- | ---------------------------------- |
-| `tests/test_spacy_nlp.py` | `test_analyze_sentiment_negative` | Expected 'negative', got 'neutral' |
-
-**Note:** The only failure is in the rule-based spaCy sentiment analysis test for negative text. The function is designed to return 'negative' when negative keywords outnumber positive ones, but the test using mocks returned 'neutral'. This does not affect core automation or curation features, but should be reviewed for test logic or mock setup.
+All tests pass as of April 16, 2026. The suite covers avatar intelligence, curation, learning, spaCy NLP, and all core automation features.
 
 ---
 
@@ -46,6 +40,4 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 The README’s file tree shows the project organized around a CLI entrypoint, services for Buffer, Ollama, curation, GitHub enrichment, and SSI tracking, plus persona data, tests, and feature docs under `docs/`. It also places user-private runtime state under `data/avatar/` and `data/selection/`, both of which are described as local and gitignored.
 
-## Existing documentation
 
-The repository already contains `docs/idea.md`, `docs/prd.md`, `docs/design.md`, and `docs/nlp-basics.md`, as well as a feature folder for Avatar Intelligence planning and implementation documents. These files are useful as deeper design references beyond the new operational docs.
