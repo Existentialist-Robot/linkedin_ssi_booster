@@ -54,8 +54,6 @@ If your Markdown viewer does not support Mermaid, see the schema fields above or
 
 The persona graph can also be enriched with live GitHub data through `services/github_service.py`, including repository metadata and compact README summaries. The README notes cached metadata in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` with a 24-hour TTL.
 
-### GitHub Repos Cache Schema (Mermaid)
-
 Below is a class diagram of the GitHub repos cache structure (`github_repos_cache.json`):
 
 ```mermaid
