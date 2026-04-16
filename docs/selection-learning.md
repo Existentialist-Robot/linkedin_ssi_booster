@@ -16,6 +16,66 @@ Candidates matched to published posts become `selected=True`, while candidates o
 
 The system computes a Beta-smoothed acceptance rate for each `(source, ssi_component)` bucket. On later curation runs, that prior becomes one of the ranking features alongside keyword relevance and freshness, helping preferred sources float upward over time.
 
+## Learning Signals and spaCy NLP
+
+
+### Captured Attributes for Each Candidate
+Each generated post candidate is logged with metadata such as:
+
+- **Text snippet** (the generated post)
+- **Candidate ID** (unique hash)
+- **Article URL/source** (if curated from an article)
+- **SSI component** (establish_brand, find_right_people, engage_with_insights, build_relationships)
+- **Timestamp**
+- **Selected status** (selected, rejected, or pending)
+- **Buffer post ID** (if published)
+- **Channel** (LinkedIn, X, Bluesky, etc.)
+- **Route** (post, idea, block)
+- **Run ID** (for tracking batch runs)
+- **spaCy-extracted features** (see below)
+
+### Signals Used for Learning and Ranking
+The learning and ranking system uses a combination of:
+
+- **SSI component** (which pillar the post targets)
+- **Source** (where the article or idea came from)
+- **spaCy NLP features:**
+	- **Themes/topics** (extracted via NER and noun chunking)
+	- **Sentiment/tone** (rule-based, using spaCy tokenization)
+	- **Semantic similarity** (for repetition detection and matching)
+	- **Fact grounding** (matching claims to persona graph facts)
+	- **Repetition score** (semantic similarity to recent posts, penalizes repeated content)
+	- **Confidence signals** (from the truth gate, spaCy, and other heuristics)
+- **Acceptance priors** (Beta-smoothed rate of selection for each (source, ssi_component) bucket)
+- **User feedback** (if you upvote/downvote or override a candidate)
+
+### spaCy’s Role
+spaCy is used for:
+
+- **Theme extraction** (NER + noun chunks)
+- **Sentiment/tone analysis** (rule-based, token-level)
+- **Semantic similarity** (vector-based, for repetition and matching)
+- **Fact suggestion** (when the truth gate drops a claim, spaCy finds the closest persona fact)
+- **Summarization** (for curated articles)
+
+### Summary Table
+
+| Attribute           | Source/Method         | Used for...                        |
+|---------------------|----------------------|-------------------------------------|
+| Text snippet        | Generated            | Matching, learning, reporting       |
+| SSI component       | Candidate metadata   | Acceptance priors, allocation       |
+| Source/article URL  | Candidate metadata   | Acceptance priors, matching         |
+| Channel             | Candidate metadata   | Channel-specific reconciliation     |
+| spaCy themes        | spaCy NER/chunks     | Learning, repetition, priors        |
+| Sentiment/tone      | spaCy (rule-based)   | Confidence, learning                |
+| Semantic similarity | spaCy vectors        | Repetition, matching, learning      |
+| Fact suggestion     | spaCy + persona      | Truth gate, learning                |
+| Confidence signals  | Heuristics + spaCy   | Routing, learning                   |
+| User feedback       | Manual/CLI           | Learning, priors                    |
+
+In short:
+spaCy powers most of the NLP signals (themes, sentiment, similarity, fact suggestion) that drive learning, ranking, and post selection in the system. All these signals are logged and used to adapt future content and curation.
+
 ## Local files
 
 The README identifies `data/selection/generated_candidates.jsonl` and `data/selection/published_posts_cache.jsonl` as local, auto-created, gitignored files. It also notes a local ideas cache whose path can be overridden with `IDEAS_CACHE_PATH` in `.env`.

@@ -47,3 +47,51 @@ Curated posts receive a confidence score based on truth-gate signal, grounding q
 The local memory file `data/avatar/narrative_memory.json` stores extracted themes and bold-assertion claims from generated posts. These memory items are FIFO-trimmed to `AVATAR_MAX_MEMORY_ITEMS`, and the most recent items feed back into prompts as continuity hints while also contributing to a repetition penalty in confidence scoring.
 
 The intended effect is to discourage repetitive framing across weeks, so recurring messages like the same RAG thesis gradually shift from direct scheduling toward draft review under the policy system.
+
+## Persona Graph Schema
+
+Below is a visual schema of the persona graph (see `data/avatar/persona_graph.json`):
+
+```mermaid
+classDiagram
+    class Person {
+        string name
+        string title
+        string location
+        string[] links
+    }
+    class Company {
+        string id
+        string name
+        string[] aliases
+    }
+    class Skill {
+        string id
+        string name
+        string[] aliases
+        string scope
+    }
+    class Project {
+        string id
+        string name
+        string companyId
+        string years
+        string details
+        string[] skills
+        string[] aliases
+    }
+    class Claim {
+        string id
+        string text
+        string[] projectIds
+        string confidenceHint
+    }
+
+    Person "1" -- "*" Project : has
+    Company "1" -- "*" Project : employs
+    Project "*" -- "*" Skill : uses
+    Project "*" -- "*" Claim : supports
+    Claim "*" -- "*" Project : about
+```
+
+If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.

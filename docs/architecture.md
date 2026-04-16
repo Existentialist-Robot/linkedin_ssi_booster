@@ -40,3 +40,45 @@ Grounding relevance can be tuned through `.env` values such as `CONSOLE_GROUNDIN
 The curation pipeline ranks articles with a weighted formula that combines keyword relevance, freshness decay, and adaptive acceptance priors. Deduplication is handled through a local cache, and every selected article becomes a logged candidate before or after Buffer routing, depending on the flow.
 
 This architecture means the project learns not only from the model prompt context, but also from the operational outcome of what users approve, publish, or ignore.
+
+## System Architecture Diagram (Mermaid)
+
+Below is a high-level system architecture diagram for the LinkedIn SSI Booster:
+
+```mermaid
+flowchart TD
+		A[User/CLI] --> B[main.py]
+		B --> C[Content Curation]
+		B --> D[Scheduling]
+		C --> E[RSS Fetch & Summarize]
+		C --> F[Candidate Logging]
+		F --> G[Selection Learning]
+		G --> H[Acceptance Priors]
+		G --> I[Reconciliation]
+		E --> J[Buffer API]
+		D --> J
+		J --> K[Channels: LinkedIn/X/Bluesky/YouTube]
+		G --> L[spaCy NLP]
+		L --> G
+		G --> M[Ranking]
+		M --> D
+		subgraph Persona Graph
+			N[persona_graph.json]
+			N --> G
+		end
+		subgraph Local Data
+			O[generated_candidates.jsonl]
+			P[published_posts_cache.jsonl]
+			O --> G
+			P --> I
+		end
+		G --> O
+		I --> P
+		D --> Q[APScheduler]
+		Q --> D
+		B --> R[SSI Tracker]
+		R --> S[ssi_history.json]
+		S --> R
+```
+
+If your Markdown viewer does not support Mermaid, refer to the textual architecture description above.
