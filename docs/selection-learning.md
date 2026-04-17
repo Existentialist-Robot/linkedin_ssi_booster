@@ -113,7 +113,7 @@ The system computes a Beta-smoothed acceptance rate for each `(source, ssi_compo
 
 ## Learning Signals and spaCy NLP
 
-### Captured Attributes for Each Candidate
+##### Captured Attributes for Each Candidate
 
 Each generated post candidate is logged with metadata such as:
 
@@ -129,7 +129,7 @@ Each generated post candidate is logged with metadata such as:
 - **Run ID** (for tracking batch runs)
 - **spaCy-extracted features** (see below)
 
-### Signals Used for Learning and Ranking
+#### Signals Used for Learning and Ranking
 
 The learning and ranking system uses a combination of:
 
