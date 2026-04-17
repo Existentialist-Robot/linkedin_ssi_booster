@@ -24,6 +24,38 @@
 
 ---
 
+**What is the LinkedIn SSI?**
+
+The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
+
+A higher SSI directly correlates with more profile views, post reach, and inbound connection requests. LinkedIn's own data shows that professionals with an SSI above 70 get 45% more opportunities than those below 30.
+
+The score breaks down into four components (25 points each):
+
+| Component                             | What LinkedIn measures                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------- |
+| **Establish your professional brand** | Completeness of profile, consistency of posting, saves/shares on your content     |
+| **Find the right people**             | Profile searches landing on you, connection acceptance rate, right-audience reach |
+| **Engage with insights**              | Shares, comments, and reactions on industry content; thought leadership signals   |
+| **Build relationships**               | Connection growth, message response rate, relationship depth                      |
+
+### Why automate it?
+
+SSI decays if you go quiet — LinkedIn penalises inconsistency. Manually writing 3 posts per week, curating industry articles with original commentary, and maintaining an on-brand voice across hundreds of posts is simply not sustainable alongside a full-time engineering role.
+
+This tool handles the repeatable parts:
+
+* **Consistent cadence** — 3 posts/week scheduled to Buffer at proven engagement times (Tue/Wed/Fri 4 PM EST)
+* **On-brand content** — every post is grounded in your real projects, real numbers, and real technical voice via a detailed persona prompt
+* **All four SSI pillars** — the content calendar and curator rotate across all four components so no single pillar is neglected
+* **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary that you can either:
+  * push to Buffer Ideas for review and manual approval (default), or
+  * schedule directly as posts to your Buffer queue (using `--type post`)
+
+You control whether curated content is reviewed before publishing or scheduled directly. The tool removes the blank-page problem, but you decide what goes live.
+
+---
+
 ## 🔍 Learning, Grounding, and Explainability Pipeline
 
 **How the system learns and adapts:**

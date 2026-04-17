@@ -41,6 +41,16 @@ python main.py --curate --confidence-policy strict
 python main.py --curate --avatar-explain
 ```
 
+#### **Customising RSS feeds and keywords**
+
+Both the RSS feed list and the keyword filter are configurable via `.env` — no code changes needed.
+
+**`CURATOR_KEYWORDS`** — comma-separated terms matched against article titles/summaries (overrides built-in list entirely):
+    CURATOR_KEYWORDS=RAG,LLM,neo4j,GovTech,Spring AI,MCP,vector search
+
+**`CURATOR_RSS_FEEDS`** — JSON array of `{"name": "...", "url": "..."}` objects (overrides built-in list entirely):
+    CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss.xml"},{"name":"My Blog","url":"https://myblog.com/feed.xml"}]
+
 ## Channel behavior
 
 The README documents channel-specific output rules across LinkedIn, X, Bluesky, YouTube, and `all`. LinkedIn appends source URLs and hashtags programmatically, while X and Bluesky are shorter single-post outputs without hashtag appending, and YouTube produces spoken Short scripts that are saved locally rather than sent to Buffer.
@@ -64,3 +74,26 @@ On each `--curate` run, the project fetches RSS entries, filters them by keyword
 ## YouTube workflow
 
 YouTube output is intentionally treated as a script-generation path rather than a publish path because Buffer requires a video file for YouTube. The generated script is designed for avatar or lip-sync tools, printed to screen, and written to `yt-vid-data/<timestamp>_<title>.txt` for manual rendering and upload.
+
+### **Troubleshooting Grounding Quality**
+
+If grounded outputs feel too generic or personal references are missing, this is usually a retrieval-configuration issue rather than a generation issue.
+
+Common symptoms and fixes:
+
+* Symptom: Output avoids personal project references even when relevant. Likely cause: `CONSOLE_GROUNDING_TECH_KEYWORDS` does not include terms used in your topic or persona graph. Fix: Add missing terms (for example: `spring ai`, `sentence transformers`, `pubsub+`, `fastmcp`) in lowercase.
+
+* Symptom: Broad prompts like "Java" or "Python" miss obvious related projects. Likely cause: `CONSOLE_GROUNDING_TAG_EXPANSIONS` is too narrow. Fix: Expand umbrella tags so broad queries include adjacent stack terms (for example `java:spring|jms|oracle|weblogic`).
+
+* Symptom: Irrelevant personal facts are injected for unrelated topics. Likely cause: Keyword list is too broad/noisy. Fix: Remove vague terms and keep only high-signal domain vocabulary.
+
+* Symptom: Console factual answers look right, but `--curate` still feels weakly grounded.Likely cause: Curation articles use topic vocabulary that does not overlap `CURATOR_KEYWORDS` or `CONSOLE_GROUNDING_TAG_EXPANSIONS`.Fix: Add domain terms to `CURATOR_KEYWORDS` (for tech matching) or `CONSOLE_GROUNDING_TAG_EXPANSIONS` (for umbrella expansion).
+
+* Symptom: Good posts lose one useful sentence after generation.Likely cause: The sentence contains a specific number/date/company token not present in article text or retrieved facts. Fix: Expand grounding keywords/tag expansions so the correct fact is retrieved, or rephrase the prompt/topic so the claim appears in source evidence.
+
+* Symptom: Truth gate often removes 2+ sentences for curation posts. Likely cause: Retrieval signal is weak for that article domain, so evidence is too thin. Fix: Add domain terms to `CURATOR_KEYWORDS` and expand umbrella terms in `CONSOLE_GROUNDING_TAG_EXPANSIONS`.
+1. Start with a compact keyword set that mirrors your persona graph skill and project tags.
+2. Add tag expansions for umbrella terms (`java`, `python`, `rag`).
+3. Run `--console` with factual prompts and confirm retrieved facts match expectations.
+4. Run `--schedule --dry-run` and `--curate --dry-run` and inspect whether personal references are relevant and supported.
+5. Iterate by adding/removing only a few terms at a time.
