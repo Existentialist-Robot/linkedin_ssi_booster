@@ -2,6 +2,25 @@
 
 This guide covers how the project personalizes output to the user and how the optional Avatar Intelligence overlays help explain, score, and diversify generated content. Personalization is built from a persona graph, a persistent system prompt, writing rules, content angles, and local memory.
 
+
+
+Every post is plain text — there's no audio or special format involved."Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
+
+**1. Your persona graph (`data/avatar/persona_graph.json`)** The authoritative identity source for every post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Copy from `data/avatar/persona_graph.example.json`, fill in your own details, and edit directly in the repo — no env var required. Gitignored so your personal career data stays private. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
+
+**2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)** A detailed persona loaded into every AI call, covering:
+
+* Identity and credibility anchors — **domain-separated**: AI projects (2024–present) are listed separately from legacy infrastructure (TPG/USPS JMS work, pre-2024) with a hard rule forbidding the model from blending them
+* Target audience, voice guidance, and forbidden phrases
+* **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
+
+**3. Writing rules (configurable via `.env`, loaded by `ollama_service.py`)** Per-pillar instructions injected into every AI call. All four are overridable in `.env` without touching code (`SSI_ESTABLISH_BRAND`, `SSI_FIND_RIGHT_PEOPLE`, `SSI_ENGAGE_WITH_INSIGHTS`, `SSI_BUILD_RELATIONSHIPS`). The defaults live in `services/shared.py`. Built-in rules:
+
+* Never start with "I"
+* Never use filler phrases ("Game changer", "Excited to share", "landscape", "leverage", etc.)
+* No bullet points in the body — short punchy paragraphs only
+* Hook in the first line (bold claim, surprising stat, or short story)
+
 ## Persona graph
 
 The primary identity source is `data/avatar/persona_graph.json`, which stores name, role, location, companies, skills, projects, and verifiable claims in structured JSON. At startup, `load_avatar_state()` converts this graph into ranked `EvidenceFact` objects used for grounding, retrieval, and persona chat.
@@ -53,6 +72,21 @@ classDiagram
 If your Markdown viewer does not support Mermaid, see the schema fields above or refer to the example JSON for structure.
 
 The persona graph can also be enriched with live GitHub data through `services/github_service.py`, including repository metadata and compact README summaries. The README notes cached metadata in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` with a 24-hour TTL.
+
+GitHub enrichment details:
+
+* Source data: public repo name, description, primary language, topics, stars, and optional README summary text
+* README handling: markdown is cleaned to plain text, then clipped to sentence boundaries for compact prompt injection
+* Caching: repo metadata is cached in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` (24h TTL)
+* Filtering: use `GITHUB_REPO_FILTER` to include only selected repos
+* Context budgeting: GitHub context is assembled with hard caps so prompts stay stable and fast
+
+GitHub context controls in `.env`:
+
+* `GITHUB_INCLUDE_README_SUMMARIES` (default `true`)
+* `GITHUB_REPO_MAX_COUNT` (default `12`)
+* `GITHUB_README_MAX_CHARS` (default `1200`)
+* `GITHUB_CONTEXT_MAX_CHARS` (default `30000`)
 
 Below is a class diagram of the GitHub repos cache structure (`github_repos_cache.json`):
 

@@ -41,16 +41,6 @@ python main.py --curate --confidence-policy strict
 python main.py --curate --avatar-explain
 ```
 
-#### **Customising RSS feeds and keywords**
-
-Both the RSS feed list and the keyword filter are configurable via `.env` — no code changes needed.
-
-**`CURATOR_KEYWORDS`** — comma-separated terms matched against article titles/summaries (overrides built-in list entirely):
-    CURATOR_KEYWORDS=RAG,LLM,neo4j,GovTech,Spring AI,MCP,vector search
-
-**`CURATOR_RSS_FEEDS`** — JSON array of `{"name": "...", "url": "..."}` objects (overrides built-in list entirely):
-    CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss.xml"},{"name":"My Blog","url":"https://myblog.com/feed.xml"}]
-
 ## Channel behavior
 
 The README documents channel-specific output rules across LinkedIn, X, Bluesky, YouTube, and `all`. LinkedIn appends source URLs and hashtags programmatically, while X and Bluesky are shorter single-post outputs without hashtag appending, and YouTube produces spoken Short scripts that are saved locally rather than sent to Buffer.

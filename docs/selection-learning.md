@@ -2,18 +2,29 @@
 
 Adaptive selection learning is the mechanism that helps the curation pipeline prioritize sources and topics that are more likely to match actual publishing behavior. The system does this by logging candidates, reconciling them against published posts, and feeding acceptance rates back into future ranking.
 
+#### **Customising RSS feeds and keywords**
+
+Both the RSS feed list and the keyword filter are configurable via `.env` — no code changes needed.
+
+**`CURATOR_KEYWORDS`** — comma-separated terms matched against article titles/summaries (overrides built-in list entirely): CURATOR_KEYWORDS=RAG,LLM,neo4j,GovTech,Spring AI,MCP,vector search
+
+**`CURATOR_RSS_FEEDS`** — JSON array of `{"name": "...", "url": "..."}` objects (overrides built-in list entirely): CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss.xml"},{"name":"My Blog","url":"https://myblog.com/feed.xml"}]
+
 ## How Article Selection and Adaptive Learning Work
 
 1. **Article Fetch & CURATOR_KEYWORDS Filtering**
+   
    - The system fetches articles from your configured RSS feeds.
    - It filters these articles using the keywords in `CURATOR_KEYWORDS` (case-insensitive, matches in title/content).
    - Only articles matching at least one keyword move to the next stage.
 
 2. **Candidate Generation & Logging**
+   
    - For each filtered article, the system generates one or more candidate posts (summaries, takes, etc.).
    - Each candidate is logged with all its metadata (see CandidateRecord schema).
 
 3. **spaCy NLP Analysis**
+   
    - Each candidate post is analyzed with spaCy to extract:
      - Themes/topics (NER, noun chunks)
      - Sentiment/tone
@@ -21,6 +32,7 @@ Adaptive selection learning is the mechanism that helps the curation pipeline pr
    - These NLP features are added to the candidate record.
 
 4. **Adaptive Ranking (Selection Learning)**
+   
    - The system computes a ranking score for each candidate using:
      - **Acceptance priors** (how often you’ve published similar sources/topics/SSI components in the past)
      - **spaCy features** (theme match, repetition penalty, etc.)
@@ -29,15 +41,18 @@ Adaptive selection learning is the mechanism that helps the curation pipeline pr
    - Candidates with higher scores are ranked higher.
 
 5. **Confidence & Truth Gate**
+   
    - Each candidate is scored for confidence (grounding, truthfulness, repetition).
    - The “truth gate” may remove unsupported claims or lower confidence for weakly grounded posts.
    - Confidence policy (from .env) determines if a candidate is scheduled, sent to Ideas, or blocked.
 
 6. **Scheduling/Publishing**
+   
    - The top-ranked, high-confidence candidates are scheduled for posting (via Buffer API).
    - Others may be sent to the Ideas board or dropped, depending on your confidence policy.
 
 7. **Feedback Loop**
+   
    - After publishing, the system reconciles which candidates were actually posted.
    - Acceptance priors are updated, so future curation runs adapt to your real publishing choices.
 
