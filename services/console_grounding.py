@@ -15,6 +15,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     pass  # avoid circular import; avatar_intelligence imported lazily inside truth_gate
 
+try:
+    from rank_bm25 import BM25Okapi as _BM25Okapi
+    _BM25_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _BM25_AVAILABLE = False
+
 
 DEFAULT_TECH_KEYWORDS = {
     "java", "spring", "spring boot", "spring ai", "spring batch", "jms",
@@ -48,6 +54,33 @@ def get_domain_terms() -> set[str]:
         return set(DEFAULT_DOMAIN_TERMS)
     parsed = {part.strip().lower() for part in raw.split(",") if part.strip()}
     return parsed or set(DEFAULT_DOMAIN_TERMS)
+
+
+def get_truth_gate_bm25_threshold() -> float:
+    """Return the minimum BM25 score threshold for truth gate validation.
+
+    Env format:
+      TRUTH_GATE_BM25_THRESHOLD=1.0 (float, defaults to 1.0)
+    
+    Recommended values:
+      - 0.5: Permissive (allows paraphrased claims with weak evidence)
+      - 1.0: Balanced (default - good for most use cases)
+      - 2.0: Strict (requires strong evidence overlap)
+      - 5.0: Very strict (requires very strong evidence match)
+    """
+    raw = os.getenv("TRUTH_GATE_BM25_THRESHOLD", "").strip()
+    if not raw:
+        return 1.0
+    try:
+        threshold = float(raw)
+        # Clamp to reasonable range
+        return max(0.0, min(threshold, 100.0))
+    except ValueError:
+        _truth_logger.warning(
+            "Invalid TRUTH_GATE_BM25_THRESHOLD value: %r, using default 1.0",
+            raw,
+        )
+        return 1.0
 
 
 def get_console_grounding_keywords() -> set[str]:
@@ -360,6 +393,57 @@ def _check_project_claim(
     return None
 
 
+def _tokenize_for_bm25(text: str) -> list[str]:
+    """Tokenize text for BM25 scoring.
+    
+    Uses the same tokenization pattern as avatar_intelligence.py for consistency.
+    Returns lowercased tokens of 2+ alphanumeric characters.
+    """
+    return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", text.lower())
+
+
+def _score_sentence_bm25(
+    sentence: str,
+    article_text: str,
+    facts: list[ProjectFact],
+) -> float:
+    """Score a sentence against article text and persona facts using BM25.
+    
+    Returns the BM25 score for the sentence. Higher scores indicate stronger
+    evidence support. Returns 0.0 if BM25 is unavailable or corpus is empty.
+    """
+    if not _BM25_AVAILABLE:
+        return 0.0
+    
+    # Build corpus from article text and facts
+    corpus_docs: list[str] = [article_text]
+    for fact in facts:
+        corpus_docs.append(f"{fact.project} {fact.company} {fact.years} {fact.details}")
+    
+    if not corpus_docs:
+        return 0.0
+    
+    try:
+        # Tokenize corpus
+        tokenized_corpus = [_tokenize_for_bm25(doc) for doc in corpus_docs]
+        
+        # Build BM25 index
+        bm25 = _BM25Okapi(tokenized_corpus)
+        
+        # Tokenize and score the sentence
+        sentence_tokens = _tokenize_for_bm25(sentence)
+        if not sentence_tokens:
+            return 0.0
+        
+        # Get scores for all documents and return the max score
+        # (we want to know if the sentence matches ANY document in the corpus)
+        scores = bm25.get_scores(sentence_tokens)
+        return float(max(scores)) if len(scores) > 0 else 0.0
+    except Exception as exc:
+        _truth_logger.debug("BM25 scoring failed for sentence: %s", exc)
+        return 0.0
+
+
 def truth_gate_result(
     text: str,
     article_text: str,
@@ -401,15 +485,29 @@ def truth_gate_result(
         except Exception as _nlp_exc:
             _truth_logger.debug("spaCy NLP unavailable for fact suggestion: %s", _nlp_exc)
 
+    # Get BM25 threshold for weak evidence detection
+    bm25_threshold = get_truth_gate_bm25_threshold()
+    
     for sentence in sentences:
         reason: str | None = None
-
-        for m in _NUMERIC_CLAIM_RE.finditer(sentence):
-            full_token = m.group(0).lower().strip()
-            num_token = re.match(r"[\d,.]+", m.group(0))
-            if num_token and full_token not in allowed and num_token.group(0).lower().rstrip(".") not in allowed:
-                reason = f"unsupported_numeric: '{m.group(0)}'"
-                break
+        
+        # BM25 evidence strength check (if available)
+        # This provides a flexible, context-aware validation that catches
+        # paraphrased or weakly supported claims that strict token matching might miss
+        if _BM25_AVAILABLE and (article_text or facts):
+            bm25_score = _score_sentence_bm25(sentence, article_text, facts)
+            if bm25_score < bm25_threshold:
+                reason = f"weak_evidence_bm25: score={bm25_score:.2f} < threshold={bm25_threshold}"
+        
+        # Strict token-matching checks for specific claim types
+        # These complement BM25 by catching exact numeric/org mismatches
+        if not reason:
+            for m in _NUMERIC_CLAIM_RE.finditer(sentence):
+                full_token = m.group(0).lower().strip()
+                num_token = re.match(r"[\d,.]+", m.group(0))
+                if num_token and full_token not in allowed and num_token.group(0).lower().rstrip(".") not in allowed:
+                    reason = f"unsupported_numeric: '{m.group(0)}'"
+                    break
 
         if not reason:
             for m in _YEAR_RE.finditer(sentence):
