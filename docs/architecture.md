@@ -31,6 +31,45 @@ The truth gate evaluates sentences independently and removes only those that con
 
 The gate does not rewrite text, and it is intentionally conservative rather than acting as a full external fact-checker. The documentation also notes support for an `--interactive` mode that pauses on flagged sentences for manual approval.
 
+### Deterministic Grounding & Truth Gate Flow
+
+Below is a visual representation of how deterministic grounding and the truth gate operate:
+
+```mermaid
+flowchart TD
+    A[User Request/Prompt] --> B[Load Persona Facts<br/>persona_graph.json]
+    B --> C[Detect Request Constraints<br/>caps, domain terms, keywords]
+    C --> D{Retrieve Relevant Facts}
+    D -->|BM25Okapi| E[BM25 Retrieval]
+    D -->|Fallback| F[Keyword Overlap]
+    E --> G[Apply Prompt Balance Rules]
+    F --> G
+    G --> H[Generate Content<br/>LLM with grounded context]
+    H --> I[Truth Gate Validation<br/>sentence-by-sentence]
+    I --> J{Check Claims}
+    J -->|Numeric claims| K[Validate against facts]
+    J -->|Year references| K
+    J -->|Dollar amounts| K
+    J -->|Company names| K
+    J -->|Project-tech pairs| K
+    K --> L{All Claims<br/>Supported?}
+    L -->|Yes| M[Output Final Content]
+    L -->|No, unsupported| N{Interactive<br/>Mode?}
+    N -->|Yes| O[Pause for Manual Approval]
+    N -->|No| P[Remove Unsupported Sentences]
+    O -->|Approved| M
+    O -->|Rejected| P
+    P --> M
+    M --> Q[Route to Buffer/Ideas/Block]
+
+    style I fill:#e1f5ff
+    style K fill:#fff4e1
+    style L fill:#ffe1e1
+    style M fill:#e1ffe1
+```
+
+If your Markdown viewer does not support Mermaid, the flow is: Load persona facts → Detect constraints → Retrieve facts (BM25 or keyword fallback) → Apply prompt rules → Generate content → Truth gate validates each sentence → Check claims against facts → Remove unsupported claims (or interactive approval) → Output final content → Route to destination.
+
 ## Environment controls
 
 Grounding relevance can be tuned through `.env` values such as `CONSOLE_GROUNDING_TECH_KEYWORDS`, `CONSOLE_GROUNDING_TAG_EXPANSIONS`, and `TRUTH_GATE_DOMAIN_TERMS`. For curation, keyword matching can also fall back to `CURATOR_KEYWORDS`, which makes retrieval quality dependent on the overlap between article vocabulary and configured domain terms.
@@ -47,38 +86,38 @@ Below is a high-level system architecture diagram for the LinkedIn SSI Booster:
 
 ```mermaid
 flowchart TD
-		A[User/CLI] --> B[main.py]
-		B --> C[Content Curation]
-		B --> D[Scheduling]
-		C --> E[RSS Fetch & Summarize]
-		C --> F[Candidate Logging]
-		F --> G[Selection Learning]
-		G --> H[Acceptance Priors]
-		G --> I[Reconciliation]
-		E --> J[Buffer API]
-		D --> J
-		J --> K[Channels: LinkedIn/X/Bluesky/YouTube]
-		G --> L[spaCy NLP]
-		L --> G
-		G --> M[Ranking]
-		M --> D
-		subgraph Persona Graph
-			N[persona_graph.json]
-			N --> G
-		end
-		subgraph Local Data
-			O[generated_candidates.jsonl]
-			P[published_posts_cache.jsonl]
-			O --> G
-			P --> I
-		end
-		G --> O
-		I --> P
-		D --> Q[APScheduler]
-		Q --> D
-		B --> R[SSI Tracker]
-		R --> S[ssi_history.json]
-		S --> R
+        A[User/CLI] --> B[main.py]
+        B --> C[Content Curation]
+        B --> D[Scheduling]
+        C --> E[RSS Fetch & Summarize]
+        C --> F[Candidate Logging]
+        F --> G[Selection Learning]
+        G --> H[Acceptance Priors]
+        G --> I[Reconciliation]
+        E --> J[Buffer API]
+        D --> J
+        J --> K[Channels: LinkedIn/X/Bluesky/YouTube]
+        G --> L[spaCy NLP]
+        L --> G
+        G --> M[Ranking]
+        M --> D
+        subgraph Persona Graph
+            N[persona_graph.json]
+            N --> G
+        end
+        subgraph Local Data
+            O[generated_candidates.jsonl]
+            P[published_posts_cache.jsonl]
+            O --> G
+            P --> I
+        end
+        G --> O
+        I --> P
+        D --> Q[APScheduler]
+        Q --> D
+        B --> R[SSI Tracker]
+        R --> S[ssi_history.json]
+        S --> R
 ```
 
 If your Markdown viewer does not support Mermaid, refer to the textual architecture description above.
