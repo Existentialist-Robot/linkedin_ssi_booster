@@ -2,7 +2,7 @@
 
 #### _<u> — Persona-Grounded Adaptive Learning Hybrid RAG Agent</u>_
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0016](https://img.shields.io/badge/version-alpha--v0.0.1.6-orange.svg)]()
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0017](https://img.shields.io/badge/version-alpha--v0.0.1.7-orange.svg)]()
 
 **LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
 
@@ -45,12 +45,12 @@ SSI decays if you go quiet — LinkedIn penalises inconsistency. Manually writin
 
 This tool handles the repeatable parts:
 
-* **Consistent cadence** — 3 posts/week scheduled to Buffer at proven engagement times (Tue/Wed/Fri 4 PM EST)
-* **On-brand content** — every post is grounded in your real projects, real numbers, and real technical voice via a detailed persona prompt
-* **All four SSI pillars** — the content calendar and curator rotate across all four components so no single pillar is neglected
-* **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary that you can either:
-  * push to Buffer Ideas for review and manual approval (default), or
-  * schedule directly as posts to your Buffer queue (using `--type post`)
+- **Consistent cadence** — 3 posts/week scheduled to Buffer at proven engagement times (Tue/Wed/Fri 4 PM EST)
+- **On-brand content** — every post is grounded in your real projects, real numbers, and real technical voice via a detailed persona prompt
+- **All four SSI pillars** — the content calendar and curator rotate across all four components so no single pillar is neglected
+- **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary that you can either:
+  - push to Buffer Ideas for review and manual approval (default), or
+  - schedule directly as posts to your Buffer queue (using `--type post`)
 
 You control whether curated content is reviewed before publishing or scheduled directly. The tool removes the blank-page problem, but you decide what goes live.
 
@@ -93,7 +93,7 @@ Core capabilities include:
 - Explainability features such as `--avatar-explain` and `--avatar-learn-report`.
 - Local-first operation using Ollama, with persona and learning data stored on your own machine.
 
-The writing rules draw on **Neuro-Linguistic Programming (NLP)** principles — specifically pattern interrupts (scroll-stopping first lines), presupposition (assuming the reader already cares), and anchoring (pairing your name with specific technical outcomes so readers associate _you_ with the domain). The forbidden-phrases list functions as a negative anchor removal layer: stripping hollow corporate phrases forces the model toward concrete, specific language that builds credibility. For the theoretical underpinning, see [_Monsters and Magical Sticks, There's no Such Thing as Hypnosis?_ by Steven Heller & Terry Steele](https://www.amazon.com/Monsters-Magical-Sticks-Theres-Hypnosis-ebook/dp/B007WMOMXU) — an accessible introduction to how language patterns shape perception. 
+The writing rules draw on **Neuro-Linguistic Programming (NLP)** principles — specifically pattern interrupts (scroll-stopping first lines), presupposition (assuming the reader already cares), and anchoring (pairing your name with specific technical outcomes so readers associate _you_ with the domain). The forbidden-phrases list functions as a negative anchor removal layer: stripping hollow corporate phrases forces the model toward concrete, specific language that builds credibility. For the theoretical underpinning, see [_Monsters and Magical Sticks, There's no Such Thing as Hypnosis?_ by Steven Heller & Terry Steele](https://www.amazon.com/Monsters-Magical-Sticks-Theres-Hypnosis-ebook/dp/B007WMOMXU) — an accessible introduction to how language patterns shape perception.
 
 Notes: https://richardstep.com/downloads/tools/Notes--Monsters-and-Magic-Sticks.pdf
 

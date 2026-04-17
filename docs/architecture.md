@@ -27,9 +27,13 @@ The README states that prompt constraints require factual claims to come from ar
 
 ## Truth gate
 
-The truth gate evaluates sentences independently and removes only those that contain unsupported specific claims. It checks numeric claims, year references, dollar amounts, company-style context patterns, and project-technology misattributions against available article text or retrieved persona facts.
+The truth gate evaluates sentences independently and removes only those that contain unsupported or weakly grounded claims. It uses a two-layer validation approach:
 
-The gate does not rewrite text, and it is intentionally conservative rather than acting as a full external fact-checker. The documentation also notes support for an `--interactive` mode that pauses on flagged sentences for manual approval.
+1. **BM25 Evidence Strength Check (Primary)** — Scores each sentence against a corpus built from article text and persona facts using BM25Okapi, the same probabilistic ranking algorithm used in production search engines like Elasticsearch. Sentences with BM25 scores below the configured threshold (default: 1.0) are flagged as weakly supported. This provides flexible, context-aware validation that handles paraphrasing and partial matches naturally.
+
+2. **Strict Token Matching (Complementary)** — Validates specific claim types using exact token matching: numeric claims, year references, dollar amounts, company-style context patterns, and project-technology misattributions. These checks complement BM25 by catching exact numeric or organizational mismatches that might otherwise slip through.
+
+The BM25 threshold can be tuned via `TRUTH_GATE_BM25_THRESHOLD` in `.env` (0.5 = permissive, 1.0 = balanced, 2.0 = strict, 5.0 = very strict). The gate does not rewrite text, and it is intentionally conservative rather than acting as a full external fact-checker. The documentation also notes support for an `--interactive` mode that pauses on flagged sentences for manual approval.
 
 ### Deterministic Grounding & Truth Gate Flow
 
@@ -72,7 +76,16 @@ If your Markdown viewer does not support Mermaid, the flow is: Load persona fact
 
 ## Environment controls
 
-Grounding relevance can be tuned through `.env` values such as `CONSOLE_GROUNDING_TECH_KEYWORDS`, `CONSOLE_GROUNDING_TAG_EXPANSIONS`, and `TRUTH_GATE_DOMAIN_TERMS`. For curation, keyword matching can also fall back to `CURATOR_KEYWORDS`, which makes retrieval quality dependent on the overlap between article vocabulary and configured domain terms.
+Grounding relevance and truth validation can be tuned through `.env` values such as:
+
+- `CONSOLE_GROUNDING_TECH_KEYWORDS`
+- `CONSOLE_GROUNDING_TAG_EXPANSIONS`
+- `TRUTH_GATE_DOMAIN_TERMS`
+- `TRUTH_GATE_BM25_THRESHOLD` (new)
+
+**TRUTH_GATE_BM25_THRESHOLD** sets the strictness of the BM25 evidence strength check in the truth gate. Lower values (e.g., 0.5) are more permissive, allowing weaker or paraphrased claims; higher values (e.g., 2.0 or 5.0) require stronger evidence overlap. The default is 1.0 for balanced validation. Set this in your `.env` or `.env.example` to control the threshold for sentence removal based on BM25 score.
+
+For curation, keyword matching can also fall back to `CURATOR_KEYWORDS`, which makes retrieval quality dependent on the overlap between article vocabulary and configured domain terms.
 
 ## Curation ranking
 
