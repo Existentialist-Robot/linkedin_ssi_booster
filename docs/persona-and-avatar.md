@@ -173,8 +173,6 @@ The local memory file `data/avatar/narrative_memory.json` stores extracted theme
 
 The intended effect is to discourage repetitive framing across weeks, so recurring messages like the same RAG thesis gradually shift from direct scheduling toward draft review under the policy system.
 
-## Narrative Memory Schema
-
 Below is a class diagram of the narrative memory structure (`data/avatar/narrative_memory.json`):
 
 ```mermaid

@@ -2,6 +2,59 @@
 
 Adaptive selection learning is the mechanism that helps the curation pipeline prioritize sources and topics that are more likely to match actual publishing behavior. The system does this by logging candidates, reconciling them against published posts, and feeding acceptance rates back into future ranking.
 
+## How Article Selection and Adaptive Learning Work
+
+1. **Article Fetch & CURATOR_KEYWORDS Filtering**
+   - The system fetches articles from your configured RSS feeds.
+   - It filters these articles using the keywords in `CURATOR_KEYWORDS` (case-insensitive, matches in title/content).
+   - Only articles matching at least one keyword move to the next stage.
+
+2. **Candidate Generation & Logging**
+   - For each filtered article, the system generates one or more candidate posts (summaries, takes, etc.).
+   - Each candidate is logged with all its metadata (see CandidateRecord schema).
+
+3. **spaCy NLP Analysis**
+   - Each candidate post is analyzed with spaCy to extract:
+     - Themes/topics (NER, noun chunks)
+     - Sentiment/tone
+     - Semantic similarity (for deduplication/repetition)
+   - These NLP features are added to the candidate record.
+
+4. **Adaptive Ranking (Selection Learning)**
+   - The system computes a ranking score for each candidate using:
+     - **Acceptance priors** (how often you’ve published similar sources/topics/SSI components in the past)
+     - **spaCy features** (theme match, repetition penalty, etc.)
+     - **Freshness** (newer articles are favored)
+     - **Keyword relevance** (from the original filter)
+   - Candidates with higher scores are ranked higher.
+
+5. **Confidence & Truth Gate**
+   - Each candidate is scored for confidence (grounding, truthfulness, repetition).
+   - The “truth gate” may remove unsupported claims or lower confidence for weakly grounded posts.
+   - Confidence policy (from .env) determines if a candidate is scheduled, sent to Ideas, or blocked.
+
+6. **Scheduling/Publishing**
+   - The top-ranked, high-confidence candidates are scheduled for posting (via Buffer API).
+   - Others may be sent to the Ideas board or dropped, depending on your confidence policy.
+
+7. **Feedback Loop**
+   - After publishing, the system reconciles which candidates were actually posted.
+   - Acceptance priors are updated, so future curation runs adapt to your real publishing choices.
+
+```mermaid
+flowchart TD
+A[Article Ingestion<br/>RSS feeds] --> B[CURATOR_KEYWORDS Filtering<br/>.env keywords]
+B -->|Match| C[NLP Feature Extraction<br/>spaCy: themes, sentiment, similarity, facts]
+C --> D[Candidate Logging<br/>generated_candidates.jsonl]
+D --> E[Adaptive Ranking & Selection<br/>heuristics + learned signals]
+E --> F[Top Candidates<br/>scheduled/reviewed]
+F --> G[Feedback & Learning<br/>learning_log.jsonl]
+G --> H[Persona & Memory Update<br/>persona graph, narrative memory]
+G -.->|Feedback loop| E
+H -.->|Personalization| E
+B -->|No match| Z[Discarded]
+```
+
 ## Candidate logging
 
 Every generated article candidate and post is logged to `data/selection/generated_candidates.jsonl` together with metadata such as source, topic, SSI component, route, and run ID. This creates the training signal for later reconciliation and ranking.
