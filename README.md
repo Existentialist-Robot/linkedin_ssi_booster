@@ -15,6 +15,10 @@
 - **Hybrid RAG + agent pipeline** — Combines BM25 retrieval, deterministic validation, and multi-step agent orchestration for high factuality and variety.
 - **Curation learning loop** — The system tracks every generated candidate, learns which ones you actually publish, and automatically floats the best sources/topics to the top in future runs (Beta-smoothed acceptance priors per source/SSI component).
 - **Truth gate** — Post-generation filter removes unsupported claims (numbers, dates, company names, project-tech mismatches) for maximum credibility.
+  - Uses a BM25 evidence strength check (tunable via `TRUTH_GATE_BM25_THRESHOLD` in `.env`) to score each sentence against article text and persona facts.
+  - Sentences with BM25 scores below the threshold are flagged as weakly supported and may be removed.
+  - Strict token matching is also applied for numeric claims, years, dollar amounts, and company names.
+  - See `.env.example` for recommended threshold values and tuning guidance.
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, and generate advisory reports from moderation history.
