@@ -80,7 +80,7 @@ The curation pipeline ranks articles with a weighted formula that combines keywo
 
 This architecture means the project learns not only from the model prompt context, but also from the operational outcome of what users approve, publish, or ignore.
 
-
+## System Architecture Diagram
 
 Below is a high-level system architecture diagram for the LinkedIn SSI Booster:
 
