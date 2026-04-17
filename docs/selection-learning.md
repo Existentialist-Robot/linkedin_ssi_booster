@@ -2,14 +2,6 @@
 
 Adaptive selection learning is the mechanism that helps the curation pipeline prioritize sources and topics that are more likely to match actual publishing behavior. The system does this by logging candidates, reconciling them against published posts, and feeding acceptance rates back into future ranking.
 
-#### **Customising RSS feeds and keywords**
-
-Both the RSS feed list and the keyword filter are configurable via `.env` — no code changes needed.
-
-**`CURATOR_KEYWORDS`** — comma-separated terms matched against article titles/summaries (overrides built-in list entirely): CURATOR_KEYWORDS=RAG,LLM,neo4j,GovTech,Spring AI,MCP,vector search
-
-**`CURATOR_RSS_FEEDS`** — JSON array of `{"name": "...", "url": "..."}` objects (overrides built-in list entirely): CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss.xml"},{"name":"My Blog","url":"https://myblog.com/feed.xml"}]
-
 ## How Article Selection and Adaptive Learning Work
 
 1. **Article Fetch & CURATOR_KEYWORDS Filtering**
@@ -55,6 +47,14 @@ Both the RSS feed list and the keyword filter are configurable via `.env` — no
    
    - After publishing, the system reconciles which candidates were actually posted.
    - Acceptance priors are updated, so future curation runs adapt to your real publishing choices.
+   
+   #### **Customising RSS feeds and keywords**
+   
+   Both the RSS feed list and the keyword filter are configurable via `.env` — no code changes needed.
+   
+   **`CURATOR_KEYWORDS`** — comma-separated terms matched against article titles/summaries (overrides built-in list entirely): CURATOR_KEYWORDS=RAG,LLM,neo4j,GovTech,Spring AI,MCP,vector search
+   
+   **`CURATOR_RSS_FEEDS`** — JSON array of `{"name": "...", "url": "..."}` objects (overrides built-in list entirely): CURATOR_RSS_FEEDS=[{"name":"Anthropic Blog","url":"https://www.anthropic.com/rss.xml"},{"name":"My Blog","url":"https://myblog.com/feed.xml"}]
 
 ```mermaid
 flowchart TD
