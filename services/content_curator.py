@@ -98,7 +98,6 @@ def _truncate_at_sentence(text: str, budget: int) -> str:
     return stripped
 
 
-CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
 IDEAS_CACHE_PATH = Path(os.getenv("IDEAS_CACHE_PATH", "published_ideas_cache.json"))
 
 # ---------------------------------------------------------------------------
@@ -388,26 +387,9 @@ class ContentCurator:
             )
 
             # Assess the already-cleaned post against source article to get truth-gate meta.
-            # If avatar_explain is enabled, get evidence details as well
-            if getattr(self, 'avatar_explain', False):
-                result = truth_gate_result(
-                    post_text, article_summary, grounding_facts, False, "", "linkedin", True, True
-                )
-                _assessed_text, gate_meta = result[:2]
-                evidence_details = result[2] if len(result) > 2 else None
-                if evidence_details:
-                    print(str(Fore.YELLOW) + "\n--- Evidence summary for removed sentences ---" + str(Style.RESET_ALL))
-                    for i, ev in enumerate(evidence_details, 1):
-                        print(f"[{i}] Sentence: {ev['sentence']}")
-                        print(f"    Reason: {ev['reason']}")
-                        if ev['bm25_score'] is not None:
-                            print(f"    BM25 score: {ev['bm25_score']:.2f}")
-                        print()
-            else:
-                result = truth_gate_result(
-                    post_text, article_summary, grounding_facts, False, "", "linkedin", True, False
-                )
-                _assessed_text, gate_meta = result[:2]
+            _assessed_text, gate_meta = truth_gate_result(
+                post_text, article_summary, grounding_facts
+            )
             signals = extract_confidence_signals(
                 removed_count=gate_meta.removed_count,
                 total_sentences=gate_meta.total_sentences,
@@ -421,14 +403,6 @@ class ContentCurator:
             result = score_confidence(signals)
             cd = decide_publish_mode(self.confidence_policy, result, requested_mode)
 
-            logger.info(
-                "Confidence: score=%.2f level=%s policy=%s route=%s | %s",
-                result.score,
-                result.level,
-                self.confidence_policy,
-                cd.route,
-                cd.reason,
-            )
 
             if AVATAR_LEARNING_ENABLED:
                 record_confidence_decision(
@@ -609,30 +583,8 @@ class ContentCurator:
                     if yt_script:
                         print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}\n")
 
-                    # Print evidence summary for removed sentences for every channel if requested
+                    # Print avatar explanation if requested
                     if avatar_explain:
-                        channel_posts = [
-                            ("LinkedIn", li_text, "linkedin"),
-                            ("X", x_post, "x"),
-                            ("Bluesky", bsky_post, "bluesky"),
-                            ("YouTube", yt_script, "youtube"),
-                        ]
-                        for _chan_name, _chan_text, _chan_id in channel_posts:
-                            if _chan_text:
-                                result = truth_gate_result(
-                                    _chan_text, article["summary"], grounding_facts, False, "", _chan_id, True, True
-                                )
-                                _assessed_text, gate_meta = result[:2]
-                                evidence_details = result[2] if len(result) > 2 else None
-                                if evidence_details:
-                                    print(str(Fore.YELLOW) + f"\n--- Evidence summary for removed sentences [{_chan_name}] ---" + str(Style.RESET_ALL))
-                                    for i, ev in enumerate(evidence_details, 1):
-                                        print(f"[{i}] Sentence: {ev['sentence']}")
-                                        print(f"    Reason: {ev['reason']}")
-                                        if ev['bm25_score'] is not None:
-                                            print(f"    BM25 score: {ev['bm25_score']:.2f}")
-                                        print()
-                        # Print avatar evidence summary as before
                         try:
                             from services.avatar_intelligence import (
                                 retrieve_evidence,
@@ -685,23 +637,8 @@ class ContentCurator:
                     if bsky_post:
                         print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
                     
-                    # Print evidence summary for removed sentences if requested
+                    # Print avatar explanation if requested
                     if avatar_explain:
-                        # Print truth gate evidence summary for removed sentences
-                        result = truth_gate_result(
-                            li_text, article["summary"], grounding_facts, False, "", "linkedin", True, True
-                        )
-                        _assessed_text, gate_meta = result[:2]
-                        evidence_details = result[2] if len(result) > 2 else None
-                        if evidence_details:
-                            print(str(Fore.YELLOW) + "\n--- Evidence summary for removed sentences ---" + str(Style.RESET_ALL))
-                            for i, ev in enumerate(evidence_details, 1):
-                                print(f"[{i}] Sentence: {ev['sentence']}")
-                                print(f"    Reason: {ev['reason']}")
-                                if ev['bm25_score'] is not None:
-                                    print(f"    BM25 score: {ev['bm25_score']:.2f}")
-                                print()
-                        # Print avatar evidence summary as before
                         try:
                             from services.avatar_intelligence import (
                                 retrieve_evidence,
@@ -883,23 +820,8 @@ class ContentCurator:
                     print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {_conf_route} — {_conf_reason}" + str(Style.RESET_ALL))
                     print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
                     
-                    # Print evidence summary for removed sentences if requested
+                    # Print avatar explanation if requested
                     if avatar_explain:
-                        # Print truth gate evidence summary for removed sentences
-                        result = truth_gate_result(
-                            post_text, article["summary"], grounding_facts, False, "", effective_channel, True, True
-                        )
-                        _assessed_text, gate_meta = result[:2]
-                        evidence_details = result[2] if len(result) > 2 else None
-                        if evidence_details:
-                            print(str(Fore.YELLOW) + "\n--- Evidence summary for removed sentences ---" + str(Style.RESET_ALL))
-                            for i, ev in enumerate(evidence_details, 1):
-                                print(f"[{i}] Sentence: {ev['sentence']}")
-                                print(f"    Reason: {ev['reason']}")
-                                if ev['bm25_score'] is not None:
-                                    print(f"    BM25 score: {ev['bm25_score']:.2f}")
-                                print()
-                        # Print avatar evidence summary as before
                         try:
                             from services.avatar_intelligence import (
                                 retrieve_evidence,

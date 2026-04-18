@@ -481,8 +481,7 @@ def truth_gate_result(
     article_ref: str = "",
     channel: str = "linkedin",
     suggest_facts: bool = True,
-    explain_mode: bool = False,
-) -> tuple[str, TruthGateMeta] | tuple[str, TruthGateMeta, list[dict]]:
+) -> tuple[str, TruthGateMeta]:
     """Truth gate that returns both the filtered text and scoring metadata.
 
     Identical logic to :func:`truth_gate` but also returns a :class:`TruthGateMeta`
@@ -506,7 +505,7 @@ def truth_gate_result(
     project_map = _build_project_tech_map(facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
-    removed: list[tuple[str, str, float | None]] = []  # (full_sentence, reason, bm25_score)
+    removed: list[tuple[str, str]] = []  # (full_sentence, reason)
     
     # Lazy import spaCy NLP for fact suggestion
     spacy_nlp = None
@@ -521,15 +520,6 @@ def truth_gate_result(
     bm25_threshold = get_truth_gate_bm25_threshold()
     
     whitelisted_phrases = get_whitelisted_phrases()
-    evidence_details: list[dict] = []  # For explain mode: [{sentence, reason, bm25_score}]
-    explain_mode = False
-    # Accept explain_mode as a kwarg (default False)
-    import inspect
-    frame = inspect.currentframe()
-    if frame is not None:
-        outer = frame.f_back
-        if outer is not None and 'explain_mode' in outer.f_locals:
-            explain_mode = outer.f_locals['explain_mode']
     for sentence in sentences:
         # Always keep sentences that are only hashtags, only URLs, empty/whitespace, questions, or whitelisted phrases
         stripped = sentence.strip()
@@ -555,7 +545,6 @@ def truth_gate_result(
             kept.append(sentence)
             continue
         reason: str | None = None
-        bm25_score: float | None = None
         # BM25 evidence strength check (if available)
         # This provides a flexible, context-aware validation that catches
         # paraphrased or weakly supported claims that strict token matching might miss
@@ -590,9 +579,13 @@ def truth_gate_result(
 
         if not reason:
             for m in _ORG_NAME_RE.finditer(sentence):
-                if m.group(1).lower() not in allowed:
-                    reason = f"unsupported_org: '{m.group(1)}'"
-                    break
+                org_phrase = m.group(1).lower()
+                if org_phrase not in allowed:
+                    # Allow if all words in org name are present in allowed evidence
+                    org_words = [w for w in re.findall(r"\w+", org_phrase) if len(w) > 1]
+                    if not all(word in allowed for word in org_words):
+                        reason = f"unsupported_org: '{m.group(1)}'"
+                        break
 
         if not reason:
             reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
@@ -602,6 +595,7 @@ def truth_gate_result(
                 print(f"\n⚠️  Truth gate flagged sentence:")
                 print(f"    Reason : {reason}")
                 print(f"    Sentence: {sentence}")
+                
                 # Suggest matching facts using spaCy if enabled
                 if spacy_nlp and facts:
                     try:
@@ -618,13 +612,14 @@ def truth_gate_result(
                                 print(f"          → {sugg['suggestion']}")
                     except Exception as _sugg_exc:
                         _truth_logger.debug("Fact suggestion failed: %s", _sugg_exc)
+                
                 try:
                     answer = input("    Remove this sentence? [y/N]: ").strip().lower()
                 except (EOFError, KeyboardInterrupt):
                     answer = "n"
                 user_removed = answer in ("y", "yes")
                 if user_removed:
-                    removed.append((sentence, reason, bm25_score))
+                    removed.append((sentence, reason))
                 else:
                     kept.append(sentence)
                 decision = "removed" if user_removed else "kept"
@@ -640,18 +635,12 @@ def truth_gate_result(
                 except Exception as _log_exc:  # noqa: BLE001
                     _truth_logger.warning("Failed to record moderation event: %s", _log_exc)
             else:
-                removed.append((sentence, reason, bm25_score))
-            # For explain mode, always collect evidence detail
-            evidence_details.append({
-                "sentence": sentence,
-                "reason": reason,
-                "bm25_score": bm25_score,
-            })
+                removed.append((sentence, reason))
         else:
             kept.append(sentence)
 
     if removed:
-        for full_sentence, reason, _ in removed:
+        for full_sentence, reason in removed:
             _truth_logger.info("Truth gate removed [channel=%s] [%s]: %s", channel, reason, full_sentence)
         _truth_logger.info(
             "Truth gate summary [channel=%s]: removed %d of %d sentences",
@@ -669,10 +658,8 @@ def truth_gate_result(
     meta = TruthGateMeta(
         removed_count=len(removed),
         total_sentences=len(sentences),
-        reason_codes=[r.split(":")[0] for _, r, _ in removed],
+        reason_codes=[r.split(":")[0] for _, r in removed],
     )
-    if explain_mode:
-        return " ".join(kept).strip(), meta, evidence_details
     return " ".join(kept).strip(), meta
 
 
@@ -706,7 +693,7 @@ def truth_gate(
     When *suggest_facts* is True, uses spaCy to suggest matching facts from the
     persona graph for sentences that are dropped by the truth gate (interactive mode only).
     """
-    result = truth_gate_result(
+    filtered, _ = truth_gate_result(
         text=text,
         article_text=article_text,
         facts=facts,
@@ -714,7 +701,5 @@ def truth_gate(
         article_ref=article_ref,
         channel=channel,
         suggest_facts=suggest_facts,
-        explain_mode=False,
     )
-    filtered, meta = result[:2]
     return filtered
