@@ -420,8 +420,6 @@ class ContentCurator:
                 exc,
             )
             return requested_mode, "confidence scoring unavailable — using requested mode"
-        logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
-        return articles
 
     def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False) -> list:
         """
