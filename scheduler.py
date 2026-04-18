@@ -154,7 +154,8 @@ class PostScheduler:
         channel: 'linkedin' | 'x' | 'bluesky' | 'youtube' | 'all'
         """
         channel_ids = self._resolve_channel_ids(channel)
-        days = list(self.posting_schedule.keys())
+        # If posting_schedule is empty, use Buffer's default queueing (no time override)
+        days = list(self.posting_schedule.keys()) if self.posting_schedule else []
         reference = datetime.now(self.timezone)
 
         # Advance reference by (week_number - 1) weeks
@@ -163,7 +164,7 @@ class PostScheduler:
 
         # Compute how many posts per SSI component this week
         ssi_weights = get_ssi_focus_weights()
-        total_posts = min(len(days), len(posts))
+        total_posts = min(len(days), len(posts)) if days else len(posts)
         # Sort posts by SSI component for selection
         posts_by_ssi = {k: [] for k in ssi_weights}
         for post in posts:
@@ -202,11 +203,16 @@ class PostScheduler:
                 if id(post) not in used_ids and len(selected_posts) < total_posts:
                     selected_posts.append(post)
 
+
         scheduled = []
         for channel_id in channel_ids:
             for i, post in enumerate(selected_posts):
-                day_name     = days[i % 3]
-                scheduled_at = self._next_slot(day_name, reference=reference)
+                if days:
+                    day_name     = days[i % len(days)]
+                    scheduled_at = self._next_slot(day_name, reference=reference)
+                else:
+                    day_name     = None
+                    scheduled_at = None  # Let Buffer use its own next-available slot
                 text         = post.get("generated_text", "")
 
                 if not text:
@@ -218,7 +224,10 @@ class PostScheduler:
                     text=text,
                     scheduled_at=scheduled_at
                 )
-                logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → {day_name} {scheduled_at}")
+                if scheduled_at:
+                    logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → {day_name} {scheduled_at}")
+                else:
+                    logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → Buffer queue (no time override)")
                 scheduled.append(result)
 
         logger.info(f"Week {week_number}: {len(scheduled)} posts scheduled to Buffer ({channel})")

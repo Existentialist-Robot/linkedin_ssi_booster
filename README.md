@@ -131,6 +131,22 @@ cp content_calendar.example.py content_calendar.py
 python main.py --schedule --week 1 --dry-run
 ```
 
+### Environment Variables
+
+Add these to your `.env` file:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+BUFFER_API_KEY=...
+OLLAMA_MODEL=gemma4:26b
+OLLAMA_MODEL_FALLBACK=qwen2.5:14b  # (optional, fallback model for YouTube Shorts)
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+- `OLLAMA_MODEL` — Main Ollama model for all generations (e.g. `gemma4:26b`).
+- `OLLAMA_MODEL_FALLBACK` — Fallback model for YouTube Shorts if the main model fails (default: `qwen2.5:14b`).
+- `OLLAMA_BASE_URL` — Ollama server URL (default: `http://localhost:11434`).
+
 The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
 
 ## License
