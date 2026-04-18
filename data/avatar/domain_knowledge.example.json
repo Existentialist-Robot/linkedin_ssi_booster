@@ -73,18 +73,278 @@
       "tags": ["ETL", "data pipeline", "data processing"],
       "confidence": "high",
       "scope": "general"
+    },
+    {
+      "id": "fact-java",
+      "domainId": "software-engineering",
+      "statement": "Java is a widely-used programming language for enterprise and backend systems.",
+      "tags": ["java", "java 21", "virtual thread", "java ai"],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-spring",
+      "domainId": "software-engineering",
+      "statement": "Spring is a popular Java framework for building scalable applications.",
+      "tags": ["spring", "spring boot", "spring ai", "spring batch"],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-python",
+      "domainId": "ai-ml",
+      "statement": "Python is a leading language for AI, ML, and data science.",
+      "tags": [
+        "python",
+        "fastapi",
+        "scikit-learn",
+        "gymnasium",
+        "stable-baselines3",
+        "sentence transformer",
+        "feature engineering",
+        "NLP",
+        "neural network"
+      ],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-elasticsearch",
+      "domainId": "ai-ml",
+      "statement": "Elasticsearch is a distributed search and analytics engine.",
+      "tags": [
+        "elasticsearch",
+        "bm25",
+        "vector search",
+        "hybrid search",
+        "semantic search",
+        "information retrieval",
+        "lucene",
+        "solr"
+      ],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-neo4j",
+      "domainId": "ai-ml",
+      "statement": "Neo4j is a graph database used for knowledge graphs and graph traversal.",
+      "tags": ["neo4j", "knowledge graph", "graph database", "graph traversal"],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-rag",
+      "domainId": "ai-ml",
+      "statement": "RAG (Retrieval-Augmented Generation) combines retrieval and generation for grounded LLM outputs.",
+      "tags": [
+        "RAG",
+        "retrieval augmented",
+        "bm25",
+        "knn",
+        "vector search",
+        "embeddings",
+        "retrieval",
+        "semantic search",
+        "reranking"
+      ],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-llm",
+      "domainId": "ai-ml",
+      "statement": "LLMs (Large Language Models) are foundational for generative AI.",
+      "tags": [
+        "LLM",
+        "large language model",
+        "language model",
+        "prompting",
+        "prompt engineering",
+        "AI",
+        "instruction tuning",
+        "fine-tuning",
+        "benchmark",
+        "evaluation"
+      ],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-agent",
+      "domainId": "ai-ml",
+      "statement": "Agentic AI systems use agents, multi-agent orchestration, and tool/function calling.",
+      "tags": [
+        "agent",
+        "multi-agent",
+        "agentic",
+        "agentic AI",
+        "tool calling",
+        "function calling",
+        "MCP",
+        "model context protocol",
+        "FastMCP",
+        "agentic harness",
+        "AI-TDD"
+      ],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-govtech",
+      "domainId": "ai-ml",
+      "statement": "GovTech AI applies AI to government and public sector challenges.",
+      "tags": [
+        "govtech",
+        "government AI",
+        "regulatory AI",
+        "compliance AI",
+        "public sector AI"
+      ],
+      "confidence": "medium",
+      "scope": "general"
+    },
+    {
+      "id": "fact-data-pipeline",
+      "domainId": "data-engineering",
+      "statement": "Data pipelines move and transform data for analysis.",
+      "tags": [
+        "ETL",
+        "data pipeline",
+        "data processing",
+        "data lake",
+        "data storage",
+        "big data"
+      ],
+      "confidence": "high",
+      "scope": "general"
+    },
+    {
+      "id": "fact-messaging",
+      "domainId": "software-engineering",
+      "statement": "Messaging and event-driven systems use JMS, Solace, PubSub+, and message queues.",
+      "tags": ["JMS", "message queue", "Solace", "PubSub+", "event broker"],
+      "confidence": "medium",
+      "scope": "general"
+    },
+    {
+      "id": "fact-reinforcement-learning",
+      "domainId": "ai-ml",
+      "statement": "Reinforcement learning uses Gymnasium, Stable-Baselines, and reward functions.",
+      "tags": [
+        "reinforcement learning",
+        "Gymnasium",
+        "Stable-Baselines",
+        "reward function"
+      ],
+      "confidence": "medium",
+      "scope": "general"
+    },
+    {
+      "id": "fact-oss-stack",
+      "domainId": "software-engineering",
+      "statement": "Open source stacks include Vaadin, Supabase, ElevenLabs, Ollama, Groq, OpenRouter, Perplexity AI.",
+      "tags": [
+        "Vaadin",
+        "Supabase",
+        "ElevenLabs",
+        "Ollama",
+        "Groq",
+        "OpenRouter",
+        "Perplexity AI"
+      ],
+      "confidence": "low",
+      "scope": "general"
+    },
+    {
+      "id": "fact-media",
+      "domainId": "ai-ml",
+      "statement": "Generative media includes text to speech and generative media tools.",
+      "tags": ["text to speech", "generative media"],
+      "confidence": "low",
+      "scope": "general"
     }
   ],
   "relationships": [
     {
       "id": "rel-1",
+      "fromFactId": "fact-java",
+      "toFactId": "fact-spring",
+      "relationType": "framework-for",
+      "description": "Java is the base for Spring, Spring Boot, Spring AI, Spring Batch"
+    },
+    {
+      "id": "rel-2",
+      "fromFactId": "fact-spring",
+      "toFactId": "fact-messaging",
+      "relationType": "integrates-with",
+      "description": "Spring integrates with JMS, Solace, PubSub+"
+    },
+    {
+      "id": "rel-3",
+      "fromFactId": "fact-python",
+      "toFactId": "fact-reinforcement-learning",
+      "relationType": "enables",
+      "description": "Python is used for RL with Gymnasium, Stable-Baselines"
+    },
+    {
+      "id": "rel-4",
+      "fromFactId": "fact-elasticsearch",
+      "toFactId": "fact-rag",
+      "relationType": "retrieval-for",
+      "description": "Elasticsearch powers retrieval in RAG"
+    },
+    {
+      "id": "rel-5",
+      "fromFactId": "fact-neo4j",
+      "toFactId": "fact-rag",
+      "relationType": "retrieval-for",
+      "description": "Neo4j powers retrieval in RAG"
+    },
+    {
+      "id": "rel-6",
+      "fromFactId": "fact-rag",
+      "toFactId": "fact-llm",
+      "relationType": "grounds",
+      "description": "RAG grounds LLM outputs"
+    },
+    {
+      "id": "rel-7",
+      "fromFactId": "fact-llm",
+      "toFactId": "fact-agent",
+      "relationType": "enables",
+      "description": "LLMs enable agentic AI"
+    },
+    {
+      "id": "rel-8",
+      "fromFactId": "fact-agent",
+      "toFactId": "fact-govtech",
+      "relationType": "applies-to",
+      "description": "Agentic AI is used in GovTech"
+    },
+    {
+      "id": "rel-9",
+      "fromFactId": "fact-data-pipeline",
+      "toFactId": "fact-data-pipeline",
+      "relationType": "feeds",
+      "description": "Data pipelines feed data lakes and big data"
+    },
+    {
+      "id": "rel-10",
+      "fromFactId": "fact-oss-stack",
+      "toFactId": "fact-media",
+      "relationType": "enables",
+      "description": "OSS stack enables generative media"
+    },
+    {
+      "id": "rel-11",
       "fromFactId": "fact-knn-rag",
       "toFactId": "fact-vector-search",
       "relationType": "requires",
       "description": "kNN in RAG requires vector search capabilities"
     },
     {
-      "id": "rel-2",
+      "id": "rel-12",
       "fromFactId": "fact-bm25-retrieval",
       "toFactId": "fact-knn-rag",
       "relationType": "alternative-to",

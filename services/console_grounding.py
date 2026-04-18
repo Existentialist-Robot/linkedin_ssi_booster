@@ -121,30 +121,36 @@ def get_console_grounding_keywords() -> set[str]:
     return parsed or set(DEFAULT_TECH_KEYWORDS)
 
 
-def get_console_grounding_tag_expansions() -> dict[str, set[str]]:
-    """Return query tag expansion map from env with sensible defaults.
 
-    Env format:
-      CONSOLE_GROUNDING_TAG_EXPANSIONS=java:spring|jms|oracle;python:fastapi|scikit-learn
+def get_console_grounding_tag_expansions_from_graph(domain_knowledge=None) -> dict[str, set[str]]:
     """
-    raw = os.getenv("CONSOLE_GROUNDING_TAG_EXPANSIONS", "").strip()
-    if not raw:
-        return {k: set(v) for k, v in DEFAULT_TAG_EXPANSIONS.items()}
+    Build tag expansion relationships from the domain knowledge graph.
+    Each tag in a fact is expanded to include tags from related facts (via relationships).
+    If domain_knowledge is None, attempts to load it from avatar_intelligence.
+    """
+    if domain_knowledge is None:
+        try:
+            from services.avatar_intelligence import load_avatar_state
+            state = load_avatar_state()
+            domain_knowledge = state.domain_knowledge
+        except Exception:
+            domain_knowledge = None
+    if not domain_knowledge or not getattr(domain_knowledge, "facts", None):
+        return {}
 
+    # Build a map from fact id to tags
+    fact_tags = {f.id: set(map(str.lower, f.tags)) for f in domain_knowledge.facts}
     expansions: dict[str, set[str]] = {}
-    for block in raw.split(";"):
-        block = block.strip()
-        if not block or ":" not in block:
-            continue
-        base, values = block.split(":", 1)
-        base = base.strip().lower()
-        related = {v.strip().lower() for v in values.split("|") if v.strip()}
-        if base and related:
-            expansions[base] = related
 
-    if expansions:
-        return expansions
-    return {k: set(v) for k, v in DEFAULT_TAG_EXPANSIONS.items()}
+    # For each relationship, expand from source fact's tags to target fact's tags
+    for rel in getattr(domain_knowledge, "relationships", []):
+        from_tags = fact_tags.get(rel.from_fact_id, set())
+        to_tags = fact_tags.get(rel.to_fact_id, set())
+        for tag in from_tags:
+            if tag not in expansions:
+                expansions[tag] = set()
+            expansions[tag].update(to_tags)
+    return expansions
 
 
 @dataclass
@@ -242,7 +248,9 @@ def parse_query_constraints(
             tags.add(kw)
 
     # Expand detected tags into related tags for better retrieval quality.
-    expansions = tag_expansions if tag_expansions is not None else get_console_grounding_tag_expansions()
+
+    # Use new graph-driven expansions
+    expansions = tag_expansions if tag_expansions is not None else get_console_grounding_tag_expansions_from_graph()
     for base_tag, related in expansions.items():
         if base_tag in tags:
             tags.update(related)
