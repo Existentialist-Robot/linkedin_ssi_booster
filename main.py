@@ -57,32 +57,32 @@ def print_startup_notice():
     if not buffer_api_key:
         print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY not set. Buffer queue check skipped." + str(Style.RESET_ALL))
         return
-    try:
-        buffer = BufferService(api_key=buffer_api_key)
-        channels = buffer.get_channels()
-        for ch in channels:
-            ch_id = ch.get("id")
-            ch_name = ch.get("name")
-            ch_service = ch.get("service")
-            scheduled = buffer.get_scheduled_posts(ch_id)
-            if not scheduled:
-                continue
-            # Find the latest scheduled post date
-            max_due = None
-            for post in scheduled:
-                due = post.get("dueAt")
-                if due:
-                    try:
-                        due_dt = datetime.fromisoformat(due.replace("Z", "+00:00"))
-                        if not max_due or due_dt > max_due:
-                            max_due = due_dt
-                    except Exception:
-                        continue
-            if max_due and max_due.date() > cutoff_date:
-                print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for '{ch_name}' ({ch_service}) has posts scheduled beyond the acceptance window (latest: {max_due.date()})." + str(Style.RESET_ALL))
-                print(str(Fore.YELLOW) + f"   Posts scheduled after {cutoff_date} will be auto-rejected by the learning system. Adjust your cadence or acceptance window if needed." + str(Style.RESET_ALL))
-    except Exception as e:
-        print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
+    #try:
+    #    buffer = BufferService(api_key=buffer_api_key)
+    #    channels = buffer.get_channels()
+    #     for ch in channels:
+    #         ch_id = ch.get("id")
+    #         ch_name = ch.get("name")
+    #         ch_service = ch.get("service")
+    #         scheduled = buffer.get_scheduled_posts(ch_id)
+    #         if not scheduled:
+    #             continue
+    #         # Find the latest scheduled post date
+    #         max_due = None
+    #         for post in scheduled:
+    #             due = post.get("dueAt")
+    #             if due:
+    #                 try:
+    #                     due_dt = datetime.fromisoformat(due.replace("Z", "+00:00"))
+    #                     if not max_due or due_dt > max_due:
+    #                         max_due = due_dt
+    #                 except Exception:
+    #                     continue
+    #         if max_due and max_due.date() > cutoff_date:
+    #             print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for '{ch_name}' ({ch_service}) has posts scheduled beyond the acceptance window (latest: {max_due.date()})." + str(Style.RESET_ALL))
+    #             print(str(Fore.YELLOW) + f"   Posts scheduled after {cutoff_date} will be auto-rejected by the learning system. Adjust your cadence or acceptance window if needed." + str(Style.RESET_ALL))
+    # except Exception as e:
+    #     print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
 
 load_dotenv()
 

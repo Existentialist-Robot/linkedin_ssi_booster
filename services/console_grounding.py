@@ -94,7 +94,7 @@ def get_whitelisted_phrases() -> set[str]:
     raw = os.getenv("TRUTH_GATE_WHITELISTED_PHRASES", "").strip()
     if not raw:
         return set()
-    return {part.strip().lower() for part in raw.split(",") if part.strip()}
+    return {_normalize_phrase(part) for part in raw.split(",") if part.strip()}
 
 def _normalize_phrase(phrase: str) -> str:
         """Normalize a phrase for robust comparison: lowercase, strip, remove trailing punctuation, normalize dashes, collapse whitespace."""
