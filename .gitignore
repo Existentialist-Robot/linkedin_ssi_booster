@@ -67,3 +67,4 @@ data/avatar/narrative_memory.json
 data/avatar/learning_log.jsonl
 
 data/selection/generated_candidates.jsonl
+data/avatar/domain_knowledge.json

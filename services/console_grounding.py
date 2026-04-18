@@ -342,6 +342,29 @@ import logging as _logging
 _truth_logger = _logging.getLogger(__name__)
 
 
+def get_domain_facts_from_avatar_state() -> list[ProjectFact]:
+    """Load domain facts from avatar state if available.
+    
+    Returns a list of ProjectFact objects representing domain knowledge.
+    Uses lazy import to avoid circular dependency.
+    Returns empty list if avatar state is not loaded or has no domain knowledge.
+    """
+    try:
+        from services.avatar_intelligence import (
+            load_avatar_state,
+            normalize_domain_facts,
+            domain_facts_to_project_facts,
+        )
+        state = load_avatar_state()
+        if not state.domain_knowledge:
+            return []
+        domain_evidence_facts = normalize_domain_facts(state)
+        return domain_facts_to_project_facts(domain_evidence_facts)
+    except Exception as exc:
+        _truth_logger.debug("Failed to load domain facts: %s", exc)
+        return []
+
+
 def _build_allowed_tokens(article_text: str, facts: list[ProjectFact]) -> set[str]:
     """Build a set of lowercased tokens that are considered 'allowed' evidence.
 
@@ -499,10 +522,15 @@ def truth_gate_result(
 
     _truth_logger.debug("Truth gate called for channel=%s", channel)
     
-    allowed = _build_allowed_tokens(article_text, facts)
+    # Include domain facts as evidence sources alongside project facts
+    domain_facts = get_domain_facts_from_avatar_state()
+    all_facts = facts + domain_facts
+    _truth_logger.debug("Truth gate using %d project facts + %d domain facts", len(facts), len(domain_facts))
+    
+    allowed = _build_allowed_tokens(article_text, all_facts)
     tech_keywords = get_console_grounding_keywords()
     domain_terms = get_domain_terms()
-    project_map = _build_project_tech_map(facts, article_text)
+    project_map = _build_project_tech_map(all_facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
     removed: list[tuple[str, str]] = []  # (full_sentence, reason)
@@ -548,8 +576,8 @@ def truth_gate_result(
         # BM25 evidence strength check (if available)
         # This provides a flexible, context-aware validation that catches
         # paraphrased or weakly supported claims that strict token matching might miss
-        if _BM25_AVAILABLE and (article_text or facts):
-            bm25_score = _score_sentence_bm25(sentence, article_text, facts)
+        if _BM25_AVAILABLE and (article_text or all_facts):
+            bm25_score = _score_sentence_bm25(sentence, article_text, all_facts)
             if bm25_score < bm25_threshold:
                 reason = f"weak_evidence_bm25: score={bm25_score:.2f} < threshold={bm25_threshold}"
         
@@ -597,9 +625,9 @@ def truth_gate_result(
                 print(f"    Sentence: {sentence}")
                 
                 # Suggest matching facts using spaCy if enabled
-                if spacy_nlp and facts:
+                if spacy_nlp and all_facts:
                     try:
-                        fact_texts = [f"{f.project} | {f.details}" for f in facts]
+                        fact_texts = [f"{f.project} | {f.details}" for f in all_facts]
                         suggestions = spacy_nlp.suggest_matching_facts(
                             dropped_sentence=sentence,
                             available_facts=fact_texts,

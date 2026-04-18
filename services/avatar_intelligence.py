@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 _DATA_DIR = Path(os.getenv("AVATAR_DATA_DIR", "data/avatar"))
 PERSONA_GRAPH_PATH = _DATA_DIR / "persona_graph.json"
 NARRATIVE_MEMORY_PATH = _DATA_DIR / "narrative_memory.json"
+DOMAIN_KNOWLEDGE_PATH = _DATA_DIR / "domain_knowledge.json"
 LEARNING_LOG_PATH = _DATA_DIR / "learning_log.jsonl"
 
 # ---------------------------------------------------------------------------
@@ -88,6 +89,44 @@ class ClaimNode:
 
 
 @dataclass
+class DomainNode:
+    """A domain area (e.g., 'AI & Machine Learning', 'Software Engineering')."""
+    id: str
+    name: str
+    description: str
+
+
+@dataclass
+class DomainFact:
+    """A general domain-level truth not tied to a specific project."""
+    id: str
+    domain_id: str
+    statement: str
+    tags: list[str] = field(default_factory=list)
+    confidence: str = "medium"
+    scope: str = "general"
+
+
+@dataclass
+class DomainRelationship:
+    """Relationship between domain facts."""
+    id: str
+    from_fact_id: str
+    to_fact_id: str
+    relation_type: str
+    description: str = ""
+
+
+@dataclass
+class DomainKnowledge:
+    """Domain knowledge graph containing general professional expertise."""
+    schema_version: str
+    domains: list[DomainNode]
+    facts: list[DomainFact]
+    relationships: list[DomainRelationship]
+
+
+@dataclass
 class PersonaGraph:
     schema_version: str
     person: PersonNode
@@ -109,6 +148,7 @@ class NarrativeMemory:
 class AvatarState:
     persona_graph: PersonaGraph | None
     narrative_memory: NarrativeMemory | None
+    domain_knowledge: DomainKnowledge | None
     is_loaded: bool
     load_errors: list[str] = field(default_factory=list)
 
@@ -124,6 +164,18 @@ class EvidenceFact:
     details: str
     skills: list[str]
     source_project_id: str
+
+
+@dataclass
+class DomainEvidenceFact:
+    """A normalized fact from the domain knowledge graph with a stable evidence ID."""
+
+    evidence_id: str
+    domain: str
+    statement: str
+    tags: list[str]
+    confidence: str
+    source_fact_id: str
 
 
 @dataclass
@@ -287,11 +339,77 @@ def _load_narrative_memory(path: Path) -> tuple[NarrativeMemory | None, list[str
     return memory, []
 
 
-def load_avatar_state() -> AvatarState:
-    """Load persona graph and narrative memory from disk.
+def _validate_domain_knowledge(data: dict[str, Any]) -> list[str]:
+    """Return a list of validation errors; empty list means valid."""
+    errors: list[str] = []
+    if not isinstance(data.get("schemaVersion"), str):
+        errors.append("missing or invalid 'schemaVersion'")
+    for key in ("domains", "facts", "relationships"):
+        if not isinstance(data.get(key), list):
+            errors.append(f"missing or invalid '{key}' (must be a list)")
+    return errors
 
-    Returns a fully-populated AvatarState with is_loaded=True when both
-    files parse successfully.  On any error, logs a warning, sets
+
+def _load_domain_knowledge(path: Path) -> tuple[DomainKnowledge | None, list[str]]:
+    """Load domain knowledge graph from disk."""
+    if not path.exists():
+        return None, [f"domain_knowledge not found at {path}"]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, [f"domain_knowledge JSON parse error: {exc}"]
+
+    errors = _validate_domain_knowledge(data)
+    if errors:
+        return None, [f"domain_knowledge schema error: {e}" for e in errors]
+
+    domains = [
+        DomainNode(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            description=d.get("description", ""),
+        )
+        for d in data.get("domains", [])
+    ]
+
+    facts = [
+        DomainFact(
+            id=f.get("id", ""),
+            domain_id=f.get("domainId", ""),
+            statement=f.get("statement", ""),
+            tags=f.get("tags", []),
+            confidence=f.get("confidence", "medium"),
+            scope=f.get("scope", "general"),
+        )
+        for f in data.get("facts", [])
+    ]
+
+    relationships = [
+        DomainRelationship(
+            id=r.get("id", ""),
+            from_fact_id=r.get("fromFactId", ""),
+            to_fact_id=r.get("toFactId", ""),
+            relation_type=r.get("relationType", ""),
+            description=r.get("description", ""),
+        )
+        for r in data.get("relationships", [])
+    ]
+
+    knowledge = DomainKnowledge(
+        schema_version=data["schemaVersion"],
+        domains=domains,
+        facts=facts,
+        relationships=relationships,
+    )
+    return knowledge, []
+
+
+def load_avatar_state() -> AvatarState:
+    """Load persona graph, narrative memory, and domain knowledge from disk.
+
+    Returns a fully-populated AvatarState with is_loaded=True when all
+    required files parse successfully. Domain knowledge is optional; if missing,
+    the system continues without it. On any error, logs a warning, sets
     is_loaded=False, and records the errors in load_errors — the caller
     continues with the existing pre-graph flow.
     """
@@ -303,14 +421,24 @@ def load_avatar_state() -> AvatarState:
     memory, memory_errors = _load_narrative_memory(NARRATIVE_MEMORY_PATH)
     all_errors.extend(memory_errors)
 
+    # Domain knowledge is optional - log as info if missing, not an error
+    knowledge, knowledge_errors = _load_domain_knowledge(DOMAIN_KNOWLEDGE_PATH)
+    if knowledge_errors and "not found" not in knowledge_errors[0]:
+        # Only treat as error if it's not just missing, but actually malformed
+        all_errors.extend(knowledge_errors)
+    elif knowledge_errors:
+        logger.info("Domain knowledge not found (optional): %s", knowledge_errors[0])
+
     if all_errors:
         for err in all_errors:
             logger.warning("Avatar state load: %s", err)
 
+    # is_loaded requires persona graph and narrative memory; domain knowledge is optional
     is_loaded = graph is not None and memory is not None
     return AvatarState(
         persona_graph=graph,
         narrative_memory=memory,
+        domain_knowledge=knowledge,
         is_loaded=is_loaded,
         load_errors=all_errors,
     )
@@ -382,6 +510,69 @@ def evidence_facts_to_project_facts(facts: list[EvidenceFact]) -> list[Any]:
     ]
 
 
+def _make_domain_evidence_id(fact_id: str, run_index: int) -> str:
+    """Return a stable, short evidence ID based on domain fact ID and run index.
+
+    IDs are stable per run for the same input order:
+    D{index:03d}-{6-char fact hash}
+    """
+    fact_hash = hashlib.sha256(fact_id.encode()).hexdigest()[:6]
+    return f"D{run_index:03d}-{fact_hash}"
+
+
+def normalize_domain_facts(state: AvatarState) -> list[DomainEvidenceFact]:
+    """Convert domain knowledge facts into DomainEvidenceFacts with stable IDs.
+
+    Returns an empty list when avatar state has no domain knowledge or facts.
+    """
+    if not state.domain_knowledge or not state.domain_knowledge.facts:
+        return []
+
+    knowledge = state.domain_knowledge
+    domain_map = {d.id: d.name for d in knowledge.domains}
+
+    facts: list[DomainEvidenceFact] = []
+    for idx, domain_fact in enumerate(knowledge.facts):
+        domain_name = domain_map.get(domain_fact.domain_id, domain_fact.domain_id)
+        evidence_id = _make_domain_evidence_id(domain_fact.id, idx)
+        facts.append(
+            DomainEvidenceFact(
+                evidence_id=evidence_id,
+                domain=domain_name,
+                statement=domain_fact.statement,
+                tags=list(domain_fact.tags),
+                confidence=domain_fact.confidence,
+                source_fact_id=domain_fact.id,
+            )
+        )
+    return facts
+
+
+def domain_facts_to_project_facts(facts: list[DomainEvidenceFact]) -> list[Any]:
+    """Convert DomainEvidenceFact items to ProjectFact objects for console_grounding.
+
+    Domain facts are converted to ProjectFact format with domain name as 'project',
+    'Domain Knowledge' as company, and statement as details.
+    
+    Uses a lazy import to avoid a circular dependency with console_grounding.
+    Returns an empty list when *facts* is empty.
+    """
+    if not facts:
+        return []
+    from services.console_grounding import ProjectFact  # lazy — avoids circular import
+    return [
+        ProjectFact(
+            project=f.domain,
+            company="Domain Knowledge",
+            years="general",
+            details=f.statement,
+            source=f"domain:{f.source_fact_id}",
+            tags=set(f.tags),
+        )
+        for f in facts
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Evidence retrieval (T1.8) — graph-backed
 # ---------------------------------------------------------------------------
@@ -398,6 +589,17 @@ def _fact_tokens(fact: EvidenceFact) -> list[str]:
     base = f"{fact.project} {fact.company} {fact.years} {fact.details}"
     skill_boost = " ".join(fact.skills * 3)  # repeat for IDF weight boost
     return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + skill_boost).lower())
+
+
+def _domain_fact_tokens(fact: DomainEvidenceFact) -> list[str]:
+    """Build the BM25 document token list for one domain fact.
+
+    Concatenates domain name, statement, and tags.
+    Tags are repeated three times to weight them above plain statement words.
+    """
+    base = f"{fact.domain} {fact.statement}"
+    tag_boost = " ".join(fact.tags * 3)  # repeat for IDF weight boost
+    return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + tag_boost).lower())
 
 
 def retrieve_evidence(
@@ -515,11 +717,15 @@ def get_grounding_context_for_query(
     query: str,
     state: AvatarState | None = None,
     limit: int = 5,
+    include_domain_facts: bool = True,
 ) -> str:
     """Retrieve and format grounding context for a generation query.
 
     When *state* is None or not loaded, returns an empty string so the
     caller can fall back to the existing PROFILE_CONTEXT-based flow.
+
+    When *include_domain_facts* is True (default), domain knowledge facts
+    are included in the retrieval corpus alongside project facts.
 
     This is the primary integration point for ollama_service / content_curator
     to request graph-backed grounding.
@@ -528,11 +734,79 @@ def get_grounding_context_for_query(
         return ""
 
     facts = normalize_evidence_facts(state)
-    if not facts:
+    domain_facts = normalize_domain_facts(state) if include_domain_facts else []
+    
+    if not facts and not domain_facts:
         return ""
 
-    relevant = retrieve_evidence(query, facts, limit=limit)
-    return build_grounding_context(relevant)
+    # Combine both types of facts for retrieval
+    # We'll use a unified approach by converting domain facts to EvidenceFact-like structure
+    all_facts = facts[:]
+    
+    # If we have domain facts, we need to retrieve from both corpora
+    if domain_facts:
+        # Build combined BM25 corpus with both project and domain facts
+        if _BM25_AVAILABLE:
+            project_corpus = [_fact_tokens(f) for f in facts]
+            domain_corpus = [_domain_fact_tokens(f) for f in domain_facts]
+            combined_corpus = project_corpus + domain_corpus
+            
+            bm25 = _BM25Okapi(combined_corpus)
+            q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
+            scores: list[float] = bm25.get_scores(q_tokens).tolist()
+            
+            # Separate scores back into project and domain
+            project_scores = scores[:len(facts)]
+            domain_scores = scores[len(facts):]
+            
+            # Get top results from each
+            project_ranked = sorted(zip(project_scores, facts), key=lambda x: x[0], reverse=True)
+            domain_ranked = sorted(zip(domain_scores, domain_facts), key=lambda x: x[0], reverse=True)
+            
+            # Take top scoring from each pool (roughly equal split)
+            project_limit = limit // 2 if domain_facts else limit
+            domain_limit = limit - project_limit
+            
+            top_projects = [f for s, f in project_ranked if s > 0.0][:project_limit]
+            top_domains = [f for s, f in domain_ranked if s > 0.0][:domain_limit]
+            
+            # Build combined context
+            context_parts = []
+            if top_projects:
+                context_parts.append(build_grounding_context(top_projects))
+            if top_domains:
+                context_parts.append(build_domain_grounding_context(top_domains))
+            
+            return "\n\n".join(context_parts) if context_parts else ""
+        else:
+            # Fallback: just use project facts if BM25 not available
+            relevant = retrieve_evidence(query, facts, limit=limit)
+            return build_grounding_context(relevant)
+    else:
+        # No domain facts, use original flow
+        relevant = retrieve_evidence(query, facts, limit=limit)
+        return build_grounding_context(relevant)
+
+
+def build_domain_grounding_context(domain_facts: list[DomainEvidenceFact]) -> str:
+    """Build a prompt-ready grounding block from domain evidence facts.
+
+    Returns an empty string when the fact list is empty.
+    """
+    if not domain_facts:
+        return ""
+
+    lines = [
+        "Domain expertise — general knowledge you can reference when relevant:"
+    ]
+    for fact in domain_facts:
+        line = (
+            f"- [{fact.evidence_id}] {fact.statement}"
+        )
+        if fact.tags:
+            line += f" (Tags: {', '.join(fact.tags)})"
+        lines.append(line)
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

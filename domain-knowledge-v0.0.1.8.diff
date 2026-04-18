@@ -1,0 +1,454 @@
+diff --git a/.env.example b/.env.example
+index 95f21b3..2f21eee 100644
+--- a/.env.example
++++ b/.env.example
+@@ -55,6 +55,8 @@ BUFFER_API_KEY=your_buffer_api_key_here
+ #   - phi3:mini     (3.8b, very fast, concise)
+ OLLAMA_BASE_URL=http://localhost:11434
+ OLLAMA_MODEL=gemma4:26b
++# Fallback model to use if the main model fails to generate a YouTube Short script (optional)
++OLLAMA_MODEL_FALLBACK=qwen2.5:14b
+ # Context window sent to Ollama per request.
+ # Higher values reduce prompt truncation for grounded prompts but use more RAM/VRAM.
+ # Typical values: 4096, 8192, 16384 (recommended), 32768
+@@ -324,4 +326,9 @@ OLLAMA_NUM_CTX=8192
+ # NLP — Engage through conversational storytelling:
+ # - Use vivid sensory language and relatable scenarios to make technical points tangible.
+ # - Occasionally address the viewer directly and use conversational tag questions for rapport.
+-# - Anchor key takeaways with memorable phrases or metaphors."
+\ No newline at end of file
++# - Anchor key takeaways with memorable phrases or metaphors."
++
++# Truth gate whitelisted phrases (optional, comma-separated, case-insensitive, stripped)
++# Sentences matching any of these phrases will always be kept by the truth gate.
++# Example: TRUTH_GATE_WHITELISTED_PHRASES=what's up — sam here,hello world,thanks for watching
++# TRUTH_GATE_WHITELISTED_PHRASES=what's up — sam here
+\ No newline at end of file
+diff --git a/README.md b/README.md
+index 2d8b2f8..e6ba721 100644
+--- a/README.md
++++ b/README.md
+@@ -15,10 +15,9 @@
+ - **Hybrid RAG + agent pipeline** — Combines BM25 retrieval, deterministic validation, and multi-step agent orchestration for high factuality and variety.
+ - **Curation learning loop** — The system tracks every generated candidate, learns which ones you actually publish, and automatically floats the best sources/topics to the top in future runs (Beta-smoothed acceptance priors per source/SSI component).
+ - **Truth gate** — Post-generation filter removes unsupported claims (numbers, dates, company names, project-tech mismatches) for maximum credibility.
+-  - Uses a BM25 evidence strength check (tunable via `TRUTH_GATE_BM25_THRESHOLD` in `.env`) to score each sentence against article text and persona facts.
++  - Uses a BM25 evidence strength check to score each sentence against article text and persona facts.
+   - Sentences with BM25 scores below the threshold are flagged as weakly supported and may be removed.
+   - Strict token matching is also applied for numeric claims, years, dollar amounts, and company names.
+-  - See `.env.example` for recommended threshold values and tuning guidance.
+ - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
+ - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
+ - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, and generate advisory reports from moderation history.
+@@ -132,6 +131,22 @@ cp content_calendar.example.py content_calendar.py
+ python main.py --schedule --week 1 --dry-run
+ ```
+ 
++### Environment Variables
++
++Add these to your `.env` file:
++
++```
++ANTHROPIC_API_KEY=sk-ant-...
++BUFFER_API_KEY=...
++OLLAMA_MODEL=gemma4:26b
++OLLAMA_MODEL_FALLBACK=qwen2.5:14b  # (optional, fallback model for YouTube Shorts)
++OLLAMA_BASE_URL=http://localhost:11434
++```
++
++- `OLLAMA_MODEL` — Main Ollama model for all generations (e.g. `gemma4:26b`).
++- `OLLAMA_MODEL_FALLBACK` — Fallback model for YouTube Shorts if the main model fails (default: `qwen2.5:14b`).
++- `OLLAMA_BASE_URL` — Ollama server URL (default: `http://localhost:11434`).
++
+ The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
+ 
+ ## License
+diff --git a/docs/ai-backend-and-models.md b/docs/ai-backend-and-models.md
+index 16f5783..23fd46b 100644
+--- a/docs/ai-backend-and-models.md
++++ b/docs/ai-backend-and-models.md
+@@ -8,6 +8,7 @@ All generation in the project uses Ollama as a locally running LLM server, which
+ curl -fsSL https://ollama.com/install.sh | sh
+ ollama serve &
+ ollama pull gemma4:26b
++ollama oull 
+ ```
+ 
+ The documented setup also mentions macOS and Windows installers from `https://ollama.com/download`, followed by `.env` configuration through `OLLAMA_MODEL` and `OLLAMA_NUM_CTX`.
+@@ -23,6 +24,19 @@ The README recommends `gemma4:26b` for best post quality, and lists `qwen2.5:14b
+ | `llama3.2`     | Fastest option with lower output quality.                       |
+ | `mistral-nemo` | Additional supported alternative.                               |
+ 
++## Fallback model for YouTube Short scripts
++
++If the main Ollama model fails to generate a YouTube Short script (e.g., due to model limitations, VRAM exhaustion, or empty output), the system will automatically retry with a fallback model specified in the `.env` file:
++
++```dotenv
++# Fallback model to use if the main model fails to generate a YouTube Short script (optional)
++OLLAMA_MODEL_FALLBACK=qwen2.5:14b
++```
++
++This variable is optional, but recommended if your primary model is large (e.g., `gemma4:26b`) and you want a reliable backup for time-sensitive or resource-constrained runs. The fallback model should be pre-pulled and available in your Ollama instance. If unset, the fallback defaults to `qwen2.5:14b`.
++
++**Tip:** You can use any supported Ollama model as a fallback, but choose one that fits your hardware and quality needs.
++
+ ## Context sizing
+ 
+ The README recommends `OLLAMA_NUM_CTX=16384` as the baseline for persona-heavy grounded prompts, with `8192` suggested when memory or latency is tight and `32768` suggested only when logs show truncation or degraded long-context behavior. This guidance is tied directly to the large prompt footprint created by persona, grounding, and curation context.
+diff --git a/main.py b/main.py
+index 2f67e15..f7db766 100644
+--- a/main.py
++++ b/main.py
+@@ -57,32 +57,32 @@ def print_startup_notice():
+     if not buffer_api_key:
+         print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY not set. Buffer queue check skipped." + str(Style.RESET_ALL))
+         return
+-    try:
+-        buffer = BufferService(api_key=buffer_api_key)
+-        channels = buffer.get_channels()
+-        for ch in channels:
+-            ch_id = ch.get("id")
+-            ch_name = ch.get("name")
+-            ch_service = ch.get("service")
+-            scheduled = buffer.get_scheduled_posts(ch_id)
+-            if not scheduled:
+-                continue
+-            # Find the latest scheduled post date
+-            max_due = None
+-            for post in scheduled:
+-                due = post.get("dueAt")
+-                if due:
+-                    try:
+-                        due_dt = datetime.fromisoformat(due.replace("Z", "+00:00"))
+-                        if not max_due or due_dt > max_due:
+-                            max_due = due_dt
+-                    except Exception:
+-                        continue
+-            if max_due and max_due.date() > cutoff_date:
+-                print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for '{ch_name}' ({ch_service}) has posts scheduled beyond the acceptance window (latest: {max_due.date()})." + str(Style.RESET_ALL))
+-                print(str(Fore.YELLOW) + f"   Posts scheduled after {cutoff_date} will be auto-rejected by the learning system. Adjust your cadence or acceptance window if needed." + str(Style.RESET_ALL))
+-    except Exception as e:
+-        print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
++    #try:
++    #    buffer = BufferService(api_key=buffer_api_key)
++    #    channels = buffer.get_channels()
++    #     for ch in channels:
++    #         ch_id = ch.get("id")
++    #         ch_name = ch.get("name")
++    #         ch_service = ch.get("service")
++    #         scheduled = buffer.get_scheduled_posts(ch_id)
++    #         if not scheduled:
++    #             continue
++    #         # Find the latest scheduled post date
++    #         max_due = None
++    #         for post in scheduled:
++    #             due = post.get("dueAt")
++    #             if due:
++    #                 try:
++    #                     due_dt = datetime.fromisoformat(due.replace("Z", "+00:00"))
++    #                     if not max_due or due_dt > max_due:
++    #                         max_due = due_dt
++    #                 except Exception:
++    #                     continue
++    #         if max_due and max_due.date() > cutoff_date:
++    #             print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for '{ch_name}' ({ch_service}) has posts scheduled beyond the acceptance window (latest: {max_due.date()})." + str(Style.RESET_ALL))
++    #             print(str(Fore.YELLOW) + f"   Posts scheduled after {cutoff_date} will be auto-rejected by the learning system. Adjust your cadence or acceptance window if needed." + str(Style.RESET_ALL))
++    # except Exception as e:
++    #     print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
+ 
+ load_dotenv()
+ 
+diff --git a/scheduler.py b/scheduler.py
+index 6f160c1..0c25f0f 100644
+--- a/scheduler.py
++++ b/scheduler.py
+@@ -154,7 +154,8 @@ class PostScheduler:
+         channel: 'linkedin' | 'x' | 'bluesky' | 'youtube' | 'all'
+         """
+         channel_ids = self._resolve_channel_ids(channel)
+-        days = list(self.posting_schedule.keys())
++        # If posting_schedule is empty, use Buffer's default queueing (no time override)
++        days = list(self.posting_schedule.keys()) if self.posting_schedule else []
+         reference = datetime.now(self.timezone)
+ 
+         # Advance reference by (week_number - 1) weeks
+@@ -163,7 +164,7 @@ class PostScheduler:
+ 
+         # Compute how many posts per SSI component this week
+         ssi_weights = get_ssi_focus_weights()
+-        total_posts = min(len(days), len(posts))
++        total_posts = min(len(days), len(posts)) if days else len(posts)
+         # Sort posts by SSI component for selection
+         posts_by_ssi = {k: [] for k in ssi_weights}
+         for post in posts:
+@@ -202,11 +203,16 @@ class PostScheduler:
+                 if id(post) not in used_ids and len(selected_posts) < total_posts:
+                     selected_posts.append(post)
+ 
++
+         scheduled = []
+         for channel_id in channel_ids:
+             for i, post in enumerate(selected_posts):
+-                day_name     = days[i % 3]
+-                scheduled_at = self._next_slot(day_name, reference=reference)
++                if days:
++                    day_name     = days[i % len(days)]
++                    scheduled_at = self._next_slot(day_name, reference=reference)
++                else:
++                    day_name     = None
++                    scheduled_at = None  # Let Buffer use its own next-available slot
+                 text         = post.get("generated_text", "")
+ 
+                 if not text:
+@@ -218,7 +224,10 @@ class PostScheduler:
+                     text=text,
+                     scheduled_at=scheduled_at
+                 )
+-                logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → {day_name} {scheduled_at}")
++                if scheduled_at:
++                    logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → {day_name} {scheduled_at}")
++                else:
++                    logger.info(f"[{channel_id}] Scheduled post {i+1}/{len(selected_posts)} → Buffer queue (no time override)")
+                 scheduled.append(result)
+ 
+         logger.info(f"Week {week_number}: {len(scheduled)} posts scheduled to Buffer ({channel})")
+diff --git a/services/console_grounding.py b/services/console_grounding.py
+index 2bcab0b..2f423fb 100644
+--- a/services/console_grounding.py
++++ b/services/console_grounding.py
+@@ -1,3 +1,5 @@
++
++from __future__ import annotations
+ """Deterministic grounding layer for persona console mode.
+ 
+ This module parses PROFILE_CONTEXT project blocks, applies simple NLP-style
+@@ -5,8 +7,6 @@ query intent/constraint extraction, retrieves relevant facts, and can produce
+ deterministic cited answers without additional model calls.
+ """
+ 
+-from __future__ import annotations
+-
+ from dataclasses import dataclass, field
+ import os
+ import re
+@@ -83,6 +83,35 @@ def get_truth_gate_bm25_threshold() -> float:
+         return 1.0
+ 
+ 
++def get_whitelisted_phrases() -> set[str]:
++    """Return a set of whitelisted phrases (case-insensitive, stripped) from env.
++    
++    Env format:
++      TRUTH_GATE_WHITELISTED_PHRASES=what's up — sam here,hello world (comma-separated)
++    
++    Sentences matching any of these phrases will always be kept by the truth gate.
++    """
++    raw = os.getenv("TRUTH_GATE_WHITELISTED_PHRASES", "").strip()
++    if not raw:
++        return set()
++    return {_normalize_phrase(part) for part in raw.split(",") if part.strip()}
++
++def _normalize_phrase(phrase: str) -> str:
++        """Normalize a phrase for robust comparison: lowercase, strip, remove trailing punctuation, normalize dashes, collapse whitespace."""
++        import unicodedata
++        s = phrase.strip().lower()
++        # Normalize unicode dashes to hyphen-minus
++        s = s.replace('—', '-').replace('–', '-')
++        # Remove trailing punctuation (period, exclamation, question, comma, semicolon, colon)
++        s = s.rstrip('.!?;,:")')
++        # Collapse multiple spaces
++        s = ' '.join(s.split())
++        # Remove leading/trailing quotes
++        s = s.strip('"\'')
++        return s
++
++
++
+ def get_console_grounding_keywords() -> set[str]:
+     """Return tech keywords used by console grounding from env with defaults."""
+     raw = os.getenv("CONSOLE_GROUNDING_TECH_KEYWORDS", "").strip()
+@@ -468,6 +497,8 @@ def truth_gate_result(
+     if not text:
+         return text, TruthGateMeta(removed_count=0, total_sentences=0)
+ 
++    _truth_logger.debug("Truth gate called for channel=%s", channel)
++    
+     allowed = _build_allowed_tokens(article_text, facts)
+     tech_keywords = get_console_grounding_keywords()
+     domain_terms = get_domain_terms()
+@@ -488,9 +519,32 @@ def truth_gate_result(
+     # Get BM25 threshold for weak evidence detection
+     bm25_threshold = get_truth_gate_bm25_threshold()
+     
++    whitelisted_phrases = get_whitelisted_phrases()
+     for sentence in sentences:
++        # Always keep sentences that are only hashtags, only URLs, empty/whitespace, questions, or whitelisted phrases
++        stripped = sentence.strip()
++        if not stripped:
++            kept.append(sentence)
++            continue
++        # Whitelisted phrases (case-insensitive, stripped)
++        if _normalize_phrase(stripped) in whitelisted_phrases:
++            kept.append(sentence)
++            continue
++        # Only hashtags (e.g., '#Tag #AnotherTag')
++        if all(word.startswith('#') for word in stripped.split()):
++            kept.append(sentence)
++            continue
++        # Only URL(s)
++        import re as _re
++        url_pattern = _re.compile(r'^(https?://\S+)$')
++        if all(url_pattern.match(word) for word in stripped.split()):
++            kept.append(sentence)
++            continue
++        # Questions (ending with '?')
++        if stripped.endswith('?'):
++            kept.append(sentence)
++            continue
+         reason: str | None = None
+-        
+         # BM25 evidence strength check (if available)
+         # This provides a flexible, context-aware validation that catches
+         # paraphrased or weakly supported claims that strict token matching might miss
+@@ -525,9 +579,13 @@ def truth_gate_result(
+ 
+         if not reason:
+             for m in _ORG_NAME_RE.finditer(sentence):
+-                if m.group(1).lower() not in allowed:
+-                    reason = f"unsupported_org: '{m.group(1)}'"
+-                    break
++                org_phrase = m.group(1).lower()
++                if org_phrase not in allowed:
++                    # Allow if all words in org name are present in allowed evidence
++                    org_words = [w for w in re.findall(r"\w+", org_phrase) if len(w) > 1]
++                    if not all(word in allowed for word in org_words):
++                        reason = f"unsupported_org: '{m.group(1)}'"
++                        break
+ 
+         if not reason:
+             reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
+@@ -583,12 +641,19 @@ def truth_gate_result(
+ 
+     if removed:
+         for full_sentence, reason in removed:
+-            _truth_logger.info("Truth gate removed [%s]: %s", reason, full_sentence)
++            _truth_logger.info("Truth gate removed [channel=%s] [%s]: %s", channel, reason, full_sentence)
+         _truth_logger.info(
+-            "Truth gate summary: removed %d of %d sentences",
++            "Truth gate summary [channel=%s]: removed %d of %d sentences",
++            channel,
+             len(removed),
+             len(sentences),
+         )
++    else:
++        _truth_logger.debug(
++            "Truth gate [channel=%s]: no sentences removed (%d total sentences)",
++            channel,
++            len(sentences),
++        )
+ 
+     meta = TruthGateMeta(
+         removed_count=len(removed),
+diff --git a/services/content_curator.py b/services/content_curator.py
+index 0c87e69..e330033 100644
+--- a/services/content_curator.py
++++ b/services/content_curator.py
+@@ -98,7 +98,6 @@ def _truncate_at_sentence(text: str, budget: int) -> str:
+     return stripped
+ 
+ 
+-CURATOR_MAX_PER_FEED: int = int(os.getenv("CURATOR_MAX_PER_FEED", "10"))
+ IDEAS_CACHE_PATH = Path(os.getenv("IDEAS_CACHE_PATH", "published_ideas_cache.json"))
+ 
+ # ---------------------------------------------------------------------------
+@@ -404,14 +403,6 @@ class ContentCurator:
+             result = score_confidence(signals)
+             cd = decide_publish_mode(self.confidence_policy, result, requested_mode)
+ 
+-            logger.info(
+-                "Confidence: score=%.2f level=%s policy=%s route=%s | %s",
+-                result.score,
+-                result.level,
+-                self.confidence_policy,
+-                cd.route,
+-                cd.reason,
+-            )
+ 
+             if AVATAR_LEARNING_ENABLED:
+                 record_confidence_decision(
+@@ -429,8 +420,6 @@ class ContentCurator:
+                 exc,
+             )
+             return requested_mode, "confidence scoring unavailable — using requested mode"
+-        logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
+-        return articles
+ 
+     def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False) -> list:
+         """
+diff --git a/services/ollama_service.py b/services/ollama_service.py
+index 017497a..7b4ffc4 100644
+--- a/services/ollama_service.py
++++ b/services/ollama_service.py
+@@ -39,10 +39,11 @@ class OllamaService:
+         grounding_facts: Optional[list[ProjectFact]] = None,
+         interactive: bool = False,
+         continuity_context: str = "",
++        channel: str = "youtube",
+     ) -> str:
+         """
+         Generate a YouTube Short script using the dedicated persona prompt and structure.
+-        Handles empty LLM output robustly.
++        Handles empty LLM output robustly, with fallback model support.
+         """
+         grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
+         _continuity_block = (
+@@ -53,11 +54,29 @@ class OllamaService:
+         system_prompt = f"{YOUTUBE_SHORT_SYSTEM_PROMPT}\n{_continuity_block}"
+         user_prompt = f"Topic: {title}\nAngle: {angle}\n\n{grounding_block}\n\nWrite a YouTube Short script for this topic."
+ 
++        # Main model attempt
+         text = self._chat(system_prompt, user_prompt, max_tokens=768)
+ 
+         if not text:
+-            logger.warning("YouTube Short script generation returned empty output for title='%s' (angle='%s', ssi_component='%s')", title, angle, ssi_component)
+-            return "[ERROR] No script was generated by the LLM. Please check your Ollama model, prompt, or try again."
++            logger.debug(
++                "YouTube Short script generation returned empty output for title='%s' (angle='%s', ssi_component='%s')",
++                title, angle, ssi_component
++            )
++            # Fallback model from env
++            fallback_model = os.getenv("OLLAMA_MODEL_FALLBACK", "qwen2.5:14b")
++            original_model = self.model
++            try:
++                logger.warning("Retrying YouTube Short script generation with fallback model '%s'", fallback_model) 
++                self.model = fallback_model
++                text = self._chat(system_prompt, user_prompt, max_tokens=768)
++            finally:
++                logger.warning("Restoring original model '%s'", original_model)
++                self.model = original_model
++            if not text:
++                return "[ERROR] No script was generated by the LLM (main or fallback). Please check your Ollama model, prompt, or try again."
++
++        # Run truth gate with correct channel for logging and filtering
++        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [], interactive=interactive, channel=channel)
+ 
+         # Hard cap: truncate to last complete sentence at or before 500 chars
+         if len(text) > 500:
+@@ -219,7 +238,7 @@ Do NOT include hashtags in your output — they will be appended automatically."
+         text = self._chat(system_prompt, user_prompt, max_tokens=768)
+ 
+         # Lightweight truth gate — strip sentences with unsupported claims
+-        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [], interactive=interactive)
++        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [], interactive=interactive, channel=channel)
+ 
+         # Format into paragraphs with hashtags on their own line
+         if channel in ("linkedin",):
+@@ -419,7 +438,7 @@ Write a LinkedIn post reacting to this article.
+ 
+         # Lightweight truth gate — strip sentences with unsupported claims
+         if result:
+-            result = truth_gate(result, article_text, grounding_facts or [], interactive=interactive)
++            result = truth_gate(result, article_text, grounding_facts or [], interactive=interactive, channel=channel)
+ 
+         # Format into paragraphs with hashtags on their own line
+         if result and channel == "linkedin":

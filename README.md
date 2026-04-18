@@ -2,7 +2,7 @@
 
 #### _<u> — Persona-Grounded Adaptive Learning Hybrid RAG Agent</u>_
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0017](https://img.shields.io/badge/version-alpha--v0.0.1.7-orange.svg)]()
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0018](https://img.shields.io/badge/version-alpha--v0.0.1.8-orange.svg)]()
 
 **LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
 
@@ -111,6 +111,7 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Setup guide](docs/setup.md) — environment, dependencies, persona graph, and calendar setup.
 - [Architecture guide](docs/architecture.md) — learning pipeline, grounding flow, truth gate, and curation ranking.
 - [Persona and Avatar Intelligence](docs/persona-and-avatar.md) — persona graph, system prompt, memory, confidence, and explainability.
+- [Domain Knowledge Graph](docs/domain-knowledge.md) — domain-level expertise that isn't tied to specific projects.
 - [Usage guide](docs/usage-schedule-curate-console.md) — scheduling, curation, console mode, channels, and CLI examples.
 - [SSI strategy](docs/ssi-and-strategy.md) — SSI model, content mapping, scheduler behavior, and reporting.
 - [AI backend](docs/ai-backend-and-models.md) — Ollama setup and model recommendations.
@@ -126,6 +127,7 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 cp .env.example .env
 cp data/avatar/persona_graph.example.json data/avatar/persona_graph.json
+
 cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
 cp content_calendar.example.py content_calendar.py
 python main.py --schedule --week 1 --dry-run
