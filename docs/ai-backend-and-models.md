@@ -8,6 +8,7 @@ All generation in the project uses Ollama as a locally running LLM server, which
 curl -fsSL https://ollama.com/install.sh | sh
 ollama serve &
 ollama pull gemma4:26b
+ollama oull 
 ```
 
 The documented setup also mentions macOS and Windows installers from `https://ollama.com/download`, followed by `.env` configuration through `OLLAMA_MODEL` and `OLLAMA_NUM_CTX`.
