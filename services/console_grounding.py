@@ -96,6 +96,21 @@ def get_whitelisted_phrases() -> set[str]:
         return set()
     return {part.strip().lower() for part in raw.split(",") if part.strip()}
 
+def _normalize_phrase(phrase: str) -> str:
+        """Normalize a phrase for robust comparison: lowercase, strip, remove trailing punctuation, normalize dashes, collapse whitespace."""
+        import unicodedata
+        s = phrase.strip().lower()
+        # Normalize unicode dashes to hyphen-minus
+        s = s.replace('—', '-').replace('–', '-')
+        # Remove trailing punctuation (period, exclamation, question, comma, semicolon, colon)
+        s = s.rstrip('.!?;,:")')
+        # Collapse multiple spaces
+        s = ' '.join(s.split())
+        # Remove leading/trailing quotes
+        s = s.strip('"\'')
+        return s
+
+
 
 def get_console_grounding_keywords() -> set[str]:
     """Return tech keywords used by console grounding from env with defaults."""
@@ -482,6 +497,8 @@ def truth_gate_result(
     if not text:
         return text, TruthGateMeta(removed_count=0, total_sentences=0)
 
+    _truth_logger.debug("Truth gate called for channel=%s", channel)
+    
     allowed = _build_allowed_tokens(article_text, facts)
     tech_keywords = get_console_grounding_keywords()
     domain_terms = get_domain_terms()
@@ -510,7 +527,7 @@ def truth_gate_result(
             kept.append(sentence)
             continue
         # Whitelisted phrases (case-insensitive, stripped)
-        if stripped.lower() in whitelisted_phrases:
+        if _normalize_phrase(stripped) in whitelisted_phrases:
             kept.append(sentence)
             continue
         # Only hashtags (e.g., '#Tag #AnotherTag')
@@ -620,10 +637,17 @@ def truth_gate_result(
 
     if removed:
         for full_sentence, reason in removed:
-            _truth_logger.info("Truth gate removed [%s]: %s", reason, full_sentence)
+            _truth_logger.info("Truth gate removed [channel=%s] [%s]: %s", channel, reason, full_sentence)
         _truth_logger.info(
-            "Truth gate summary: removed %d of %d sentences",
+            "Truth gate summary [channel=%s]: removed %d of %d sentences",
+            channel,
             len(removed),
+            len(sentences),
+        )
+    else:
+        _truth_logger.debug(
+            "Truth gate [channel=%s]: no sentences removed (%d total sentences)",
+            channel,
             len(sentences),
         )
 
