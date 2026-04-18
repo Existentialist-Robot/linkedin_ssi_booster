@@ -238,7 +238,7 @@ Do NOT include hashtags in your output — they will be appended automatically."
         text = self._chat(system_prompt, user_prompt, max_tokens=768)
 
         # Lightweight truth gate — strip sentences with unsupported claims
-        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [], interactive=interactive)
+        text = truth_gate(text, f"{title}. {angle}", grounding_facts or [], interactive=interactive, channel=channel)
 
         # Format into paragraphs with hashtags on their own line
         if channel in ("linkedin",):
@@ -438,7 +438,7 @@ Write a LinkedIn post reacting to this article.
 
         # Lightweight truth gate — strip sentences with unsupported claims
         if result:
-            result = truth_gate(result, article_text, grounding_facts or [], interactive=interactive)
+            result = truth_gate(result, article_text, grounding_facts or [], interactive=interactive, channel=channel)
 
         # Format into paragraphs with hashtags on their own line
         if result and channel == "linkedin":
