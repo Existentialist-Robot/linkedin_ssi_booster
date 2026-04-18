@@ -23,6 +23,19 @@ The README recommends `gemma4:26b` for best post quality, and lists `qwen2.5:14b
 | `llama3.2`     | Fastest option with lower output quality.                       |
 | `mistral-nemo` | Additional supported alternative.                               |
 
+## Fallback model for YouTube Short scripts
+
+If the main Ollama model fails to generate a YouTube Short script (e.g., due to model limitations, VRAM exhaustion, or empty output), the system will automatically retry with a fallback model specified in the `.env` file:
+
+```dotenv
+# Fallback model to use if the main model fails to generate a YouTube Short script (optional)
+OLLAMA_MODEL_FALLBACK=qwen2.5:14b
+```
+
+This variable is optional, but recommended if your primary model is large (e.g., `gemma4:26b`) and you want a reliable backup for time-sensitive or resource-constrained runs. The fallback model should be pre-pulled and available in your Ollama instance. If unset, the fallback defaults to `qwen2.5:14b`.
+
+**Tip:** You can use any supported Ollama model as a fallback, but choose one that fits your hardware and quality needs.
+
 ## Context sizing
 
 The README recommends `OLLAMA_NUM_CTX=16384` as the baseline for persona-heavy grounded prompts, with `8192` suggested when memory or latency is tight and `32768` suggested only when logs show truncation or degraded long-context behavior. This guidance is tied directly to the large prompt footprint created by persona, grounding, and curation context.
