@@ -127,7 +127,7 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 cp .env.example .env
 cp data/avatar/persona_graph.example.json data/avatar/persona_graph.json
-
+cp data/avatar/domain_knowledge.example.json data/avatar/domain_knowledge.json
 cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
 cp content_calendar.example.py content_calendar.py
 python main.py --schedule --week 1 --dry-run
