@@ -138,7 +138,6 @@ python main.py --schedule --week 1 --dry-run
 Add these to your `.env` file:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
 BUFFER_API_KEY=...
 OLLAMA_MODEL=gemma4:26b
 OLLAMA_MODEL_FALLBACK=qwen2.5:14b  # (optional, fallback model for YouTube Shorts)
