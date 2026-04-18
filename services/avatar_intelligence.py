@@ -973,7 +973,7 @@ def _apply_heuristics(
             category="domain_term",
             suggestion=(
                 f"You overrode {len(project_claim_kept)} 'project_claim' removals. "
-                "Consider adding the repeatedly-kept tech keywords to TRUTH_GATE_DOMAIN_TERMS "
+                "Consider adding the repeatedly-kept tech keywords to domain knowledge "
                 "or CONSOLE_GROUNDING_TECH_KEYWORDS in your .env."
             ),
             confidence="high" if len(project_claim_kept) >= 5 else "medium",

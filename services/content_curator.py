@@ -1,4 +1,3 @@
-
 """
 Content Curator
 Fetches AI/GovTech news from RSS feeds and GitHub, 
@@ -24,7 +23,7 @@ from services.buffer_service import BufferQueueFullError, BufferChannelNotConnec
 from services.console_grounding import (
     ProjectFact,
     TruthGateMeta,
-    get_console_grounding_tag_expansions,
+    get_console_grounding_tag_expansions_from_graph,
     truth_gate_result,
 )
 
@@ -256,7 +255,7 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
     """
     raw = os.getenv("CURATION_GROUNDING_TAG_EXPANSIONS", "").strip()
     if not raw:
-        return get_console_grounding_tag_expansions()
+        return get_console_grounding_tag_expansions_from_graph()
 
     expansions: dict[str, set[str]] = {}
     for block in raw.split(";"):
@@ -268,7 +267,7 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
         related = {v.strip().lower() for v in values.split("|") if v.strip()}
         if base and related:
             expansions[base] = related
-    return expansions or get_console_grounding_tag_expansions()
+    return expansions or get_console_grounding_tag_expansions_from_graph()
 
 
 class ContentCurator:
@@ -579,7 +578,7 @@ class ContentCurator:
                     print(str(Fore.BLUE) + f"\n𝕏  X POST:" + str(Style.RESET_ALL) + f"\n{x_post}")
                     print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
                     if yt_script:
-                        print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}\n")
+                        print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}\n")
 
                     # Print avatar explanation if requested
                     if avatar_explain:

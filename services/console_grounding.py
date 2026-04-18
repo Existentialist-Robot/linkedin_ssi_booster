@@ -33,27 +33,6 @@ DEFAULT_TAG_EXPANSIONS: dict[str, set[str]] = {
     "java": {"spring", "jms", "oracle", "weblogic", "solr", "lucene", "elasticsearch"},
 }
 
-# Domain-wide terms that are always allowed in project-claim context.
-# These are broad domain vocabulary items (e.g. "llm", "ai", "api") that make
-# sense when discussing *any* AI/software project and should never trigger a
-# project-technology misattribution flag.
-DEFAULT_DOMAIN_TERMS: set[str] = {
-    "llm", "ai", "ml", "api", "model", "pipeline", "agent", "prompt",
-    "embedding", "vector", "retrieval", "inference", "fine-tuning",
-}
-
-
-def get_domain_terms() -> set[str]:
-    """Return domain-wide terms that bypass the project-claim check.
-
-    Env format:
-      TRUTH_GATE_DOMAIN_TERMS=llm,ai,ml,api,model (comma-separated, overrides defaults)
-    """
-    raw = os.getenv("TRUTH_GATE_DOMAIN_TERMS", "").strip()
-    if not raw:
-        return set(DEFAULT_DOMAIN_TERMS)
-    parsed = {part.strip().lower() for part in raw.split(",") if part.strip()}
-    return parsed or set(DEFAULT_DOMAIN_TERMS)
 
 
 def get_truth_gate_bm25_threshold() -> float:
@@ -429,7 +408,6 @@ def _check_project_claim(
     sentence: str,
     project_map: dict[str, str],
     tech_keywords: set[str],
-    domain_terms: set[str],
 ) -> str | None:
     """Return the reason string if the sentence falsely links a tech to a project.
 
@@ -443,8 +421,6 @@ def _check_project_claim(
             continue
         # This sentence mentions a known project — check tech keywords in it.
         for kw in tech_keywords:
-            if kw in domain_terms:
-                continue  # domain-wide term — always allowed
             if kw in sent_lower and kw not in evidence_text:
                 return (
                     f"project_claim: '{kw}' attributed to "
@@ -537,7 +513,6 @@ def truth_gate_result(
     
     allowed = _build_allowed_tokens(article_text, all_facts)
     tech_keywords = get_console_grounding_keywords()
-    domain_terms = get_domain_terms()
     project_map = _build_project_tech_map(all_facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
@@ -624,7 +599,7 @@ def truth_gate_result(
                         break
 
         if not reason:
-            reason = _check_project_claim(sentence, project_map, tech_keywords, domain_terms)
+            reason = _check_project_claim(sentence, project_map, tech_keywords)
 
         if reason:
             if interactive:
@@ -715,8 +690,7 @@ def truth_gate(
        patterns whose key token does NOT appear in the article or facts.
     2. Project-technology misattributions — when a sentence names a known
        project but pairs it with a tech keyword that does not appear in
-       that project's detail or the article text.  Domain-wide terms
-       (configurable via ``TRUTH_GATE_DOMAIN_TERMS``) are always allowed.
+       that project's detail or the article text.
 
     When *interactive* is True, each flagged sentence is presented to the
     user for confirmation before removal.  Interactive decisions are recorded
