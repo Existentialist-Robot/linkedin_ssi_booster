@@ -1,11 +1,11 @@
+
+from __future__ import annotations
 """Deterministic grounding layer for persona console mode.
 
 This module parses PROFILE_CONTEXT project blocks, applies simple NLP-style
 query intent/constraint extraction, retrieves relevant facts, and can produce
 deterministic cited answers without additional model calls.
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
@@ -81,6 +81,20 @@ def get_truth_gate_bm25_threshold() -> float:
             raw,
         )
         return 1.0
+
+
+def get_whitelisted_phrases() -> set[str]:
+    """Return a set of whitelisted phrases (case-insensitive, stripped) from env.
+    
+    Env format:
+      TRUTH_GATE_WHITELISTED_PHRASES=what's up — sam here,hello world (comma-separated)
+    
+    Sentences matching any of these phrases will always be kept by the truth gate.
+    """
+    raw = os.getenv("TRUTH_GATE_WHITELISTED_PHRASES", "").strip()
+    if not raw:
+        return set()
+    return {part.strip().lower() for part in raw.split(",") if part.strip()}
 
 
 def get_console_grounding_keywords() -> set[str]:
@@ -488,9 +502,32 @@ def truth_gate_result(
     # Get BM25 threshold for weak evidence detection
     bm25_threshold = get_truth_gate_bm25_threshold()
     
+    whitelisted_phrases = get_whitelisted_phrases()
     for sentence in sentences:
+        # Always keep sentences that are only hashtags, only URLs, empty/whitespace, questions, or whitelisted phrases
+        stripped = sentence.strip()
+        if not stripped:
+            kept.append(sentence)
+            continue
+        # Whitelisted phrases (case-insensitive, stripped)
+        if stripped.lower() in whitelisted_phrases:
+            kept.append(sentence)
+            continue
+        # Only hashtags (e.g., '#Tag #AnotherTag')
+        if all(word.startswith('#') for word in stripped.split()):
+            kept.append(sentence)
+            continue
+        # Only URL(s)
+        import re as _re
+        url_pattern = _re.compile(r'^(https?://\S+)$')
+        if all(url_pattern.match(word) for word in stripped.split()):
+            kept.append(sentence)
+            continue
+        # Questions (ending with '?')
+        if stripped.endswith('?'):
+            kept.append(sentence)
+            continue
         reason: str | None = None
-        
         # BM25 evidence strength check (if available)
         # This provides a flexible, context-aware validation that catches
         # paraphrased or weakly supported claims that strict token matching might miss
