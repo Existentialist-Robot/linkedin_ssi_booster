@@ -310,16 +310,20 @@ class ContentCurator:
         """
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
         if self._avatar_facts or self._domain_facts:
-            from services.avatar_intelligence import retrieve_evidence, retrieve_domain_evidence, evidence_facts_to_project_facts, domain_facts_to_project_facts, DomainEvidenceFact
-            # Tune these numbers as desired
-            N_PERSONA = 3
-            N_DOMAIN = 2
-            persona_hits = retrieve_evidence(query, self._avatar_facts, limit=N_PERSONA) if self._avatar_facts else []
-            domain_hits = retrieve_domain_evidence(query, self._domain_facts, limit=N_DOMAIN) if self._domain_facts else []
-            # Type narrowing for static checkers: only DomainEvidenceFact
-            domain_hits_typed: list[DomainEvidenceFact] = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
-            from services.avatar_intelligence import EvidenceFact
+            from services.avatar_intelligence import (
+                retrieve_evidence,
+                evidence_facts_to_project_facts,
+                domain_facts_to_project_facts,
+                EvidenceFact,
+                DomainEvidenceFact,
+                _get_evidence_split,
+            )
+            n_persona, n_domain = _get_evidence_split()
+            persona_hits = retrieve_evidence(query, self._avatar_facts, limit=n_persona) if self._avatar_facts else []
+            domain_hits = retrieve_evidence(query, self._domain_facts, limit=n_domain) if self._domain_facts else []
+            # Type narrowing for static checkers
             persona_hits_typed: list[EvidenceFact] = [f for f in persona_hits if isinstance(f, EvidenceFact)]
+            domain_hits_typed: list[DomainEvidenceFact] = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
             persona_pf = evidence_facts_to_project_facts(persona_hits_typed)
             domain_pf = domain_facts_to_project_facts(domain_hits_typed)
             return persona_pf + domain_pf
