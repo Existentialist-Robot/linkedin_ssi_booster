@@ -591,6 +591,47 @@ def _fact_tokens(fact: EvidenceFact) -> list[str]:
     return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + skill_boost).lower())
 
 
+def _domain_fact_tokens(fact: DomainEvidenceFact) -> list[str]:
+    """Build the BM25 document token list for one domain fact.
+
+    Concatenates domain name, statement, and tags.
+    Tags are repeated three times to weight them above plain statement words.
+    """
+    base = f"{fact.domain} {fact.statement}"
+    tag_boost = " ".join(fact.tags * 3)  # repeat for IDF weight boost
+    return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + tag_boost).lower())
+
+def _retrieve_domain_evidence_fallback(
+    query: str,
+    facts: list[DomainEvidenceFact],
+    limit: int,
+) -> list[DomainEvidenceFact]:
+    """Hand-weighted keyword fallback for domain facts when rank_bm25 is not installed."""
+    q_lower = query.lower()
+    q_words = set(q_lower.split())
+
+    scored: list[tuple[int, DomainEvidenceFact]] = []
+    for fact in facts:
+        score = 0
+        domain_lower = fact.domain.lower()
+        if domain_lower in q_lower or any(w in domain_lower for w in q_words):
+            score += 5
+        for tag in fact.tags:
+            if tag.lower() in q_lower:
+                score += 10
+        statement = fact.statement
+        statement_words = set(statement.lower().split())
+        overlap = q_words & statement_words
+        score += len(overlap) * 3
+        score += min(len(statement) // 100, 2)
+        scored.append((score, fact))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = [f for s, f in scored if s > 0][:limit]
+    if top:
+        return top
+    return [f for _, f in scored[:limit]]
+
 def retrieve_domain_evidence(
     query: str,
     facts: list[DomainEvidenceFact],
@@ -610,56 +651,23 @@ def retrieve_domain_evidence(
     return _retrieve_domain_evidence_fallback(query, facts, limit)
 
 
-def _domain_fact_tokens(fact: DomainEvidenceFact) -> list[str]:
-    def _retrieve_domain_evidence_bm25(
-        query: str,
-        facts: list[DomainEvidenceFact],
-        limit: int,
-    ) -> list[DomainEvidenceFact]:
-        """BM25Okapi-backed retrieval path for domain facts."""
-        corpus = [_domain_fact_tokens(f) for f in facts]
-        bm25 = _BM25Okapi(corpus)
-        q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
-        scores: list[float] = bm25.get_scores(q_tokens).tolist()
+def _retrieve_domain_evidence_bm25(
+    query: str,
+    facts: list[DomainEvidenceFact],
+    limit: int,
+) -> list[DomainEvidenceFact]:
+    """BM25Okapi-backed retrieval path for domain evidence facts."""
+    corpus = [_domain_fact_tokens(f) for f in facts]
+    bm25 = _BM25Okapi(corpus)
+    q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
+    scores: list[float] = bm25.get_scores(q_tokens).tolist()
 
-        ranked = sorted(zip(scores, facts), key=lambda x: x[0], reverse=True)
-        top = [f for s, f in ranked if s > 0.0][:limit]
-        if top:
-            return top
-        # nothing scored — return top-N by raw order (all facts are equally unknown)
-        return [f for _, f in ranked[:limit]]
-
-
-    def _retrieve_domain_evidence_fallback(
-        query: str,
-        facts: list[DomainEvidenceFact],
-        limit: int,
-    ) -> list[DomainEvidenceFact]:
-        """Hand-weighted keyword fallback for domain facts when rank_bm25 is not installed."""
-        q_lower = query.lower()
-        q_words = set(q_lower.split())
-
-        scored: list[tuple[int, DomainEvidenceFact]] = []
-        for fact in facts:
-            score = 0
-            domain_lower = fact.domain.lower()
-            if domain_lower in q_lower or any(w in domain_lower for w in q_words):
-                score += 5
-            for tag in fact.tags:
-                if tag.lower() in q_lower:
-                    score += 10
-            statement = fact.statement
-            statement_words = set(statement.lower().split())
-            overlap = q_words & statement_words
-            score += len(overlap) * 3
-            score += min(len(statement) // 100, 2)
-            scored.append((score, fact))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        top = [f for s, f in scored if s > 0][:limit]
-        if top:
-            return top
-        return [f for _, f in scored[:limit]]
+    ranked = sorted(zip(scores, facts), key=lambda x: x[0], reverse=True)
+    top = [f for s, f in ranked if s > 0.0][:limit]
+    if top:
+        return top
+    # nothing scored — return top-N by raw order (all facts are equally unknown)
+    return [f for _, f in ranked[:limit]]
     """Build the BM25 document token list for one domain fact.
 
     Concatenates domain name, statement, and tags.
@@ -727,25 +735,25 @@ def _retrieve_evidence_fallback(
         # EvidenceFact: project, skills, details
         # DomainEvidenceFact: domain, tags, statement
         if hasattr(fact, "project") and hasattr(fact, "skills") and hasattr(fact, "details"):
-            proj_lower = fact.project.lower()
+            proj_lower = getattr(fact, "project", "").lower()
             if proj_lower in q_lower or any(w in proj_lower for w in q_words):
                 score += 5
-            for skill in fact.skills:
+            for skill in getattr(fact, "skills", []):
                 if skill.lower() in q_lower:
                     score += 10
-            detail = fact.details
+            detail = getattr(fact, "details", "")
             detail_words = set(detail.lower().split())
             overlap = q_words & detail_words
             score += len(overlap) * 3
             score += min(len(detail) // 100, 2)
         elif hasattr(fact, "domain") and hasattr(fact, "tags") and hasattr(fact, "statement"):
-            domain_lower = fact.domain.lower()
+            domain_lower = getattr(fact, "domain", "").lower()
             if domain_lower in q_lower or any(w in domain_lower for w in q_words):
                 score += 5
-            for tag in fact.tags:
+            for tag in getattr(fact, "tags", []):
                 if tag.lower() in q_lower:
                     score += 10
-            statement = fact.statement
+            statement = getattr(fact, "statement", "")
             statement_words = set(statement.lower().split())
             overlap = q_words & statement_words
             score += len(overlap) * 3
@@ -961,13 +969,19 @@ def build_explain_output(
     ids = [f.evidence_id for f in evidence_facts]
     summaries = []
     for f in evidence_facts:
-        if hasattr(f, "project"):  # Persona/project fact
+        if hasattr(f, "project"):
+            project = getattr(f, "project", "")
+            years = getattr(f, "years", "")
+            details = getattr(f, "details", "")
             summaries.append(
-                f"[{f.evidence_id}] {f.project} ({getattr(f, 'years', '')}) — {getattr(f, 'details', '')[:80]}{'...' if len(getattr(f, 'details', '')) > 80 else ''}"
+                f"[{f.evidence_id}] {project} ({years}) — {details[:80]}{'...' if len(details) > 80 else ''}"
             )
-        elif hasattr(f, "domain"):  # Domain fact
+        elif hasattr(f, "domain"):
+            domain = getattr(f, "domain", "")
+            statement = getattr(f, "statement", "")
+            tags = getattr(f, "tags", [])
             summaries.append(
-                f"[{f.evidence_id}] {f.domain} — {f.statement[:80]}{'...' if len(f.statement) > 80 else ''} (Tags: {', '.join(f.tags)})"
+                f"[{f.evidence_id}] {domain} — {statement[:80]}{'...' if len(statement) > 80 else ''} (Tags: {', '.join(tags)})"
             )
         else:
             summaries.append(f"[{getattr(f, 'evidence_id', '?')}] Unknown evidence type")
