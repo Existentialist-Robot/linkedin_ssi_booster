@@ -20,6 +20,8 @@ Previously, these claims would be flagged by the truth gate unless they appeared
 2. **Robust Truth Gating**: The system remains protected against hallucination while being less brittle
 3. **Personalized Authority**: Curate a knowledge graph that represents _your_ areas of expertise and preferred perspectives
 
+This source serves as a structured knowledge graph that maps the intricate connections between modern AI and machine learning, software engineering, and data engineering. It organizes technical information into a formal schema consisting of distinct domains, verified factual statements, and the interconnected relationships that bind them together. The primary focus of the text is the architectural synergy within AI pipelines, specifically highlighting how Retrieval-Augmented Generation (RAG) utilizes tools like vector search and Large Language Models to produce grounded outputs. By documenting the dependencies between programming languages, frameworks, and emerging technologies like agentic systems, the source provides a comprehensive blueprint for understanding how contemporary computing components function as a unified ecosystem.
+
 ## Schema
 
 ### Visual Structure
@@ -121,17 +123,19 @@ The domain knowledge graph uses a JSON structure similar to the persona graph:
 ## Setup
 
 1. **Create your domain knowledge file**:
-
+   
    ```bash
    cp data/avatar/domain_knowledge.example.json data/avatar/domain_knowledge.json
    ```
 
 2. **Customize the content**:
+   
    - Add domains that match your areas of expertise
    - Add facts that represent your professional knowledge
    - Tag facts with relevant keywords for retrieval
 
 3. **The system automatically loads it**:
+   
    - Domain knowledge is loaded alongside the persona graph
    - If the file is missing, the system continues without it (optional feature)
    - Errors are logged but don't prevent the tool from running
