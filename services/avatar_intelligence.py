@@ -969,14 +969,15 @@ def build_explain_output(
     ids = [f.evidence_id for f in evidence_facts]
     summaries = []
     for f in evidence_facts:
-        if hasattr(f, "project"):
+        # Use type checks for robust attribute access
+        if type(f).__name__ == "EvidenceFact":
             project = getattr(f, "project", "")
             years = getattr(f, "years", "")
             details = getattr(f, "details", "")
             summaries.append(
                 f"[{f.evidence_id}] {project} ({years}) — {details[:80]}{'...' if len(details) > 80 else ''}"
             )
-        elif hasattr(f, "domain"):
+        elif type(f).__name__ == "DomainEvidenceFact":
             domain = getattr(f, "domain", "")
             statement = getattr(f, "statement", "")
             tags = getattr(f, "tags", [])
