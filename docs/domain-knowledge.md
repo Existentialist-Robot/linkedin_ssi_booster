@@ -123,19 +123,17 @@ The domain knowledge graph uses a JSON structure similar to the persona graph:
 ## Setup
 
 1. **Create your domain knowledge file**:
-   
+
    ```bash
    cp data/avatar/domain_knowledge.example.json data/avatar/domain_knowledge.json
    ```
 
 2. **Customize the content**:
-   
    - Add domains that match your areas of expertise
    - Add facts that represent your professional knowledge
    - Tag facts with relevant keywords for retrieval
 
 3. **The system automatically loads it**:
-   
    - Domain knowledge is loaded alongside the persona graph
    - If the file is missing, the system continues without it (optional feature)
    - Errors are logged but don't prevent the tool from running
@@ -197,12 +195,19 @@ Both knowledge sources contribute equally to evidence retrieval and truth valida
 
 ### Evidence Retrieval
 
-When generating content, the system:
+**Important architectural detail (2026-04):**
+
+> The system retrieves top-N persona facts and top-N domain facts **separately** (using the same query), then merges them for grounding and truth gating. This avoids type-mismatch errors, allows for future tuning of the split, and enables explainable evidence selection. (Previously, all facts were combined into a single BM25 corpus, which caused issues when fact types differed.)
+
+**Retrieval steps:**
 
 1. **Loads both graphs**: Persona graph (projects) + domain knowledge graph (general facts)
-2. **Builds a combined BM25 corpus**: Both project facts and domain facts are searchable
-3. **Retrieves relevant facts**: Uses BM25 to find the most relevant facts from both sources
-4. **Provides grounding context**: The LLM receives both project-specific and domain-level facts
+2. **Retrieves top-N persona facts**: BM25 or keyword retrieval from the persona graph (e.g., N=3)
+3. **Retrieves top-N domain facts**: BM25 or keyword retrieval from the domain knowledge graph (e.g., N=2)
+4. **Merges results**: Both sets are mapped to a common ProjectFact format for downstream use
+5. **Provides grounding context**: The LLM receives both project-specific and domain-level facts
+
+This separation makes it easy to tune the balance between project and domain evidence, and to re-rank or explain the sources of each fact in the future.
 
 Example grounding context:
 

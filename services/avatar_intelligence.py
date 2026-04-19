@@ -591,7 +591,75 @@ def _fact_tokens(fact: EvidenceFact) -> list[str]:
     return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + skill_boost).lower())
 
 
+def retrieve_domain_evidence(
+    query: str,
+    facts: list[DomainEvidenceFact],
+    limit: int = 5,
+) -> list[DomainEvidenceFact]:
+    """Score and retrieve the most relevant domain evidence facts for a query.
+
+    Uses BM25Okapi (rank_bm25) when available — with domain-specific tokenization.
+    Falls back to hand-weighted keyword overlap when rank_bm25 is not installed.
+    Returns up to *limit* facts; falls back to all facts when nothing scores.
+    """
+    if not facts:
+        return []
+
+    if _BM25_AVAILABLE:
+        return _retrieve_domain_evidence_bm25(query, facts, limit)
+    return _retrieve_domain_evidence_fallback(query, facts, limit)
+
+
 def _domain_fact_tokens(fact: DomainEvidenceFact) -> list[str]:
+    def _retrieve_domain_evidence_bm25(
+        query: str,
+        facts: list[DomainEvidenceFact],
+        limit: int,
+    ) -> list[DomainEvidenceFact]:
+        """BM25Okapi-backed retrieval path for domain facts."""
+        corpus = [_domain_fact_tokens(f) for f in facts]
+        bm25 = _BM25Okapi(corpus)
+        q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
+        scores: list[float] = bm25.get_scores(q_tokens).tolist()
+
+        ranked = sorted(zip(scores, facts), key=lambda x: x[0], reverse=True)
+        top = [f for s, f in ranked if s > 0.0][:limit]
+        if top:
+            return top
+        # nothing scored — return top-N by raw order (all facts are equally unknown)
+        return [f for _, f in ranked[:limit]]
+
+
+    def _retrieve_domain_evidence_fallback(
+        query: str,
+        facts: list[DomainEvidenceFact],
+        limit: int,
+    ) -> list[DomainEvidenceFact]:
+        """Hand-weighted keyword fallback for domain facts when rank_bm25 is not installed."""
+        q_lower = query.lower()
+        q_words = set(q_lower.split())
+
+        scored: list[tuple[int, DomainEvidenceFact]] = []
+        for fact in facts:
+            score = 0
+            domain_lower = fact.domain.lower()
+            if domain_lower in q_lower or any(w in domain_lower for w in q_words):
+                score += 5
+            for tag in fact.tags:
+                if tag.lower() in q_lower:
+                    score += 10
+            statement = fact.statement
+            statement_words = set(statement.lower().split())
+            overlap = q_words & statement_words
+            score += len(overlap) * 3
+            score += min(len(statement) // 100, 2)
+            scored.append((score, fact))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        top = [f for s, f in scored if s > 0][:limit]
+        if top:
+            return top
+        return [f for _, f in scored[:limit]]
     """Build the BM25 document token list for one domain fact.
 
     Concatenates domain name, statement, and tags.
@@ -652,23 +720,36 @@ def _retrieve_evidence_fallback(
     q_lower = query.lower()
     q_words = set(q_lower.split())
 
-    scored: list[tuple[int, EvidenceFact]] = []
+
+    scored: list[tuple[int, Any]] = []
     for fact in facts:
         score = 0
-        proj_lower = fact.project.lower()
-
-        if proj_lower in q_lower or any(w in proj_lower for w in q_words):
-            score += 5
-
-        for skill in fact.skills:
-            if skill.lower() in q_lower:
-                score += 10
-
-        detail_words = set(fact.details.lower().split())
-        overlap = q_words & detail_words
-        score += len(overlap) * 3
-        score += min(len(fact.details) // 100, 2)
-
+        # EvidenceFact: project, skills, details
+        # DomainEvidenceFact: domain, tags, statement
+        if hasattr(fact, "project") and hasattr(fact, "skills") and hasattr(fact, "details"):
+            proj_lower = fact.project.lower()
+            if proj_lower in q_lower or any(w in proj_lower for w in q_words):
+                score += 5
+            for skill in fact.skills:
+                if skill.lower() in q_lower:
+                    score += 10
+            detail = fact.details
+            detail_words = set(detail.lower().split())
+            overlap = q_words & detail_words
+            score += len(overlap) * 3
+            score += min(len(detail) // 100, 2)
+        elif hasattr(fact, "domain") and hasattr(fact, "tags") and hasattr(fact, "statement"):
+            domain_lower = fact.domain.lower()
+            if domain_lower in q_lower or any(w in domain_lower for w in q_words):
+                score += 5
+            for tag in fact.tags:
+                if tag.lower() in q_lower:
+                    score += 10
+            statement = fact.statement
+            statement_words = set(statement.lower().split())
+            overlap = q_words & statement_words
+            score += len(overlap) * 3
+            score += min(len(statement) // 100, 2)
         scored.append((score, fact))
 
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -878,10 +959,18 @@ def build_explain_output(
 ) -> ExplainOutput:
     """Build an ExplainOutput summary from the evidence facts used in a generation."""
     ids = [f.evidence_id for f in evidence_facts]
-    summaries = [
-        f"[{f.evidence_id}] {f.project} ({f.years}) — {f.details[:80]}{'...' if len(f.details) > 80 else ''}"
-        for f in evidence_facts
-    ]
+    summaries = []
+    for f in evidence_facts:
+        if hasattr(f, "project"):  # Persona/project fact
+            summaries.append(
+                f"[{f.evidence_id}] {f.project} ({getattr(f, 'years', '')}) — {getattr(f, 'details', '')[:80]}{'...' if len(getattr(f, 'details', '')) > 80 else ''}"
+            )
+        elif hasattr(f, "domain"):  # Domain fact
+            summaries.append(
+                f"[{f.evidence_id}] {f.domain} — {f.statement[:80]}{'...' if len(f.statement) > 80 else ''} (Tags: {', '.join(f.tags)})"
+            )
+        else:
+            summaries.append(f"[{getattr(f, 'evidence_id', '?')}] Unknown evidence type")
     return ExplainOutput(
         evidence_ids=ids,
         evidence_summaries=summaries,

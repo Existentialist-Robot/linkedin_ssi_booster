@@ -112,6 +112,7 @@ def test_normalize_evidence_facts_unloaded_state() -> None:
     state = AvatarState(
         persona_graph=None,
         narrative_memory=None,
+        domain_knowledge=None,
         is_loaded=False,
         load_errors=["missing file"],
     )
@@ -287,7 +288,7 @@ def test_get_grounding_context_none_state() -> None:
 
 def test_get_grounding_context_unloaded_state() -> None:
     state = AvatarState(
-        persona_graph=None, narrative_memory=None, is_loaded=False, load_errors=[]
+        persona_graph=None, narrative_memory=None, domain_knowledge=None, is_loaded=False, load_errors=[]
     )
     assert get_grounding_context_for_query("query", state) == ""
 

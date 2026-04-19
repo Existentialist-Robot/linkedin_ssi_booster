@@ -280,9 +280,10 @@ class ContentCurator:
         self.curation_grounding_keywords = _load_curation_grounding_keywords()
         self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
         self._avatar_facts: list = []
+        self._domain_facts: list = []
         self._narrative_memory = None
         self._spacy_nlp = None
-        
+
         # Load spaCy for article summarization if enabled
         if self.enable_spacy_summarization:
             try:
@@ -290,23 +291,36 @@ class ContentCurator:
                 self._spacy_nlp = get_spacy_nlp()
             except Exception as _nlp_exc:
                 logger.debug("spaCy NLP unavailable for article summarization: %s", _nlp_exc)
-        
+
         try:
             from services.shared import AVATAR_LEARNING_ENABLED
-            from services.avatar_intelligence import load_avatar_state, normalize_evidence_facts
+            from services.avatar_intelligence import load_avatar_state, normalize_evidence_facts, normalize_domain_facts
             _state = load_avatar_state()
             self._avatar_facts = normalize_evidence_facts(_state)
+            self._domain_facts = normalize_domain_facts(_state)
             if AVATAR_LEARNING_ENABLED and _state.narrative_memory is not None:
                 self._narrative_memory = _state.narrative_memory
         except Exception as _exc:
             logger.warning("Avatar state init failed (continuing): %s", _exc)
 
     def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
+        """
+        Retrieve top-N persona and top-N domain facts separately, then merge as ProjectFact.
+        Allows tuning of the split and avoids mixed-type errors in evidence retrieval.
+        """
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
-        if self._avatar_facts:
-            from services.avatar_intelligence import retrieve_evidence, evidence_facts_to_project_facts
-            hits = retrieve_evidence(query, self._avatar_facts, limit=5)
-            return evidence_facts_to_project_facts(hits)  # type: ignore[return-value]
+        if self._avatar_facts or self._domain_facts:
+            from services.avatar_intelligence import retrieve_evidence, retrieve_domain_evidence, evidence_facts_to_project_facts, domain_facts_to_project_facts, DomainEvidenceFact
+            # Tune these numbers as desired
+            N_PERSONA = 3
+            N_DOMAIN = 2
+            persona_hits = retrieve_evidence(query, self._avatar_facts, limit=N_PERSONA) if self._avatar_facts else []
+            domain_hits = retrieve_domain_evidence(query, self._domain_facts, limit=N_DOMAIN) if self._domain_facts else []
+            # Type narrowing for static checkers: only DomainEvidenceFact
+            domain_hits_typed: list[DomainEvidenceFact] = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
+            persona_pf = evidence_facts_to_project_facts(persona_hits)
+            domain_pf = domain_facts_to_project_facts(domain_hits_typed)
+            return persona_pf + domain_pf
         # Fallback: no avatar graph loaded — return empty (post still generated, just ungrounded)
         return []
 
@@ -589,7 +603,8 @@ class ContentCurator:
                                 format_explain_output,
                             )
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
-                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            all_facts = self._avatar_facts + self._domain_facts
+                            _relevant = retrieve_evidence(grounding_query, all_facts)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
