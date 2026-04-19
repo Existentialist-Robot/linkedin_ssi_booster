@@ -336,17 +336,21 @@ def main():
         # Support multi-channel dry-run for --channel all
         target_channels = [args.channel] if args.channel != "all" else ["linkedin", "x", "bluesky", "youtube"]
 
+
         for channel in target_channels:
             logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week} (channel: {channel})...")
             posts = []
             from services.avatar_intelligence import (
                 load_avatar_state as _lav_gen,
                 normalize_evidence_facts,
+                normalize_domain_facts,
                 retrieve_evidence,
                 evidence_facts_to_project_facts,
+                EvidenceFact,
+                DomainEvidenceFact,
+                domain_facts_to_project_facts,
             )
             _gen_avatar_state = _lav_gen()
-            _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
             if channel == "youtube" and not args.dry_run:
                 Path("yt-vid-data").mkdir(exist_ok=True)
             if args.avatar_explain:
@@ -355,8 +359,18 @@ def main():
             for topic in week_topics:
                 logger.info(f"  Generating: {topic['title']}")
                 grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
-                grounding_facts = evidence_facts_to_project_facts(
-                    retrieve_evidence(grounding_query, _gen_avatar_facts, limit=5)
+                # Combine both fact types
+                _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
+                _gen_domain_facts = normalize_domain_facts(_gen_avatar_state)
+                all_facts = list(_gen_avatar_facts) + list(_gen_domain_facts)
+                relevant = retrieve_evidence(grounding_query, all_facts, limit=5)
+
+                # Split by type and convert
+                persona_facts = [f for f in relevant if isinstance(f, EvidenceFact)]
+                domain_facts = [f for f in relevant if isinstance(f, DomainEvidenceFact)]
+                grounding_facts = (
+                    evidence_facts_to_project_facts(persona_facts)
+                    + domain_facts_to_project_facts(domain_facts)
                 )
 
                 if channel == "youtube":
@@ -408,7 +422,11 @@ def main():
                     print(f"\n{post}\n")
 
                 if args.avatar_explain:
-                    _relevant = retrieve_evidence(grounding_query, _gen_avatar_facts)
+                    # Combine project and domain facts for retrieval
+                    from typing import Sequence, Union
+                    from services.avatar_intelligence import EvidenceFact, DomainEvidenceFact
+                    _all_facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]] = list(_gen_avatar_facts) + list(_gen_domain_facts)
+                    _relevant = retrieve_evidence(grounding_query, _all_facts, limit=5)
                     _explain = build_explain_output(
                         evidence_facts=_relevant,
                         article_ref=topic.get("title", ""),

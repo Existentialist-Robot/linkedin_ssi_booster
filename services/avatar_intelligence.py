@@ -668,21 +668,30 @@ def _retrieve_domain_evidence_bm25(
         return top
     # nothing scored — return top-N by raw order (all facts are equally unknown)
     return [f for _, f in ranked[:limit]]
-    """Build the BM25 document token list for one domain fact.
 
-    Concatenates domain name, statement, and tags.
-    Tags are repeated three times to weight them above plain statement words.
-    """
-    base = f"{fact.domain} {fact.statement}"
-    tag_boost = " ".join(fact.tags * 3)  # repeat for IDF weight boost
-    return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + tag_boost).lower())
 
+
+from typing import Sequence, Union
+
+# ---------------------------------------------------------------------------
+# Configurable evidence split
+# ---------------------------------------------------------------------------
+
+def _get_evidence_split() -> tuple[int, int]:
+    """Read EVIDENCE_PROJECT_COUNT and EVIDENCE_DOMAIN_COUNT from .env (default 3/2)."""
+    try:
+        project_count = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3"))
+        domain_count = int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+    except Exception:
+        project_count, domain_count = 3, 2
+    return project_count, domain_count
 
 def retrieve_evidence(
+
     query: str,
-    facts: list[EvidenceFact],
+    facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]],
     limit: int = 5,
-) -> list[EvidenceFact]:
+) -> list[Union[EvidenceFact, DomainEvidenceFact]]:
     """Score and retrieve the most relevant evidence facts for a query.
 
     Uses BM25Okapi (rank_bm25) when available — accounts for term-frequency
@@ -691,13 +700,43 @@ def retrieve_evidence(
     rank_bm25 is not installed.
 
     Returns up to *limit* facts; falls back to all facts when nothing scores.
+    The split between project and domain evidence is configurable via .env.
     """
     if not facts:
         return []
 
-    if _BM25_AVAILABLE:
-        return _retrieve_evidence_bm25(query, facts, limit)
-    return _retrieve_evidence_fallback(query, facts, limit)
+    project_count, domain_count = _get_evidence_split()
+    # Allow override by limit if needed
+    total = project_count + domain_count
+    if limit < total:
+        # Scale down proportionally
+        scale = limit / total
+        project_count = max(1, int(round(project_count * scale)))
+        domain_count = max(1, limit - project_count)
+    elif limit > total:
+        # Scale up proportionally
+        extra = limit - total
+        project_count += extra // 2
+        domain_count += extra - (extra // 2)
+
+    evidence_facts: list[EvidenceFact] = [f for f in facts if isinstance(f, EvidenceFact)]
+    domain_facts: list[DomainEvidenceFact] = [f for f in facts if isinstance(f, DomainEvidenceFact)]
+
+    results: list[Union[EvidenceFact, DomainEvidenceFact]] = []
+    n_evidence = min(project_count, len(evidence_facts))
+    n_domain = min(domain_count, len(domain_facts))
+
+    if evidence_facts and n_evidence > 0:
+        if _BM25_AVAILABLE:
+            results.extend(_retrieve_evidence_bm25(query, evidence_facts, n_evidence))
+        else:
+            results.extend(_retrieve_evidence_fallback(query, evidence_facts, n_evidence))
+    if domain_facts and n_domain > 0:
+        if _BM25_AVAILABLE:
+            results.extend(_retrieve_domain_evidence_bm25(query, domain_facts, n_domain))
+        else:
+            results.extend(_retrieve_domain_evidence_fallback(query, domain_facts, n_domain))
+    return results[:limit]
 
 
 def _retrieve_evidence_bm25(
@@ -824,57 +863,61 @@ def get_grounding_context_for_query(
 
     facts = normalize_evidence_facts(state)
     domain_facts = normalize_domain_facts(state) if include_domain_facts else []
-    
+
     if not facts and not domain_facts:
         return ""
 
-    # Combine both types of facts for retrieval
-    # We'll use a unified approach by converting domain facts to EvidenceFact-like structure
-    all_facts = facts[:]
-    
-    # If we have domain facts, we need to retrieve from both corpora
-    if domain_facts:
-        # Build combined BM25 corpus with both project and domain facts
-        if _BM25_AVAILABLE:
-            project_corpus = [_fact_tokens(f) for f in facts]
-            domain_corpus = [_domain_fact_tokens(f) for f in domain_facts]
-            combined_corpus = project_corpus + domain_corpus
-            
-            bm25 = _BM25Okapi(combined_corpus)
-            q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
-            scores: list[float] = bm25.get_scores(q_tokens).tolist()
-            
-            # Separate scores back into project and domain
-            project_scores = scores[:len(facts)]
-            domain_scores = scores[len(facts):]
-            
-            # Get top results from each
-            project_ranked = sorted(zip(project_scores, facts), key=lambda x: x[0], reverse=True)
-            domain_ranked = sorted(zip(domain_scores, domain_facts), key=lambda x: x[0], reverse=True)
-            
-            # Take top scoring from each pool (roughly equal split)
-            project_limit = limit // 2 if domain_facts else limit
-            domain_limit = limit - project_limit
-            
-            top_projects = [f for s, f in project_ranked if s > 0.0][:project_limit]
-            top_domains = [f for s, f in domain_ranked if s > 0.0][:domain_limit]
-            
-            # Build combined context
-            context_parts = []
-            if top_projects:
-                context_parts.append(build_grounding_context(top_projects))
-            if top_domains:
-                context_parts.append(build_domain_grounding_context(top_domains))
-            
-            return "\n\n".join(context_parts) if context_parts else ""
-        else:
-            # Fallback: just use project facts if BM25 not available
-            relevant = retrieve_evidence(query, facts, limit=limit)
-            return build_grounding_context(relevant)
+    # Use the same split logic as retrieve_evidence
+    project_count, domain_count = _get_evidence_split()
+    total = project_count + domain_count
+    if limit < total:
+        scale = limit / total
+        project_count = max(1, int(round(project_count * scale)))
+        domain_count = max(1, limit - project_count)
+    elif limit > total:
+        extra = limit - total
+        project_count += extra // 2
+        domain_count += extra - (extra // 2)
+
+    # BM25 path
+    if _BM25_AVAILABLE and (facts or domain_facts):
+        project_corpus = [_fact_tokens(f) for f in facts]
+        domain_corpus = [_domain_fact_tokens(f) for f in domain_facts]
+        combined_corpus = project_corpus + domain_corpus
+
+        bm25 = _BM25Okapi(combined_corpus)
+        q_tokens = re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower())
+        scores: list[float] = bm25.get_scores(q_tokens).tolist()
+
+        project_scores = scores[:len(facts)]
+        domain_scores = scores[len(facts):]
+
+        project_ranked = sorted(zip(project_scores, facts), key=lambda x: x[0], reverse=True)
+        domain_ranked = sorted(zip(domain_scores, domain_facts), key=lambda x: x[0], reverse=True)
+
+        n_evidence = min(project_count, len(facts))
+        n_domain = min(domain_count, len(domain_facts))
+
+        top_projects = [f for s, f in project_ranked if s > 0.0][:n_evidence]
+        top_domains = [f for s, f in domain_ranked if s > 0.0][:n_domain]
+
+        context_parts = []
+        if top_projects:
+            context_parts.append(build_grounding_context(top_projects))
+        if top_domains:
+            context_parts.append(build_domain_grounding_context(top_domains))
+        return "\n\n".join(context_parts) if context_parts else ""
     else:
-        # No domain facts, use original flow
-        relevant = retrieve_evidence(query, facts, limit=limit)
-        return build_grounding_context(relevant)
+        # Fallback: use retrieve_evidence (which now uses the same split)
+        relevant = retrieve_evidence(query, facts + domain_facts, limit=limit)
+        project_facts = [f for f in relevant if isinstance(f, EvidenceFact)]
+        domain_facts_sel = [f for f in relevant if isinstance(f, DomainEvidenceFact)]
+        context_parts = []
+        if project_facts:
+            context_parts.append(build_grounding_context(project_facts))
+        if domain_facts_sel:
+            context_parts.append(build_domain_grounding_context(domain_facts_sel))
+        return "\n\n".join(context_parts) if context_parts else ""
 
 
 def build_domain_grounding_context(domain_facts: list[DomainEvidenceFact]) -> str:
@@ -959,8 +1002,10 @@ def record_moderation_event(
 # ---------------------------------------------------------------------------
 
 
+from typing import Union, Sequence
+
 def build_explain_output(
-    evidence_facts: list[EvidenceFact],
+    evidence_facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]],
     article_ref: str,
     channel: str,
     ssi_component: str,
@@ -969,23 +1014,18 @@ def build_explain_output(
     ids = [f.evidence_id for f in evidence_facts]
     summaries = []
     for f in evidence_facts:
-        # Use type checks for robust attribute access
-        if type(f).__name__ == "EvidenceFact":
-            project = getattr(f, "project", "")
-            years = getattr(f, "years", "")
-            details = getattr(f, "details", "")
+        if isinstance(f, EvidenceFact):
             summaries.append(
-                f"[{f.evidence_id}] {project} ({years}) — {details[:80]}{'...' if len(details) > 80 else ''}"
+                f"[{f.evidence_id}] {f.project} ({f.years}) — {f.details[:80]}{'...' if len(f.details) > 80 else ''}"
             )
-        elif type(f).__name__ == "DomainEvidenceFact":
-            domain = getattr(f, "domain", "")
-            statement = getattr(f, "statement", "")
-            tags = getattr(f, "tags", [])
+        elif isinstance(f, DomainEvidenceFact):
             summaries.append(
-                f"[{f.evidence_id}] {domain} — {statement[:80]}{'...' if len(statement) > 80 else ''} (Tags: {', '.join(tags)})"
+                f"[{f.evidence_id}] {f.domain} — {f.statement[:80]}{'...' if len(f.statement) > 80 else ''} (Tags: {', '.join(f.tags)})"
             )
         else:
-            summaries.append(f"[{getattr(f, 'evidence_id', '?')}] Unknown evidence type")
+            # Fallback: print all attributes for debugging, never crash
+            attrs = ', '.join(f"{k}={v}" for k, v in vars(f).items()) if hasattr(f, '__dict__') else str(f)
+            summaries.append(f"[{getattr(f, 'evidence_id', '?')}] Unknown evidence type: {attrs}")
     return ExplainOutput(
         evidence_ids=ids,
         evidence_summaries=summaries,

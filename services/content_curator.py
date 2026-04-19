@@ -318,7 +318,9 @@ class ContentCurator:
             domain_hits = retrieve_domain_evidence(query, self._domain_facts, limit=N_DOMAIN) if self._domain_facts else []
             # Type narrowing for static checkers: only DomainEvidenceFact
             domain_hits_typed: list[DomainEvidenceFact] = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
-            persona_pf = evidence_facts_to_project_facts(persona_hits)
+            from services.avatar_intelligence import EvidenceFact
+            persona_hits_typed: list[EvidenceFact] = [f for f in persona_hits if isinstance(f, EvidenceFact)]
+            persona_pf = evidence_facts_to_project_facts(persona_hits_typed)
             domain_pf = domain_facts_to_project_facts(domain_hits_typed)
             return persona_pf + domain_pf
         # Fallback: no avatar graph loaded — return empty (post still generated, just ungrounded)
