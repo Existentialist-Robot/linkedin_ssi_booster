@@ -1,6 +1,6 @@
 # Testing and Development
 
-The project ships with a pytest suite focused on the Avatar Intelligence engine, grounding behavior, confidence scoring, integration flags, persona graph retrieval, and selection learning. The README states that all 138 tests pass with zero external API calls required.
+The project ships with a comprehensive pytest suite covering the Avatar Intelligence engine, grounding and evidence retrieval, confidence scoring, continual learning (NLP-extracted knowledge), curation, spaCy NLP, integration flags, persona graph retrieval, and selection learning. The README states that all 201 tests pass with zero external API calls required.
 
 ## Running tests
 
@@ -68,5 +68,3 @@ Project file tree (top-level):
 ```
 
 User-private runtime state is under `data/avatar/` and `data/selection/` (local, gitignored).
-
-
