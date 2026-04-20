@@ -7,9 +7,9 @@ Social Selling Index (SSI) across all four components.
 AI backend: Ollama (local) — requires Ollama running on OLLAMA_BASE_URL
 
 Usage:
-    python main.py --schedule [--week N] [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all]
+    python main.py --schedule [--week N] [--dry-run] [--interactive] [--channel linkedin,youtube]
             # --schedule: generate and schedule posts (or preview with --dry-run)
-    python main.py --curate               [--dry-run] [--interactive] [--channel linkedin|x|bluesky|youtube|all] [--type idea|post]
+    python main.py --curate               [--dry-run] [--interactive] [--channel linkedin,youtube] [--type idea|post]
     python main.py --console
     python main.py --report
 """
@@ -187,8 +187,19 @@ def main():
     parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
-    parser.add_argument("--channel",   choices=["linkedin", "x", "bluesky", "youtube", "all"], default="linkedin",
-                        help="Target channel(s) for scheduling/curation (default: linkedin)")
+    _VALID_CHANNELS = {"linkedin", "x", "bluesky", "youtube", "all"}
+
+    def _parse_channels(value: str) -> list[str]:
+        parts = [v.strip() for v in value.split(",") if v.strip()]
+        invalid = [p for p in parts if p not in _VALID_CHANNELS]
+        if invalid:
+            parser.error(f"invalid --channel value(s): {', '.join(invalid)}. Choose from: {', '.join(sorted(_VALID_CHANNELS))}")
+        if "all" in parts:
+            return ["linkedin", "x", "bluesky", "youtube"]
+        return parts
+
+    parser.add_argument("--channel",   type=_parse_channels, default=["linkedin"],
+                        help="Target channel(s) as comma-separated list: linkedin,x,bluesky,youtube,all (default: linkedin)")
     parser.add_argument("--type",      choices=["idea", "post"], default="idea",
                         help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")
     parser.add_argument("--debug",     action="store_true", help="Enable DEBUG-level logging (shows raw API payloads and responses)")
@@ -300,30 +311,32 @@ def main():
         from services.shared import AVATAR_CONFIDENCE_POLICY
         confidence_policy = args.confidence_policy or AVATAR_CONFIDENCE_POLICY
         curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy)
-        logger.info(f"🔍 Curating AI news sources (channel: {args.channel}, type: {args.type})...")
-        try:
-            ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=args.channel, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain)
-        except BufferQueueFullError as e:
-            print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
-            return
-        except BufferRateLimitError as e:
-            print(
-                str(Fore.YELLOW)
-                + f"\n⚠️  Buffer API rate limit reached.\n   {e}\n"
-                + "   Wait for the retry window, then run the command again."
-                + str(Style.RESET_ALL)
-            )
-            return
-        except BufferChannelNotConnectedError as e:
-            print(
-                str(Fore.YELLOW)
-                + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
-                + "   Connect the channel in Buffer or run with a different --channel value."
-                + str(Style.RESET_ALL)
-            )
-            return
-        noun = "posts" if args.type == "post" else "ideas"
-        print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({args.channel})" + str(Style.RESET_ALL))
+        curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
+        for ch in curate_channels:
+            logger.info(f"🔍 Curating AI news sources (channel: {ch}, type: {args.type})...")
+            try:
+                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain)
+            except BufferQueueFullError as e:
+                print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
+                continue
+            except BufferRateLimitError as e:
+                print(
+                    str(Fore.YELLOW)
+                    + f"\n⚠️  Buffer API rate limit reached.\n   {e}\n"
+                    + "   Wait for the retry window, then run the command again."
+                    + str(Style.RESET_ALL)
+                )
+                continue
+            except BufferChannelNotConnectedError as e:
+                print(
+                    str(Fore.YELLOW)
+                    + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
+                    + "   Connect the channel in Buffer or run with a different --channel value."
+                    + str(Style.RESET_ALL)
+                )
+                continue
+            noun = "posts" if args.type == "post" else "ideas"
+            print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({ch})" + str(Style.RESET_ALL))
         return
 
 
@@ -333,8 +346,7 @@ def main():
             logger.error(f"No content found for week {args.week}")
             return
 
-        # Support multi-channel dry-run for --channel all
-        target_channels = [args.channel] if args.channel != "all" else ["linkedin", "x", "bluesky", "youtube"]
+        target_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
 
 
         for channel in target_channels:
