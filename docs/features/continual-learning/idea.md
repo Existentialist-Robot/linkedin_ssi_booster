@@ -10,10 +10,10 @@ Currently, the avatar's knowledge is limited to static persona and domain knowle
 
 ## Proposed Solution
 
-* Add a new structured JSON file (e.g., `data/avatar/extracted_knowledge.json`) to store facts, terms, and relationships extracted by an NLP pipeline.
-* Define a new dataclass (e.g., `ExtractedFact`, `ExtractedKnowledgeGraph`) in `services/avatar_intelligence.py` to represent and load this data.
-* Implement loader, validator, and normalizer functions for the new graph, mirroring existing patterns.
-* Optionally, update retrieval and grounding logic to include these new facts alongside persona and domain evidence.
+- Add a new structured JSON file (e.g., `data/avatar/extracted_knowledge.json`) to store facts, terms, and relationships extracted by an NLP pipeline.
+- Define a new dataclass (e.g., `ExtractedFact`, `ExtractedKnowledgeGraph`) in `services/avatar_intelligence.py` to represent and load this data.
+- Implement loader, validator, and normalizer functions for the new graph, mirroring existing patterns.
+- Optionally, update retrieval and grounding logic to include these new facts alongside persona and domain evidence.
 
 ## extracted_knowledge.json Schema
 
@@ -31,7 +31,7 @@ flowchart TD
   B --> J[meta: dict]
 ```
 
-## Pipeline
+## Pipeline (Current State)
 
 ```mermaid
 flowchart TD
@@ -39,11 +39,13 @@ flowchart TD
   B --> C[Extracted Facts]
   C --> D[extracted_knowledge.json]
   D --> E[AvatarState Loader]
-  E --> F[Evidence Retrieval]
-  F --> G[Post Generation]
+  E --> F[Validation/Available for Retrieval]
+  %% (Dashed line for future integration)
+  F -. Not yet default .-> G[Evidence Retrieval]
+  G -. Not yet default .-> H[Post Generation]
 ```
 
-
+**Note:** As of now, extracted_knowledge.json is loaded and validated with the avatar state, but is **not yet integrated by default** into evidence retrieval or post generation. Integration is straightforward and planned, but not active in the current pipeline.
 
 ## Expected Benefits
 
