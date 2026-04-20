@@ -41,7 +41,7 @@ The continual learning feature is fully implemented at the data/model/loader and
 
 # Feature Idea: Avatar Continual Learning via NLP-Extracted Knowledge Graph
 
-## extracted_knowledge.json Pipeline (Mermaid)
+## extracted_knowledge.json Pipeline
 
 ```mermaid
 flowchart TD
