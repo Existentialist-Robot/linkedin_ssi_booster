@@ -1,3 +1,19 @@
+## extracted_knowledge.json Schema
+
+```mermaid
+flowchart TD
+  A[extracted_knowledge.json]
+  A --> B[ExtractedFact]
+  B --> C[uid: string]
+  B --> D[text: string]
+  B --> E[source: string]
+  B --> F[themes: list<string>]
+  B --> G[entities: list<string>]
+  B --> H[date_extracted: string]
+  B --> I[confidence: float]
+  B --> J[meta: dict]
+```
+
 ## Status (as of April 19, 2026)
 
 **Current Implementation:**
@@ -24,6 +40,18 @@
 The continual learning feature is fully implemented at the data/model/loader and NLP pipeline level, with robust test coverage and schema validation. The system is already leveraging NLP for summarization, theme extraction, and fact suggestion in curation. Further integration into retrieval/grounding is straightforward if desired.
 
 # Feature Idea: Avatar Continual Learning via NLP-Extracted Knowledge Graph
+
+## extracted_knowledge.json Pipeline (Mermaid)
+
+```mermaid
+flowchart TD
+  A[New Content] --> B[NLP Extraction]
+  B --> C[Extracted Facts]
+  C --> D[extracted_knowledge.json]
+  D --> E[AvatarState Loader]
+  E --> F[Evidence Retrieval]
+  F --> G[Post Generation]
+```
 
 ## Overview
 
