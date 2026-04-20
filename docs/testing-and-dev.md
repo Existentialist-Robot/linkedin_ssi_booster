@@ -39,4 +39,57 @@ All tests pass as of April 19, 2026. The suite covers avatar intelligence, curat
 
 ## Repository structure
 
-The README’s file tree shows the project organized around a CLI entrypoint, services for Buffer, Ollama, curation, GitHub enrichment, and SSI tracking, plus persona data, tests, and feature docs under `docs/`. It also places user-private runtime state under `data/avatar/` and `data/selection/`, both of which are described as local and gitignored.
+Project file tree (top-level):
+
+```
+linkedin_ssi_booster/
+├── main.py                  # CLI entrypoint (argparse)
+├── scheduler.py             # Optimal posting-time logic
+├── content_calendar.py      # 4-week topic list
+├── services/
+│   ├── __init__.py
+│   ├── claude_service.py    # Anthropic wrapper + SSI prompt templates
+│   ├── buffer_service.py    # Buffer GraphQL wrapper
+│   ├── content_curator.py   # RSS fetch + summarise + create Buffer ideas
+│   ├── ollama_service.py    # Ollama LLM wrapper
+│   ├── github_service.py    # GitHub enrichment
+│   ├── ssi_tracker.py       # SSI score tracking + report
+│   ├── spacy_nlp.py         # spaCy NLP pipeline
+│   ├── avatar_intelligence.py # Persona, knowledge, continual learning
+│   └── shared.py            # Shared utilities/constants
+├── data/
+│   ├── avatar/
+│   │   ├── persona_graph.json
+│   │   ├── domain_knowledge.json
+│   │   ├── narrative_memory.json
+│   │   ├── extracted_knowledge.json
+│   │   └── ...
+│   └── selection/
+│       └── ...
+├── docs/
+│   ├── features/
+│   │   ├── continual-learning/idea.md
+│   │   └── ...
+│   ├── ai-backend-and-models.md
+│   ├── architecture.md
+│   ├── persona-and-avatar.md
+│   ├── ssi-and-strategy.md
+│   └── ...
+├── tests/
+│   ├── test_avatar_state_loader.py
+│   ├── test_evidence_mapping.py
+│   ├── test_learning_report.py
+│   ├── test_confidence_scoring.py
+│   ├── test_integration_flags.py
+│   ├── test_persona_graph_retrieval.py
+│   ├── test_selection_learning.py
+│   ├── test_spacy_nlp.py
+│   ├── test_continual_learning.py
+│   └── fixtures/
+│       └── ...
+├── requirements.txt
+├── README.md
+└── ...
+```
+
+User-private runtime state is under `data/avatar/` and `data/selection/` (local, gitignored).
