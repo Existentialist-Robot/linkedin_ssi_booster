@@ -40,6 +40,7 @@ PERSONA_GRAPH_PATH = _DATA_DIR / "persona_graph.json"
 NARRATIVE_MEMORY_PATH = _DATA_DIR / "narrative_memory.json"
 DOMAIN_KNOWLEDGE_PATH = _DATA_DIR / "domain_knowledge.json"
 LEARNING_LOG_PATH = _DATA_DIR / "learning_log.jsonl"
+EXTRACTED_KNOWLEDGE_PATH = _DATA_DIR / "extracted_knowledge.json"
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -127,6 +128,41 @@ class DomainKnowledge:
 
 
 @dataclass
+class ExtractedFact:
+    """A fact extracted by the NLP pipeline from an external article or feed.
+
+    Fields:
+    - id:                SHA-256[:12] of source_url + statement (dedup key).
+    - statement:         The extracted factual statement.
+    - source_url:        URL of the originating article or feed item.
+    - source_title:      Title of the originating article or feed item.
+    - extracted_at:      ISO-8601 UTC timestamp of extraction.
+    - entities:          Named entities detected by spaCy (PERSON, ORG, etc.).
+    - tags:              Keyword tags derived from themes/entities.
+    - confidence:        'high' | 'medium' | 'low'.
+    - extraction_method: Which pipeline produced this fact (e.g. 'spacy_nlp').
+    """
+
+    id: str
+    statement: str
+    source_url: str
+    source_title: str
+    extracted_at: str
+    entities: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    confidence: str = "medium"
+    extraction_method: str = "spacy_nlp"
+
+
+@dataclass
+class ExtractedKnowledgeGraph:
+    """Container for all NLP-extracted facts, persisted to extracted_knowledge.json."""
+
+    schema_version: str
+    facts: list[ExtractedFact]
+
+
+@dataclass
 class PersonaGraph:
     schema_version: str
     person: PersonNode
@@ -149,6 +185,7 @@ class AvatarState:
     persona_graph: PersonaGraph | None
     narrative_memory: NarrativeMemory | None
     domain_knowledge: DomainKnowledge | None
+    extracted_knowledge: "ExtractedKnowledgeGraph | None"
     is_loaded: bool
     load_errors: list[str] = field(default_factory=list)
 
@@ -174,6 +211,20 @@ class DomainEvidenceFact:
     domain: str
     statement: str
     tags: list[str]
+    confidence: str
+    source_fact_id: str
+
+
+@dataclass
+class ExtractedEvidenceFact:
+    """A normalized fact from the extracted knowledge graph with a stable evidence ID."""
+
+    evidence_id: str
+    statement: str
+    source_url: str
+    source_title: str
+    tags: list[str]
+    entities: list[str]
     confidence: str
     source_fact_id: str
 
@@ -339,6 +390,55 @@ def _load_narrative_memory(path: Path) -> tuple[NarrativeMemory | None, list[str
     return memory, []
 
 
+def _validate_extracted_knowledge(data: dict[str, Any]) -> list[str]:
+    """Return a list of validation errors for extracted_knowledge.json; empty list means valid."""
+    errors: list[str] = []
+    if not isinstance(data.get("schemaVersion"), str):
+        errors.append("missing or invalid 'schemaVersion'")
+    if not isinstance(data.get("facts"), list):
+        errors.append("missing or invalid 'facts' (must be a list)")
+    return errors
+
+
+def _load_extracted_knowledge(path: Path) -> tuple["ExtractedKnowledgeGraph | None", list[str]]:
+    """Load NLP-extracted knowledge graph from disk.
+
+    Returns (None, [error]) when the file is missing or malformed.
+    An empty facts list is valid — the graph is just empty.
+    """
+    if not path.exists():
+        return None, [f"extracted_knowledge not found at {path}"]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, [f"extracted_knowledge JSON parse error: {exc}"]
+
+    errors = _validate_extracted_knowledge(data)
+    if errors:
+        return None, [f"extracted_knowledge schema error: {e}" for e in errors]
+
+    facts = [
+        ExtractedFact(
+            id=f.get("id", ""),
+            statement=f.get("statement", ""),
+            source_url=f.get("source_url", ""),
+            source_title=f.get("source_title", ""),
+            extracted_at=f.get("extracted_at", ""),
+            entities=f.get("entities", []),
+            tags=f.get("tags", []),
+            confidence=f.get("confidence", "medium"),
+            extraction_method=f.get("extraction_method", "spacy_nlp"),
+        )
+        for f in data.get("facts", [])
+    ]
+
+    graph = ExtractedKnowledgeGraph(
+        schema_version=data["schemaVersion"],
+        facts=facts,
+    )
+    return graph, []
+
+
 def _validate_domain_knowledge(data: dict[str, Any]) -> list[str]:
     """Return a list of validation errors; empty list means valid."""
     errors: list[str] = []
@@ -429,16 +529,24 @@ def load_avatar_state() -> AvatarState:
     elif knowledge_errors:
         logger.info("Domain knowledge not found (optional): %s", knowledge_errors[0])
 
+    # Extracted knowledge is optional — log as info if missing, not an error
+    extracted, extracted_errors = _load_extracted_knowledge(EXTRACTED_KNOWLEDGE_PATH)
+    if extracted_errors and "not found" not in extracted_errors[0]:
+        all_errors.extend(extracted_errors)
+    elif extracted_errors:
+        logger.info("Extracted knowledge not found (optional): %s", extracted_errors[0])
+
     if all_errors:
         for err in all_errors:
             logger.warning("Avatar state load: %s", err)
 
-    # is_loaded requires persona graph and narrative memory; domain knowledge is optional
+    # is_loaded requires persona graph and narrative memory; domain/extracted knowledge is optional
     is_loaded = graph is not None and memory is not None
     return AvatarState(
         persona_graph=graph,
         narrative_memory=memory,
         domain_knowledge=knowledge,
+        extracted_knowledge=extracted,
         is_loaded=is_loaded,
         load_errors=all_errors,
     )
@@ -702,6 +810,7 @@ def retrieve_evidence(
     Returns up to *limit* facts; falls back to all facts when nothing scores.
     The split between project and domain evidence is configurable via .env.
     """
+
     if not facts:
         return []
 
@@ -736,6 +845,18 @@ def retrieve_evidence(
             results.extend(_retrieve_domain_evidence_bm25(query, domain_facts, n_domain))
         else:
             results.extend(_retrieve_domain_evidence_fallback(query, domain_facts, n_domain))
+
+    # If not enough results, fallback to first N facts (up to limit)
+    if len(results) < limit:
+        # Only add facts not already in results
+        all_facts = evidence_facts + domain_facts
+        seen_ids = {getattr(f, 'evidence_id', id(f)) for f in results}
+        for f in all_facts:
+            if getattr(f, 'evidence_id', id(f)) not in seen_ids:
+                results.append(f)
+                seen_ids.add(getattr(f, 'evidence_id', id(f)))
+            if len(results) >= limit:
+                break
     return results[:limit]
 
 
@@ -1671,4 +1792,244 @@ def compute_repetition_score(post_text: str, memory: NarrativeMemory) -> float:
             overlap_count += 1
 
     return round(min(overlap_count / len(memory.recent_claims), 1.0), 4)
+
+
+# ---------------------------------------------------------------------------
+# Continual Learning — Extracted Knowledge normalization and retrieval
+# ---------------------------------------------------------------------------
+
+
+def _make_extracted_evidence_id(fact_id: str, run_index: int) -> str:
+    """Return a stable, short evidence ID based on extracted fact ID and run index.
+
+    IDs are stable per run for the same input order:
+    X{index:03d}-{6-char fact hash}
+    """
+    fact_hash = hashlib.sha256(fact_id.encode()).hexdigest()[:6]
+    return f"X{run_index:03d}-{fact_hash}"
+
+
+def normalize_extracted_facts(state: AvatarState) -> list[ExtractedEvidenceFact]:
+    """Convert extracted knowledge facts into ExtractedEvidenceFacts with stable IDs.
+
+    Returns an empty list when avatar state has no extracted knowledge or facts.
+    """
+    if not state.extracted_knowledge or not state.extracted_knowledge.facts:
+        return []
+
+    facts: list[ExtractedEvidenceFact] = []
+    for idx, extracted_fact in enumerate(state.extracted_knowledge.facts):
+        evidence_id = _make_extracted_evidence_id(extracted_fact.id, idx)
+        facts.append(
+            ExtractedEvidenceFact(
+                evidence_id=evidence_id,
+                statement=extracted_fact.statement,
+                source_url=extracted_fact.source_url,
+                source_title=extracted_fact.source_title,
+                tags=list(extracted_fact.tags),
+                entities=list(extracted_fact.entities),
+                confidence=extracted_fact.confidence,
+                source_fact_id=extracted_fact.id,
+            )
+        )
+    return facts
+
+
+def _extracted_fact_tokens(fact: ExtractedEvidenceFact) -> list[str]:
+    """Build the BM25 document token list for one extracted evidence fact.
+
+    Concatenates statement, source title, tags, and entities.
+    Tags and entities are repeated three times to weight them above plain
+    statement words without hard-coded per-field multipliers.
+    """
+    base = f"{fact.statement} {fact.source_title}"
+    tag_boost = " ".join(fact.tags * 3)
+    entity_boost = " ".join(fact.entities * 3)
+    return re.findall(r"[a-zA-Z0-9_+#.-]{2,}", (base + " " + tag_boost + " " + entity_boost).lower())
+
+
+def build_extracted_grounding_context(extracted_facts: list[ExtractedEvidenceFact]) -> str:
+    """Build a prompt-ready grounding block from NLP-extracted evidence facts.
+
+    Returns an empty string when the fact list is empty.
+    """
+    if not extracted_facts:
+        return ""
+
+    lines = [
+        "Recently learned context — new knowledge extracted from external sources:"
+    ]
+    for fact in extracted_facts:
+        line = f"- [{fact.evidence_id}] {fact.statement}"
+        if fact.tags:
+            line += f" (Tags: {', '.join(fact.tags[:5])})"
+        if fact.source_title:
+            line += f" [Source: {fact.source_title[:60]}]"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Continual Learning — NLP extraction pipeline
+# ---------------------------------------------------------------------------
+
+
+def _make_extracted_fact_id(source_url: str, statement: str) -> str:
+    """Return a stable 12-char SHA-256 hex ID from source_url + statement.
+
+    Used as the deduplication key for extracted facts.
+    """
+    raw = f"{source_url}||{statement}"
+    return "ext-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def save_extracted_knowledge(
+    graph: ExtractedKnowledgeGraph,
+    path: Path | None = None,
+) -> None:
+    """Persist *graph* to *path* (defaults to ``EXTRACTED_KNOWLEDGE_PATH``).
+
+    Failures emit a warning so the caller is never interrupted.
+    """
+    target = path or EXTRACTED_KNOWLEDGE_PATH
+    payload: dict[str, Any] = {
+        "schemaVersion": graph.schema_version,
+        "facts": [asdict(f) for f in graph.facts],
+    }
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.debug(
+            "Extracted knowledge saved to %s (%d facts)",
+            target,
+            len(graph.facts),
+        )
+    except OSError as exc:
+        logger.warning("Extracted knowledge save failed (continuing): %s", exc)
+
+
+def extract_and_append_knowledge(
+    article_text: str,
+    source_url: str,
+    source_title: str,
+    *,
+    min_sentence_len: int = 40,
+    max_facts_per_article: int = 5,
+    confidence: str = "medium",
+    path: Path | None = None,
+    dry_run: bool = False,
+) -> list[ExtractedFact]:
+    """Extract facts from *article_text* using SpacyNLP and append them to extracted_knowledge.json.
+
+    Pipeline:
+    1. Split article_text into sentences (regex-based).
+    2. For each sentence of sufficient length, attempt spaCy theme extraction.
+    3. Deduplicate against existing facts using SHA-256 content hash.
+    4. Append new facts to the on-disk extracted_knowledge.json.
+
+    Args:
+        article_text:         Full article text to extract from.
+        source_url:           URL of the originating article.
+        source_title:         Title of the originating article.
+        min_sentence_len:     Minimum sentence character length to consider.
+        max_facts_per_article: Maximum new facts to extract from one article.
+        confidence:           Confidence level to assign: 'high' | 'medium' | 'low'.
+        path:                 Override path to extracted_knowledge.json (for testing).
+        dry_run:              If True, extract but do not write to disk.
+
+    Returns:
+        List of newly-appended ExtractedFact objects (empty if all were duplicates or dry_run).
+    """
+    target = path or EXTRACTED_KNOWLEDGE_PATH
+
+    # Load or initialise the existing graph
+    existing_graph, load_errors = _load_extracted_knowledge(target)
+    if load_errors and "not found" in load_errors[0]:
+        existing_graph = ExtractedKnowledgeGraph(schema_version="1.0", facts=[])
+    elif existing_graph is None:
+        logger.warning("extract_and_append_knowledge: could not load existing graph — %s", load_errors)
+        existing_graph = ExtractedKnowledgeGraph(schema_version="1.0", facts=[])
+
+    existing_ids: set[str] = {f.id for f in existing_graph.facts}
+
+    # Try to use SpacyNLP for entity/theme extraction
+    try:
+        from services.spacy_nlp import get_spacy_nlp
+        nlp_engine = get_spacy_nlp()
+        spacy_available = True
+    except Exception:
+        nlp_engine = None
+        spacy_available = False
+
+    # Split text into candidate sentences
+    sentences = re.split(r"(?<=[.!?])\s+", article_text.strip())
+
+    new_facts: list[ExtractedFact] = []
+    extracted_at = datetime.now(timezone.utc).isoformat()
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < min_sentence_len:
+            continue
+        if len(new_facts) >= max_facts_per_article:
+            break
+
+        fact_id = _make_extracted_fact_id(source_url, sentence)
+        if fact_id in existing_ids:
+            logger.debug("extract_and_append_knowledge: skipping duplicate fact %s", fact_id)
+            continue
+
+        # Extract entities and tags using spaCy when available
+        entities: list[str] = []
+        tags: list[str] = []
+        if spacy_available and nlp_engine is not None:
+            try:
+                raw_themes = nlp_engine.extract_themes(sentence)
+                # Separate short single-word themes (tags) from entities
+                tags = [t for t in raw_themes if len(t.split()) == 1][:8]
+                entities = [t for t in raw_themes if len(t.split()) > 1][:5]
+            except Exception as exc:
+                logger.debug("extract_and_append_knowledge: spaCy extraction error — %s", exc)
+        else:
+            # Fallback: extract capitalized words as lightweight entities
+            entities = list(dict.fromkeys(
+                w for w in re.findall(r"\b[A-Z][a-zA-Z]{2,}\b", sentence)
+                if w.lower() not in _THEME_STOPWORDS
+            ))[:5]
+            tags = list(dict.fromkeys(
+                w.lower() for w in re.findall(r"\b[a-zA-Z]{4,}\b", sentence.lower())
+                if w.lower() not in _THEME_STOPWORDS
+            ))[:8]
+
+        fact = ExtractedFact(
+            id=fact_id,
+            statement=sentence,
+            source_url=source_url,
+            source_title=source_title,
+            extracted_at=extracted_at,
+            entities=entities,
+            tags=tags,
+            confidence=confidence,
+            extraction_method="spacy_nlp" if spacy_available else "regex_fallback",
+        )
+        new_facts.append(fact)
+        existing_ids.add(fact_id)
+
+    if new_facts and not dry_run:
+        updated_facts = existing_graph.facts + new_facts
+        updated_graph = ExtractedKnowledgeGraph(
+            schema_version=existing_graph.schema_version,
+            facts=updated_facts,
+        )
+        save_extracted_knowledge(updated_graph, path=target)
+        logger.info(
+            "extract_and_append_knowledge: appended %d new fact(s) to %s (total: %d)",
+            len(new_facts),
+            target,
+            len(updated_facts),
+        )
+    elif not new_facts:
+        logger.debug("extract_and_append_knowledge: no new facts extracted from '%s'", source_title)
+
+    return new_facts if not dry_run else []
 

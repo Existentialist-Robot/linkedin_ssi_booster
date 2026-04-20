@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0",
+  "facts": [
+    {
+      "id": "ext-abc123def456",
+      "statement": "Transformer-based architectures now dominate NLP benchmarks, with models like GPT-4 and Claude setting new state-of-the-art results.",
+      "source_url": "https://example.com/ai-news/2026-transformers",
+      "source_title": "2026 State of AI: Transformer Models Lead the Pack",
+      "extracted_at": "2026-04-19T16:00:00+00:00",
+      "entities": ["GPT-4", "Claude", "NLP"],
+      "tags": ["transformer", "LLM", "NLP", "benchmark"],
+      "confidence": "medium",
+      "extraction_method": "spacy_nlp"
+    },
+    {
+      "id": "ext-bbbbcccc1234",
+      "statement": "Agentic AI systems using multi-step tool calling are being adopted rapidly in enterprise automation workflows.",
+      "source_url": "https://example.com/ai-news/agentic-enterprise",
+      "source_title": "Enterprise AI: Agents Take Over Automation",
+      "extracted_at": "2026-04-19T16:00:00+00:00",
+      "entities": ["Enterprise AI"],
+      "tags": ["agent", "agentic", "tool calling", "automation"],
+      "confidence": "medium",
+      "extraction_method": "spacy_nlp"
+    }
+  ]
+}

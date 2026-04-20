@@ -2,7 +2,7 @@
 
 #### _<u> — Persona-Grounded Truth-Gated Adaptive Learning Hybrid RAG Agent with Domain Knowledge Graph</u>_
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0019](https://img.shields.io/badge/version-alpha--v0.0.1.9-orange.svg)]()
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0020](https://img.shields.io/badge/version-alpha--v0.0.2.0-orange.svg)]()
 
 **LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
 
@@ -75,7 +75,15 @@ You control whether curated content is reviewed before publishing or scheduled d
 
 ---
 
-## 🚀 Adaptive Learning Features
+## 🔄 Continual Learning (NLP-Extracted Knowledge)
+
+The avatar now supports continual learning from new content streams (e.g., RSS feeds, curated articles) via an NLP-extracted knowledge graph. This enables the system to accumulate new facts, terms, and relationships over time, improving relevance and depth without requiring a graph database or major refactor.
+
+- Extracted facts are stored in a structured JSON file (`data/avatar/extracted_knowledge.json`), loaded and validated alongside persona and domain knowledge.
+- The system can leverage these new facts in evidence retrieval, grounding, and explain outputs.
+- Modular, file-based design: easy to extend, debug, and test.
+
+See [docs/features/continual-learning/idea.md](docs/features/continual-learning/idea.md) for technical details and schema.
 
 - **Adaptive Curation Ranking:** The system tracks every generated and published post, learning which sources, topics, and themes you actually approve. Over time, it floats the best-performing sources and topics to the top using Beta-smoothed acceptance priors and theme-based ranking.
 - **Semantic Repetition Detection:** Uses spaCy-powered semantic similarity to detect and penalize repeated or paraphrased content, keeping your feed fresh and non-redundant.
@@ -110,7 +118,8 @@ The primer covers core NLP concepts, practical communication techniques, technic
 
 - [Setup guide](docs/setup.md) — environment, dependencies, persona graph, and calendar setup.
 - [Architecture guide](docs/architecture.md) — learning pipeline, grounding flow, truth gate, and curation ranking.
-- [Persona and Avatar Intelligence](docs/persona-and-avatar.md) — persona graph, system prompt, memory, confidence, and explainability.
+- [Persona and Avatar Intelligence](docs/persona-and-avatar.md) — persona graph, system prompt, memory, confidence, explainability, and continual learning.
+- [Continual Learning (NLP-extracted knowledge)](docs/features/continual-learning/idea.md) — how the avatar accumulates new knowledge from external content.
 - [Domain Knowledge Graph](docs/domain-knowledge.md) — domain-level expertise that isn't tied to specific projects.
 - [Usage guide](docs/usage-schedule-curate-console.md) — scheduling, curation, console mode, channels, and CLI examples.
 - [SSI strategy](docs/ssi-and-strategy.md) — SSI model, content mapping, scheduler behavior, and reporting.

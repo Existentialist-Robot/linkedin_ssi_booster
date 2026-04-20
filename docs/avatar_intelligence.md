@@ -1,6 +1,14 @@
 # Avatar Intelligence Engine
 
-This module powers the persona-driven, context-grounded generation and learning system for the LinkedIn SSI Booster. It manages persona graph loading, evidence normalization, BM25-based retrieval, grounding context construction, moderation event logging, learning reports, and narrative memory.
+This module powers the persona-driven, context-grounded generation and learning system for the LinkedIn SSI Booster. It manages persona graph loading, evidence normalization, BM25-based retrieval, grounding context construction, moderation event logging, learning reports, narrative memory, and **continual learning via NLP-extracted knowledge**.
+
+---
+
+## Continual Learning: NLP-Extracted Knowledge Graph
+
+The avatar can now accumulate new facts, terms, and relationships from external content (e.g., RSS feeds, curated articles) using an NLP pipeline. These are stored in `data/avatar/extracted_knowledge.json` and loaded as part of the `AvatarState`. See [docs/features/continual-learning/idea.md](../features/continual-learning/idea.md) for schema and integration details.
+
+---
 
 ---
 

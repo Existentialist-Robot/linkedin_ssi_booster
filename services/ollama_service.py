@@ -66,7 +66,7 @@ class OllamaService:
             fallback_model = os.getenv("OLLAMA_MODEL_FALLBACK", "qwen2.5:14b")
             original_model = self.model
             try:
-                logger.warning("Retrying YouTube Short script generation with fallback model '%s'", fallback_model) 
+                logger.warning("Original model '%s' failed to generate, retrying YouTube Short script generation with fallback model '%s'", original_model, fallback_model) 
                 self.model = fallback_model
                 text = self._chat(system_prompt, user_prompt, max_tokens=768)
             finally:
