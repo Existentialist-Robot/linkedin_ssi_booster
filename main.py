@@ -110,7 +110,30 @@ def run_console(ai: OllamaService) -> None:
     """Run interactive persona chat mode in the terminal."""
     print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n🧠 Persona Console Mode" + str(Style.RESET_ALL))
     print("- No Buffer actions will be performed in this mode.")
-    print("- Commands: /help, /reset, /exit")
+    print()
+    print(str(Fore.WHITE) + str(Style.BRIGHT) + "How to use this console:" + str(Style.RESET_ALL))
+    print("  Chat freely with Sam's AI persona, or ask grounded questions that draw")
+    print("  directly from the loaded persona graph and domain knowledge base.")
+    print()
+    print(str(Fore.CYAN) + "  📋 Project & career questions (deterministic, cited answers):" + str(Style.RESET_ALL))
+    print("    • What projects have you worked on?")
+    print("    • Where have you worked?")
+    print("    • What did you build at <company>?")
+    print("    • What Java or Spring Boot projects have you done?")
+    print()
+    print(str(Fore.CYAN) + "  🧠 Domain knowledge questions (routed to domain facts):" + str(Style.RESET_ALL))
+    print("    • What is RAG?")
+    print("    • Explain BM25 retrieval.")
+    print("    • How does vector search work?")
+    print("    • Tell me about microservices.")
+    print("    • What do you know about LLMs?")
+    print("    • What is prompt engineering?")
+    print()
+    print(str(Fore.CYAN) + "  💬 Free-form persona chat (AI-generated, grounded in persona):" + str(Style.RESET_ALL))
+    print("    • Any topic not matching a grounded query is handled by the AI model.")
+    print()
+    print(str(Fore.WHITE) + "  Commands: /help, /reset, /exit" + str(Style.RESET_ALL))
+    print()
 
     history: list[dict[str, str]] = []
     max_turns = 24
@@ -119,13 +142,19 @@ def run_console(ai: OllamaService) -> None:
     from services.avatar_intelligence import (
         load_avatar_state as _lav_console,
         normalize_evidence_facts,
+        normalize_domain_facts,
         retrieve_evidence,
         evidence_facts_to_project_facts,
+        domain_facts_to_project_facts,
         build_grounding_context,
     )
     _avatar_state = _lav_console()
     _avatar_facts = normalize_evidence_facts(_avatar_state)
-    _profile_facts = evidence_facts_to_project_facts(_avatar_facts)
+    _domain_facts = normalize_domain_facts(_avatar_state)
+    _profile_facts = (
+        evidence_facts_to_project_facts(_avatar_facts)
+        + domain_facts_to_project_facts(_domain_facts)
+    )
     _grounding_context = build_grounding_context(_avatar_facts)
 
     while True:
