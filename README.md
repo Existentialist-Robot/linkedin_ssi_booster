@@ -27,6 +27,20 @@
 
 ---
 
+## 🚀 Schedule Your Content with Buffer (Partner Link)
+
+Want to automate your LinkedIn growth with the best scheduling tool? [Sign up for Buffer with our partner link](https://join.buffer.com/samjd42) and get started in minutes!
+
+**Why Buffer?**
+
+- Effortlessly schedule posts at optimal times for maximum reach
+- Manage multiple channels and queues from one dashboard
+- Integrates seamlessly with LinkedIn SSI Booster for hands-off publishing
+
+**Support the project:** Using our [Buffer partner link](https://join.buffer.com/samjd42) helps fund ongoing development and keeps this tool open-source. Try Buffer today and see why top creators and engineers trust it for their content workflow!
+
+---
+
 **What is the LinkedIn SSI?**
 
 The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
