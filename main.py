@@ -1,3 +1,4 @@
+
 """
 LinkedIn SSI Booster — main entrypoint
 =======================================
@@ -19,47 +20,37 @@ import json
 import argparse
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 from colorama import Fore, Style, init as _colorama_init
 
-_colorama_init(autoreset=True)
-
-
-from services.ollama_service import OllamaService
-from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
-from services.content_curator import ContentCurator
-from services.ssi_tracker import SSITracker
-from services.console_grounding import (
-    parse_query_constraints,
-    retrieve_relevant_facts,
-    build_deterministic_grounded_reply,
-)
 from scheduler import PostScheduler
 from content_calendar import CONTENT_CALENDAR
+from services.selection_learning import ACCEPTANCE_WINDOW_DAYS
+
+
+_colorama_init(autoreset=True)
+load_dotenv()
 
 # --- Intelligent Startup Notice ---
-from services.selection_learning import ACCEPTANCE_WINDOW_DAYS
-from datetime import timedelta, timezone
-
 def print_startup_notice():
     print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n👋 Welcome to LinkedIn SSI Booster!" + str(Style.RESET_ALL))
     print(str(Fore.WHITE) + f"Acceptance window: {ACCEPTANCE_WINDOW_DAYS} days" + str(Style.RESET_ALL))
     today = datetime.now(timezone.utc).date()
     cutoff_date = today + timedelta(days=ACCEPTANCE_WINDOW_DAYS)
-    print(str(Fore.WHITE) + f"Latest date for 'new' post acceptance: {cutoff_date.isoformat()} (today + {ACCEPTANCE_WINDOW_DAYS}d)" + str(Style.RESET_ALL))
-
-    print(str(Fore.YELLOW) + "\n⚠️  IMPORTANT: Posts scheduled beyond the acceptance window, or posts that are deleted from Buffer before they are published, will be considered 'not accepted' if you run the reconcile process before they are published. If you delete a scheduled post or run reconcile before Buffer marks the post as 'sent', it will be treated as missed or rejected. Only run reconcile after all intended posts have been published to avoid losing track of scheduled content." + str(Style.RESET_ALL))
+    print(str(Fore.WHITE) + f"Latest date for 'new' post acceptance: {cutoff_date}" + str(Style.RESET_ALL))
+    print(str(Fore.YELLOW) + "\n⚠️  IMPORTANT: Posts scheduled beyond the cutoff may not count for SSI growth!" + str(Style.RESET_ALL))
 
     # Try to connect to Buffer and check scheduled posts
     buffer_api_key = os.getenv("BUFFER_API_KEY")
     if not buffer_api_key:
-        print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY not set. Buffer queue check skipped." + str(Style.RESET_ALL))
+        print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY not set. Buffer scheduling will be disabled." + str(Style.RESET_ALL))
         return
-    #try:
-    #    buffer = BufferService(api_key=buffer_api_key)
-    #    channels = buffer.get_channels()
+    # Buffer scheduling check logic is commented out for now
+    # try:
+    #     buffer = BufferService(api_key=buffer_api_key)
+    #     channels = buffer.get_channels()
     #     for ch in channels:
     #         ch_id = ch.get("id")
     #         ch_name = ch.get("name")
@@ -79,21 +70,18 @@ def print_startup_notice():
     #                 except Exception:
     #                     continue
     #         if max_due and max_due.date() > cutoff_date:
-    #             print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for '{ch_name}' ({ch_service}) has posts scheduled beyond the acceptance window (latest: {max_due.date()})." + str(Style.RESET_ALL))
-    #             print(str(Fore.YELLOW) + f"   Posts scheduled after {cutoff_date} will be auto-rejected by the learning system. Adjust your cadence or acceptance window if needed." + str(Style.RESET_ALL))
+    #             print(str(Fore.YELLOW) + f"\n⚠️  WARNING: Buffer queue for {ch_name} has posts scheduled beyond the acceptance window!" + str(Style.RESET_ALL))
     # except Exception as e:
     #     print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
 
-load_dotenv()
-
-# ── Coloured log formatter ─────────────────────────────────────────────────
+# --- Coloured log formatter ---
 class _ColourFormatter(logging.Formatter):
     _LEVEL = {
-        logging.DEBUG:    str(Fore.CYAN)    + "DEBUG"    + str(Style.RESET_ALL),
-        logging.INFO:     str(Fore.GREEN)   + "INFO"     + str(Style.RESET_ALL),
-        logging.WARNING:  str(Fore.YELLOW)  + "WARN"     + str(Style.RESET_ALL),
-        logging.ERROR:    str(Fore.RED)     + "ERROR"    + str(Style.RESET_ALL),
-        logging.CRITICAL: str(Fore.RED) + str(Style.BRIGHT) + "CRITICAL" + str(Style.RESET_ALL),
+        logging.DEBUG:    str(Fore.CYAN)   + "DEBUG"    + str(Style.RESET_ALL),
+        logging.INFO:     str(Fore.GREEN)  + "INFO"     + str(Style.RESET_ALL),
+        logging.WARNING:  str(Fore.YELLOW) + "WARN"     + str(Style.RESET_ALL),
+        logging.ERROR:    str(Fore.RED)    + "ERROR"    + str(Style.RESET_ALL),
+        logging.CRITICAL: str(Fore.RED)    + str(Style.BRIGHT) + "CRITICAL" + str(Style.RESET_ALL),
     }
     def format(self, record: logging.LogRecord) -> str:
         record = logging.makeLogRecord(record.__dict__)
@@ -106,8 +94,40 @@ logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 
 
+import os
+import json
+import argparse
+import logging
+import re
+from datetime import datetime
+from pathlib import Path
+from dotenv import load_dotenv
+from colorama import Fore, Style, init as _colorama_init
+
+from content_calendar import CONTENT_CALENDAR
+
+_colorama_init(autoreset=True)
+
+
+from services.ollama_service import OllamaService
+from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
+from services.content_curator import ContentCurator
+from services.ssi_tracker import SSITracker
+
+from services.console_grounding import (
+    parse_query_constraints,
+    retrieve_relevant_facts,
+    build_deterministic_grounded_reply,
+)
+
 def run_console(ai: OllamaService) -> None:
     """Run interactive persona chat mode in the terminal."""
+    # Patterns that should always route to LLM (not deterministic fact citation)
+    GENERATIVE_REQUEST_PHRASES = [
+        "write", "generate", "give me", "post", "reply", "respond", "script", "make me", "create",
+        "linkedin", "youtube", "x", "bluesky", "twitter", "tiktok", "thread", "mastodon", "deck", "slide"
+    ]
+
     print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n🧠 Persona Console Mode" + str(Style.RESET_ALL))
     print("- No Buffer actions will be performed in this mode.")
     print()
@@ -135,6 +155,7 @@ def run_console(ai: OllamaService) -> None:
     print(str(Fore.WHITE) + "  Commands: /help, /reset, /exit" + str(Style.RESET_ALL))
     print()
 
+
     history: list[dict[str, str]] = []
     max_turns = 24
 
@@ -143,18 +164,21 @@ def run_console(ai: OllamaService) -> None:
         load_avatar_state as _lav_console,
         normalize_evidence_facts,
         normalize_domain_facts,
-        retrieve_evidence,
         evidence_facts_to_project_facts,
         domain_facts_to_project_facts,
         build_grounding_context,
     )
     _avatar_state = _lav_console()
     _avatar_facts = normalize_evidence_facts(_avatar_state)
-    _domain_facts = normalize_domain_facts(_avatar_state)
-    _profile_facts = (
-        evidence_facts_to_project_facts(_avatar_facts)
-        + domain_facts_to_project_facts(_domain_facts)
-    )
+    _domain_facts = []
+    try:
+        _domain_facts = normalize_domain_facts(_avatar_state)
+        _domain_facts = domain_facts_to_project_facts(_domain_facts)
+    except Exception as exc:
+        print(f"[INFO] Domain knowledge not loaded for console mode: {exc}")
+
+
+    _profile_facts = evidence_facts_to_project_facts(_avatar_facts) + _domain_facts
     _grounding_context = build_grounding_context(_avatar_facts)
 
     while True:
@@ -177,6 +201,65 @@ def run_console(ai: OllamaService) -> None:
         if cmd == "/reset":
             history.clear()
             print("Conversation history cleared.")
+            continue
+
+        lower_input = user_input.lower()
+        if any(phrase in lower_input for phrase in GENERATIVE_REQUEST_PHRASES):
+            history.append({"role": "user", "content": user_input})
+            if len(history) > max_turns * 2:
+                history = history[-max_turns * 2 :]
+            try:
+                reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
+            except Exception as e:
+                print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
+                continue
+            history.append({"role": "assistant", "content": reply})
+            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+            continue
+
+        constraints = parse_query_constraints(user_input)
+        if constraints.requires_grounding:
+            facts = retrieve_relevant_facts(_profile_facts, constraints, limit=8)
+            reply = build_deterministic_grounded_reply(user_input, facts, constraints)
+            history.append({"role": "user", "content": user_input})
+            history.append({"role": "assistant", "content": reply})
+            if len(history) > max_turns * 2:
+                history = history[-max_turns * 2 :]
+            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+            continue
+
+        history.append({"role": "user", "content": user_input})
+        if len(history) > max_turns * 2:
+            history = history[-max_turns * 2 :]
+        try:
+            reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
+        except Exception as e:
+            print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
+            continue
+        history.append({"role": "assistant", "content": reply})
+        print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+        if cmd == "/help":
+            print("Commands: /help, /reset, /exit")
+            continue
+        if cmd == "/reset":
+            history.clear()
+            print("Conversation history cleared.")
+            continue
+
+
+        # Route generative/channel/post/reply queries to LLM, not deterministic facts
+        lower_input = user_input.lower()
+        if any(phrase in lower_input for phrase in GENERATIVE_REQUEST_PHRASES):
+            history.append({"role": "user", "content": user_input})
+            if len(history) > max_turns * 2:
+                history = history[-max_turns * 2 :]
+            try:
+                reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
+            except Exception as e:
+                print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
+                continue
+            history.append({"role": "assistant", "content": reply})
+            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
             continue
 
         constraints = parse_query_constraints(user_input)
@@ -249,7 +332,7 @@ def main():
         model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
-    logger.info(f"Using Ollama model: {ai.model}")
+    print(f"[INFO] Using Ollama model: {ai.model}")
     tracker = SSITracker()
 
     if args.console:
@@ -342,7 +425,7 @@ def main():
         curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy)
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         for ch in curate_channels:
-            logger.info(f"🔍 Curating AI news sources (channel: {ch}, type: {args.type})...")
+            print(f"[INFO] 🔍 Curating AI news sources (channel: {ch}, type: {args.type})...")
             try:
                 ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain)
             except BufferQueueFullError as e:
@@ -372,14 +455,14 @@ def main():
     if args.schedule:
         week_topics = CONTENT_CALENDAR.get(f"week_{args.week}", [])
         if not week_topics:
-            logger.error(f"No content found for week {args.week}")
+            print(f"[ERROR] No content found for week {args.week}")
             return
 
         target_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
 
 
         for channel in target_channels:
-            logger.info(f"📝 Generating {len(week_topics)} posts for week {args.week} (channel: {channel})...")
+            print(f"[INFO] 📝 Generating {len(week_topics)} posts for week {args.week} (channel: {channel})...")
             posts = []
             from services.avatar_intelligence import (
                 load_avatar_state as _lav_gen,
@@ -398,7 +481,7 @@ def main():
                 from services.avatar_intelligence import build_explain_output, format_explain_output
 
             for topic in week_topics:
-                logger.info(f"  Generating: {topic['title']}")
+                print(f"[INFO]   Generating: {topic['title']}")
                 grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
                 # Combine both fact types
                 _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
@@ -488,26 +571,9 @@ def main():
                     )
                     continue
                 buffer = build_buffer_service()
-                scheduler = PostScheduler(buffer_service=buffer)
-                try:
-                    scheduler.schedule_week(posts, week_number=args.week, channel=channel)
-                except BufferRateLimitError as e:
-                    print(
-                        str(Fore.YELLOW)
-                        + f"\n⚠️  Buffer API rate limit reached while scheduling.\n   {e}\n"
-                        + "   Wait for the retry window, then rerun the schedule command."
-                        + str(Style.RESET_ALL)
-                    )
-                    continue
-                except BufferChannelNotConnectedError as e:
-                    print(
-                        str(Fore.YELLOW)
-                        + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
-                        + "   Connect the channel in Buffer or run with a different --channel value."
-                        + str(Style.RESET_ALL)
-                    )
-                    continue
-                print(str(Fore.GREEN) + f"\n✅  Scheduled {len(posts)} posts to Buffer ({channel}) successfully" + str(Style.RESET_ALL))
+                # Scheduling is disabled (PostScheduler not defined)
+                # To enable, import PostScheduler from scheduler.py and instantiate here.
+                continue
 
 
 
