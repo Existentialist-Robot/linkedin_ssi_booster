@@ -571,9 +571,26 @@ def main():
                     )
                     continue
                 buffer = build_buffer_service()
-                # Scheduling is disabled (PostScheduler not defined)
-                # To enable, import PostScheduler from scheduler.py and instantiate here.
-                continue
+                scheduler = PostScheduler(buffer_service=buffer)
+                try:
+                    scheduled = scheduler.schedule_week(posts=posts, week_number=args.week, channel=channel)
+                    print(str(Fore.GREEN) + f"\n✅  Scheduled {len(scheduled)} posts to Buffer ({channel})" + str(Style.RESET_ALL))
+                except BufferQueueFullError as e:
+                    print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
+                except BufferRateLimitError as e:
+                    print(
+                        str(Fore.YELLOW)
+                        + f"\n⚠️  Buffer API rate limit reached.\n   {e}\n"
+                        + "   Wait for the retry window, then run the command again."
+                        + str(Style.RESET_ALL)
+                    )
+                except BufferChannelNotConnectedError as e:
+                    print(
+                        str(Fore.YELLOW)
+                        + f"\n⚠️  Requested channel is not connected in Buffer.\n   {e}\n"
+                        + "   Connect the channel in Buffer or run with a different --channel value."
+                        + str(Style.RESET_ALL)
+                    )
 
 
 
