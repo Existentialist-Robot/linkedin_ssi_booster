@@ -89,7 +89,7 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ---
 
-## Derivative of Truth Framework
+## 🧮 Derivative of Truth Framework
 
 The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
 
