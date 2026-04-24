@@ -8,7 +8,7 @@ Every post is plain text — there's no audio or special format involved."Person
 
 **2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)** A detailed persona loaded into every AI call, covering:
 
-- Identity and credibility anchors — **domain-separated**: AI projects (2024–present) are listed separately from legacy infrastructure (TPG/USPS JMS work, pre-2024) with a hard rule forbidding the model from blending them
+- Identity and credibility anchors 
 - Target audience, voice guidance, and forbidden phrases
 - **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
 
