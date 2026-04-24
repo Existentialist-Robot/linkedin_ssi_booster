@@ -29,6 +29,11 @@
 
 ## Derivative of Truth Framework
 
+The Derivative of Truth framework is:
+
+- Truth gradient scoring, evidence/reasoning annotation, and uncertainty handling are integrated into the content pipeline.
+- All annotation logic and uncertainty calculations are aligned with the technical design and implementation plan.
+
 The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
 
 ### Why This Approach Is Revolutionary
@@ -69,7 +74,7 @@ See [docs/features/derivative-of-truth/](docs/features/derivative-of-truth/) for
 
 ---
 
-**What is the LinkedIn SSI?**
+### **What is the LinkedIn SSI?**
 
 The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
 
@@ -169,7 +174,7 @@ The system now includes a NetworkX-powered knowledge graph for incremental learn
 - The NetworkX knowledge graph is used as a secondary, persona-aware reranker and explainer: it links persona ↔ skills ↔ projects ↔ claims ↔ domain facts.
 
 - Final candidate scoring is a hybrid:
-
+  
   $$
   ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
   $$
