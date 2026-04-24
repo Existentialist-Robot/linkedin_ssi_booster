@@ -137,7 +137,7 @@ If your Markdown viewer does not support Mermaid, see the schema fields above or
 
 ## Persona system prompt
 
-`PERSONA_SYSTEM_PROMPT` is loaded into every AI call and carries identity anchors, voice guidance, audience framing, forbidden phrases, and a technical glossary. The documentation says AI projects from 2024 onward are domain-separated from older infrastructure work, with an explicit rule against blending those timelines.
+`PERSONA_SYSTEM_PROMPT` is loaded into every AI call and carries identity anchors, voice guidance, audience framing, forbidden phrases, and a technical glossary. 
 
 The glossary is also a control mechanism: the model is told never to expand abbreviations that are not present in the approved glossary, which is meant to reduce hallucinated expansions such as incorrect RAG definitions.
 
