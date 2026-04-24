@@ -89,9 +89,9 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ---
 
-## 🧩 Knowledge Graph & Hybrid Retrieval (Feature Complete)
+## 🧩 Knowledge Graph & Hybrid Retrieval
 
-The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking. All tests pass (241/241) as of April 23, 2026. See [docs/testing-and-dev.md](docs/testing-and-dev.md) for coverage and [docs/features/atomspace-metta-knowledge/plan.md](docs/features/atomspace-metta-knowledge/plan.md) for implementation details.
+The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking. See [docs/features/atomspace-metta-knowledge/plan.md](docs/features/atomspace-metta-knowledge/plan.md) for implementation details.
 
 ## 🔄 Continual Learning (NLP-Extracted Knowledge)
 
