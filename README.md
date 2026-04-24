@@ -89,7 +89,34 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ---
 
-## 🧩 Knowledge Graph & Hybrid Retrieval
+## 🧩 Knowledge Graph Choice: NetworkX Core, Neo4j for Expansion
+
+The core knowledge graph is implemented with NetworkX, an in-memory Python graph library. This choice is intentional:
+
+- **Simplicity & Speed:** NetworkX is fast, pure Python, and ideal for small to medium graphs (well under 100k nodes/edges), which covers all core persona, domain, and learning knowledge for a single avatar.
+- **Tight, Local Core:** By keeping the avatar's core knowledge graph tight and local, the system remains fast, debuggable, and easy to extend—no external dependencies or infrastructure required.
+- **Scalability Policy:** If the knowledge graph ever needs to scale to millions of nodes/edges (e.g., for mass knowledge injection, multi-avatar, or enterprise use), the system is designed to support Neo4j as a drop-in backend. Neo4j provides persistent, disk-backed storage and a powerful query language (Cypher) for large-scale or multi-user scenarios.
+- **Best of Both Worlds:** For most users, NetworkX is more than sufficient. Neo4j is reserved for future expansion, bulk import, or advanced analytics—keeping the core avatar experience lightweight and local-first.
+
+**Current graph size:** The combined domain and learning knowledge graphs are well below 1,000 nodes—orders of magnitude under any practical NetworkX limit.
+
+See the chart below for a summary of trade-offs:
+
+| Feature/Constraint    | NetworkX (Current)                               | Neo4j (Future Option)                         |
+| --------------------- | ------------------------------------------------ | --------------------------------------------- |
+| Storage               | In-memory (RAM only)                             | On-disk, persistent                           |
+| Scale                 | Best for small/medium graphs (<100k nodes/edges) | Scales to millions/billions of nodes/edges    |
+| Query Language        | Python API, no query language                    | Cypher query language                         |
+| Performance           | Fast for small graphs, slows with size           | Optimized for large, complex queries          |
+| Persistence           | No built-in persistence                          | Full persistence, ACID compliance             |
+| Integration           | Simple, pure Python                              | Requires running Neo4j server, extra setup    |
+| Learning/Dev Overhead | Minimal, easy to use                             | Higher, requires Cypher and DB management     |
+| Use Case Fit          | Prototyping, research, local automation          | Production, multi-user, large-scale analytics |
+| Cost                  | Free, no infra                                   | Free (Community), but infra/ops required      |
+
+**Bottom line:** The core of the avatar will remain in NetworkX for speed, simplicity, and local-first operation. Neo4j is available for future expansion, mass knowledge injection, or advanced analytics if needed.
+
+---
 
 The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking.
 
