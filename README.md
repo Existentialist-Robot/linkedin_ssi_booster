@@ -27,7 +27,7 @@
 
 ---
 
-## Derivative of Truth Framework: Status
+## Derivative of Truth Framework
 
 The Derivative of Truth framework is:
 
@@ -174,7 +174,7 @@ The system now includes a NetworkX-powered knowledge graph for incremental learn
 - The NetworkX knowledge graph is used as a secondary, persona-aware reranker and explainer: it links persona ↔ skills ↔ projects ↔ claims ↔ domain facts.
 
 - Final candidate scoring is a hybrid:
-
+  
   $$
   ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
   $$
