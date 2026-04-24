@@ -27,48 +27,6 @@
 
 ---
 
-## Derivative of Truth Framework
-
-The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
-
-### Why This Approach Is Revolutionary
-
-Most AI content tools rely on black-box vector search or generic LLM outputs, which are hard to audit, explain, or trust. The LinkedIn SSI Booster’s Derivative of Truth framework is different:
-
-- **Deterministic, auditable, and explainable:** BM25 and token matching provide transparent, reproducible evidence scoring, enabling precise truthfulness and uncertainty annotation.
-- **Fine-grained control:** You can set exact thresholds for what counts as “supported,” especially for numbers, names, and facts—something vector search can’t reliably do.
-- **Actionable feedback:** The system gives clear, actionable explanations for why claims are accepted or rejected, helping users and moderators improve content quality.
-- **Bridges IR and AI:** By combining traditional information retrieval (BM25) with modern AI, the system is both robust and trustworthy—unlike most current AI automation tools.
-- **Sets a new bar for trustworthy AI:** This approach is rare in today’s content automation landscape and is a strong step toward explainable, compliance-ready AI for real-world workflows.
-
-In short, this framework brings a new level of transparency, reliability, and control to automated content generation—making it ideal for professional, compliance-sensitive, and high-stakes environments.
-
-### Key Benefits
-
-- **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, and uncertainty, going beyond simple fact-checking.
-- **Evidence & Reasoning Annotation:** Each fact/claim is annotated with evidence type, reasoning type, and source credibility for transparency and explainability.
-- **Uncertainty Handling:** Tracks and penalizes uncertainty (weak evidence, long chains, conflicts, sparse support), flagging overconfident or unsupported claims.
-- **Improved Explainability:** CLI and reports show why claims are accepted/rejected, what evidence supports them, and how uncertainty affects scores.
-- **Better Content Quality:** Filters out weak claims, prioritizes well-grounded ones, and ensures published content is credible and authoritative.
-- **Adaptive Learning:** As more evidence and reasoning paths are accumulated, scoring and explanations improve, making automation smarter over time.
-- **Alignment with Best Practices:** Follows trustworthy AI and explainable AI (XAI) principles for robust, future-proof automation.
-
-```mermaid
-flowchart TD
-  Subsystem["Content Generation / Curation"] -->|"Claims, Facts"| TruthGate["Truth Gate & Confidence Scoring"]
-  TruthGate -->|"BM25, Graph, Claim Support"| HybridRetriever["Hybrid Retriever & Reranker"]
-  HybridRetriever -->|"Candidate Claims"| DerivativeTruth["Derivative of Truth Scoring"]
-  DerivativeTruth -->|"Truth Gradient, Evidence Path, Uncertainty"| Explainability["Explainability & Reporting"]
-  DerivativeTruth -->|"Penalty/Flag"| Output["Final Output (Post/Claim)"]
-  ContinualLearning["Continual Learning"] -->|"New Evidence, Reasoning"| KnowledgeGraph["Knowledge Graph"]
-  KnowledgeGraph --> HybridRetriever
-  KnowledgeGraph --> DerivativeTruth
-```
-
-See [docs/features/derivative-of-truth/](docs/features/derivative-of-truth/) for technical details, schema, and scoring examples.
-
----
-
 ### **What is the LinkedIn SSI?**
 
 The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
@@ -128,6 +86,48 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 - **Fact retrieval:** For every post or answer, the system retrieves relevant facts from your persona graph (projects, skills, outcomes) using BM25Okapi — a production-grade IR algorithm. This ensures rare, high-signal skills and projects are prioritized.
 - **Prompt balance rules:** Prompts require every factual claim to be grounded in either the article or your persona facts. Personal references are capped, and invented stats/dates/companies are forbidden.
 - **Truth gate:** After generation, a deterministic filter removes any sentence with unsupported numbers, dates, company names, or project-tech mismatches unless the claim is found in your evidence. This keeps outputs credible and on-brand.
+
+---
+
+## Derivative of Truth Framework
+
+The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
+
+### Why This Approach Is Revolutionary
+
+Most AI content tools rely on black-box vector search or generic LLM outputs, which are hard to audit, explain, or trust. The LinkedIn SSI Booster’s Derivative of Truth framework is different:
+
+- **Deterministic, auditable, and explainable:** BM25 and token matching provide transparent, reproducible evidence scoring, enabling precise truthfulness and uncertainty annotation.
+- **Fine-grained control:** You can set exact thresholds for what counts as “supported,” especially for numbers, names, and facts—something vector search can’t reliably do.
+- **Actionable feedback:** The system gives clear, actionable explanations for why claims are accepted or rejected, helping users and moderators improve content quality.
+- **Bridges IR and AI:** By combining traditional information retrieval (BM25) with modern AI, the system is both robust and trustworthy—unlike most current AI automation tools.
+- **Sets a new bar for trustworthy AI:** This approach is rare in today’s content automation landscape and is a strong step toward explainable, compliance-ready AI for real-world workflows.
+
+In short, this framework brings a new level of transparency, reliability, and control to automated content generation—making it ideal for professional, compliance-sensitive, and high-stakes environments.
+
+### Key Benefits
+
+- **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, and uncertainty, going beyond simple fact-checking.
+- **Evidence & Reasoning Annotation:** Each fact/claim is annotated with evidence type, reasoning type, and source credibility for transparency and explainability.
+- **Uncertainty Handling:** Tracks and penalizes uncertainty (weak evidence, long chains, conflicts, sparse support), flagging overconfident or unsupported claims.
+- **Improved Explainability:** CLI and reports show why claims are accepted/rejected, what evidence supports them, and how uncertainty affects scores.
+- **Better Content Quality:** Filters out weak claims, prioritizes well-grounded ones, and ensures published content is credible and authoritative.
+- **Adaptive Learning:** As more evidence and reasoning paths are accumulated, scoring and explanations improve, making automation smarter over time.
+- **Alignment with Best Practices:** Follows trustworthy AI and explainable AI (XAI) principles for robust, future-proof automation.
+
+```mermaid
+flowchart TD
+  Subsystem["Content Generation / Curation"] -->|"Claims, Facts"| TruthGate["Truth Gate & Confidence Scoring"]
+  TruthGate -->|"BM25, Graph, Claim Support"| HybridRetriever["Hybrid Retriever & Reranker"]
+  HybridRetriever -->|"Candidate Claims"| DerivativeTruth["Derivative of Truth Scoring"]
+  DerivativeTruth -->|"Truth Gradient, Evidence Path, Uncertainty"| Explainability["Explainability & Reporting"]
+  DerivativeTruth -->|"Penalty/Flag"| Output["Final Output (Post/Claim)"]
+  ContinualLearning["Continual Learning"] -->|"New Evidence, Reasoning"| KnowledgeGraph["Knowledge Graph"]
+  KnowledgeGraph --> HybridRetriever
+  KnowledgeGraph --> DerivativeTruth
+```
+
+See [docs/features/derivative-of-truth/](docs/features/derivative-of-truth/) for technical details, schema, and scoring examples.
 
 ---
 
