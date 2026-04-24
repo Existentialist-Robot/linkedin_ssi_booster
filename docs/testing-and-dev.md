@@ -17,9 +17,9 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 201         | 201    | 0      |
+| 241         | 241    | 0      |
 
-All tests pass as of April 19, 2026. The suite covers avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features.
+All tests pass as of April 23, 2026. The suite now also covers the Knowledge Graph subsystem (NetworkX), hybrid BM25+graph retrieval, and persona-aware reranking, in addition to avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features.
 
 ---
 
@@ -36,6 +36,8 @@ All tests pass as of April 19, 2026. The suite covers avatar intelligence, curat
 | `tests/test_selection_learning.py`      | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                |
 | `tests/test_spacy_nlp.py`               | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                   |
 | `tests/test_continual_learning.py`      | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration. |
+| `tests/test_knowledge_graph.py`         | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries. |
+| `tests/test_hybrid_retriever.py`        | BM25+graph hybrid retrieval, reranking, and scoring logic.                                           |
 
 ## Repository structure
 

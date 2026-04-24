@@ -56,3 +56,5 @@ Current persona and domain knowledge are stored as lists or dicts, which limits:
 - System can retrieve and explain how a fact was used or cited
 - Integration does not break existing deterministic fact retrieval
 - Documentation and example queries provided
+- All tests pass (see testing-and-dev.md for coverage)
+- Feature is fully documented in README and support docs

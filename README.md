@@ -2,17 +2,17 @@
 
 #### _<u> — Persona-Grounded Truth-Gated Adaptive Learning Hybrid RAG Agent with Domain Knowledge Graph</u>_
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0020](https://img.shields.io/badge/version-alpha--v0.0.2.0-orange.svg)]()
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0021](https://img.shields.io/badge/version-alpha--v0.0.2.1-orange.svg)]()
 
-**LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, and local memory to generate, curate, rank, and route posts with more control than a basic AI writer workflow.
+**LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, a NetworkX-powered knowledge graph, and local memory to generate, curate, rank, and route posts with more control and explainability than a basic AI writer workflow.
 
 ## 🧠 Intelligence Stack — Why This Is Smarter Than Just 'AI Writes Posts'
 
 - **Advanced NLP with spaCy** — Theme/claim extraction, semantic similarity, sentiment/tone analysis, and two advanced curation/grounding features:
   - **Fact Suggestion:** When the truth gate drops a sentence, spaCy suggests the closest matching fact or evidence from your persona graph, or recommends how to rephrase for grounding.
   - **Contextual Summarization:** spaCy generates concise, context-aware summaries of curated articles, improving the quality of commentary and learning signals.
-- **Persona-grounded generation** — Every post is written in your real technical voice, with facts, projects, and outcomes pulled from your private persona graph (not just keywords or a bio blurb).
-- **Hybrid RAG + agent pipeline** — Combines BM25 retrieval, deterministic validation, and multi-step agent orchestration for high factuality and variety.
+- **Persona-grounded generation** — Every post is written in your real technical voice, with facts, projects, and outcomes pulled from your private persona graph and knowledge graph (not just keywords or a bio blurb).
+- **Hybrid RAG + agent pipeline** — Combines BM25 retrieval, deterministic validation, multi-step agent orchestration, and a hybrid BM25+graph reranker for high factuality, persona-awareness, and variety.
 - **Curation learning loop** — The system tracks every generated candidate, learns which ones you actually publish, and automatically floats the best sources/topics to the top in future runs (Beta-smoothed acceptance priors per source/SSI component).
 - **Truth gate** — Post-generation filter removes unsupported claims (numbers, dates, company names, project-tech mismatches) for maximum credibility.
   - Uses a BM25 evidence strength check to score each sentence against article text and persona facts.
@@ -20,10 +20,10 @@
   - Strict token matching is also applied for numeric claims, years, dollar amounts, and company names.
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
-- **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, and generate advisory reports from moderation history.
+- **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
 - **No cloud AI keys required** — All generation is local (Ollama), with persona and learning data stored only on your machine.
 
-**Result:** You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency and control.
+**Result:** You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency, control, and explainability.
 
 ---
 
@@ -89,6 +89,10 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ---
 
+## 🧩 Knowledge Graph & Hybrid Retrieval (Feature Complete)
+
+The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking. All tests pass (241/241) as of April 23, 2026. See [docs/testing-and-dev.md](docs/testing-and-dev.md) for coverage and [docs/features/atomspace-metta-knowledge/plan.md](docs/features/atomspace-metta-knowledge/plan.md) for implementation details.
+
 ## 🔄 Continual Learning (NLP-Extracted Knowledge)
 
 The avatar now supports continual learning from new content streams (e.g., RSS feeds, curated articles) via an NLP-extracted knowledge graph. This enables the system to accumulate new facts, terms, and relationships over time, improving relevance and depth without requiring a graph database or major refactor.
@@ -138,7 +142,7 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Usage guide](docs/usage-schedule-curate-console.md) — scheduling, curation, console mode, channels, and CLI examples.
 - [SSI strategy](docs/ssi-and-strategy.md) — SSI model, content mapping, scheduler behavior, and reporting.
 - [AI backend](docs/ai-backend-and-models.md) — Ollama setup and model recommendations.
-- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure.
+- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (241/241) including knowledge graph and hybrid retrieval features.
 - [Selection learning](docs/selection-learning.md) — candidate logging, reconciliation, and acceptance priors.
 
 ## Quickstart

@@ -54,7 +54,7 @@ def test_real_graph_loads_successfully(real_state) -> None:
 
 
 def test_real_graph_has_expected_project_count(real_state) -> None:
-    assert len(real_state.persona_graph.projects) == 17
+    assert len(real_state.persona_graph.projects) == 19
 
 
 def test_real_graph_has_skills(real_state) -> None:
@@ -72,7 +72,7 @@ def test_real_graph_has_companies(real_state) -> None:
 
 def test_normalize_evidence_facts_real(real_state) -> None:
     facts = normalize_evidence_facts(real_state)
-    assert len(facts) == 17
+    assert len(facts) == 19
 
 
 def test_evidence_ids_all_unique(real_state) -> None:

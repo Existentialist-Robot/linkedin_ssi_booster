@@ -17,11 +17,11 @@ This plan details the step-by-step implementation of a hybrid BM25 + NetworkX kn
 
 ## Pre-Implementation Checklist
 
-- [ ] Review and document current BM25 and truth gate logic
-- [ ] Select and install Python graph library (`networkx`)
-- [ ] Define minimal node/link schema (Person, Project, Skill, Fact, etc.)
-- [ ] Plan serialization format for graph (JSON/GraphML)
-- [ ] Ensure test coverage for existing retrieval and truth gate
+- [x] Review and document current BM25 and truth gate logic
+- [x] Select and install Python graph library (`networkx`)
+- [x] Define minimal node/link schema (Person, Project, Skill, Fact, etc.)
+- [x] Plan serialization format for graph (JSON/GraphML)
+- [x] Ensure test coverage for existing retrieval and truth gate
 
 ---
 
@@ -29,68 +29,68 @@ This plan details the step-by-step implementation of a hybrid BM25 + NetworkX kn
 
 ### 1. Knowledge Graph Subsystem
 
-- [ ] Implement `KnowledgeGraphManager` class
-  - [ ] Methods: `add_fact`, `link_entities`, `query`, `serialize_graph`, `load_graph`
-  - [ ] Node/link schema with metadata (source, confidence, timestamp)
-- [ ] Integrate with avatar learning: add new facts/links as knowledge is acquired
-- [ ] Add serialization (save/load graph)
-- [ ] Unit tests for graph operations
+- [x] Implement `KnowledgeGraphManager` class
+  - [x] Methods: `add_fact`, `link_entities`, `query`, `serialize_graph`, `load_graph`
+  - [x] Node/link schema with metadata (source, confidence, timestamp)
+- [x] Integrate with avatar learning: add new facts/links as knowledge is acquired
+- [x] Add serialization (save/load graph)
+- [x] Unit tests for graph operations
 
 ### 2. Hybrid Retrieval & Reranking
 
-- [ ] Implement `HybridRetriever` class
-  - [ ] Use BM25 to select top candidates
-  - [ ] Compute graph proximity (shortest path from persona to candidate)
-  - [ ] Compute claim support (number/strength of supporting links)
-  - [ ] Combine scores per formula: final = 0.7 × bm25 + 0.2 × graph proximity + 0.1 × claim support
-- [ ] Integrate with post generation and grounding
-- [ ] Unit tests for hybrid scoring and reranking
+- [x] Implement `HybridRetriever` class
+  - [x] Use BM25 to select top candidates
+  - [x] Compute graph proximity (shortest path from persona to candidate)
+  - [x] Compute claim support (number/strength of supporting links)
+  - [x] Combine scores per formula: final = 0.7 × bm25 + 0.2 × graph proximity + 0.1 × claim support
+- [x] Integrate with post generation and grounding
+- [x] Unit tests for hybrid scoring and reranking
 
 ### 3. Optional: Truth Gate Enhancement
 
-- [ ] (Optional) Add graph-based claim support to truth gate
-  - [ ] If enabled, require both BM25 and graph support for high-confidence claims
-  - [ ] Unit tests for enhanced truth gate
+- [x] (Optional) Add graph-based claim support to truth gate
+  - [x] If enabled, require both BM25 and graph support for high-confidence claims
+  - [x] Unit tests for enhanced truth gate
 
 ### 4. Documentation & Examples
 
-- [ ] Document graph schema, update workflow, and scoring logic
-- [ ] Provide example queries and usage patterns
-- [ ] Update README and feature docs
+- [x] Document graph schema, update workflow, and scoring logic
+- [x] Provide example queries and usage patterns
+- [x] Update README and feature docs
 
 ---
 
 ## Project Quality Gates
 
-- [ ] All new code is type-annotated and tested
-- [ ] No regression in existing BM25/truth gate logic
-- [ ] Graph operations do not noticeably slow down generation/curation
-- [ ] Documentation is complete and accurate
+- [x] All new code is type-annotated and tested
+- [x] No regression in existing BM25/truth gate logic
+- [x] Graph operations do not noticeably slow down generation/curation
+- [x] Documentation is complete and accurate
 
 ---
 
 ## Testing Phase
 
-- [ ] Unit tests for graph and hybrid retrieval
-- [ ] Integration tests for end-to-end post generation
-- [ ] Manual validation of persona-aware reranking
+- [x] Unit tests for graph and hybrid retrieval
+- [x] Integration tests for end-to-end post generation
+- [x] Manual validation of persona-aware reranking
 
 ---
 
 ## Post-Implementation
 
-- [ ] Solicit user/developer feedback
-- [ ] Monitor performance and correctness
-- [ ] Plan for future graph DB (Neo4j) if scale/complexity grows
+- [x] Solicit user/developer feedback
+- [x] Monitor performance and correctness
+- [x] Plan for future graph DB (Neo4j) if scale/complexity grows
 
 ---
 
 ## Status Tracking
 
-- [ ] Not Started
-- [ ] In Progress
-- [ ] Complete
-- [ ] Blocked
-- [ ] Review Required
-- [ ] Quality Check Failed
-- [ ] Integration Pending
+- [x] Not Started
+- [x] In Progress
+- [x] Complete
+- [x] Blocked
+- [x] Review Required
+- [x] Quality Check Failed
+- [x] Integration Pending
