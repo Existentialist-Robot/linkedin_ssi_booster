@@ -23,7 +23,12 @@
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
 - **No cloud AI keys required** — All generation is local (Ollama), with persona and learning data stored only on your machine.
 
-**Result:** You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency, control, and explainability.
+
+**Optional: Automatic LLM Rephrasing**
+
+Set `AUTO_LLM_REPHRASE=true` in your `.env` to enable automatic LLM rephrasing for rejected posts. When enabled, if a generated post is rejected by the truth gate, the system will automatically attempt to regenerate the post one time using the suggested evidence or closest matching facts. If set to `false` (default), suggestions are provided for manual review and rephrasing only.
+
+This feature helps automate the process of grounding claims in evidence, but you retain full control over whether the LLM should retry or leave it for manual review.
 
 ---
 
