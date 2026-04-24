@@ -36,16 +36,26 @@ The Derivative of Truth framework is:
 
 The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
 
+### Key Benefits
+
+- **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, and uncertainty, going beyond simple fact-checking.
+- **Evidence & Reasoning Annotation:** Each fact/claim is annotated with evidence type, reasoning type, and source credibility for transparency and explainability.
+- **Uncertainty Handling:** Tracks and penalizes uncertainty (weak evidence, long chains, conflicts, sparse support), flagging overconfident or unsupported claims.
+- **Improved Explainability:** CLI and reports show why claims are accepted/rejected, what evidence supports them, and how uncertainty affects scores.
+- **Better Content Quality:** Filters out weak claims, prioritizes well-grounded ones, and ensures published content is credible and authoritative.
+- **Adaptive Learning:** As more evidence and reasoning paths are accumulated, scoring and explanations improve, making automation smarter over time.
+- **Alignment with Best Practices:** Follows trustworthy AI and explainable AI (XAI) principles for robust, future-proof automation.
+
 ```mermaid
 flowchart TD
-    Subsystem["Content Generation / Curation"] -->|"Claims, Facts"| TruthGate["Truth Gate & Confidence Scoring"]
-    TruthGate -->|"BM25, Graph, Claim Support"| HybridRetriever["Hybrid Retriever & Reranker"]
-    HybridRetriever -->|"Candidate Claims"| DerivativeTruth["Derivative of Truth Scoring"]
-    DerivativeTruth -->|"Truth Gradient, Evidence Path, Uncertainty"| Explainability["Explainability & Reporting"]
-    DerivativeTruth -->|"Penalty/Flag"| Output["Final Output (Post/Claim)"]
-    ContinualLearning["Continual Learning"] -->|"New Evidence, Reasoning"| KnowledgeGraph["Knowledge Graph"]
-    KnowledgeGraph --> HybridRetriever
-    KnowledgeGraph --> DerivativeTruth
+  Subsystem["Content Generation / Curation"] -->|"Claims, Facts"| TruthGate["Truth Gate & Confidence Scoring"]
+  TruthGate -->|"BM25, Graph, Claim Support"| HybridRetriever["Hybrid Retriever & Reranker"]
+  HybridRetriever -->|"Candidate Claims"| DerivativeTruth["Derivative of Truth Scoring"]
+  DerivativeTruth -->|"Truth Gradient, Evidence Path, Uncertainty"| Explainability["Explainability & Reporting"]
+  DerivativeTruth -->|"Penalty/Flag"| Output["Final Output (Post/Claim)"]
+  ContinualLearning["Continual Learning"] -->|"New Evidence, Reasoning"| KnowledgeGraph["Knowledge Graph"]
+  KnowledgeGraph --> HybridRetriever
+  KnowledgeGraph --> DerivativeTruth
 ```
 
 See [docs/features/derivative-of-truth/](docs/features/derivative-of-truth/) for technical details, schema, and scoring examples.
