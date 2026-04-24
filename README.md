@@ -1,10 +1,10 @@
 # LinkedIn SSI Booster
 
-#### _<u> — Persona-Grounded Truth-Gated Adaptive Learning Hybrid RAG Agent with Domain Knowledge Graph</u>_
+#### _<u> — Persona-Grounded Truth-Gated Adaptive Continual Learning Hybrid RAG Agent with Domain Knowledge Graph</u>_
 
 [![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0021](https://img.shields.io/badge/version-alpha--v0.0.2.1-orange.svg)]()
 
-**LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, a NetworkX-powered knowledge graph, and local memory to generate, curate, rank, and route posts with more control and explainability than a basic AI writer workflow.
+**LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive continual learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, a NetworkX-powered knowledge graph, and local memory to generate, curate, rank, and route posts with more control and explainability than a basic AI writer workflow.
 
 ## 🧠 Intelligence Stack — Why This Is Smarter Than Just 'AI Writes Posts'
 
