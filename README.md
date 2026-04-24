@@ -95,32 +95,31 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 >
 > **The Core Problem:**
 > Current AI systems optimize for next token prediction, which can lead to reward hacking—models sound confident about memorized patterns, not about evidence.
->
+
 > **Breakthrough Insight:**
-> Truth is subjective and dynamic. Instead of solving for absolute truth $T$, we optimize for $\frac{dT}{dt}$—the derivative of truth, representing movement toward more reliable knowledge.
+> Truth is subjective and dynamic. Instead of solving for absolute truth T, we optimize for dT/dt—the derivative of truth, representing movement toward more reliable knowledge.
 >
 > **Key Mathematical Components:**
 >
 > - **Truth-Seeking Loss:**
->   $$
->   L_{current} = -\log P(\text{next token} | \text{context})
->   $$
->   $$
->   L_{truth} = -\log P(\text{truth direction} | \text{evidence}, \text{reasoning}, \text{uncertainty})
->   $$
+>
+>   L_current = -log P(next_token | context)
+>
+>   L_truth = -log P(truth_direction | evidence, reasoning, uncertainty)
+>
 > - **Derivative of Truth:**
->   $$
->   \frac{dT}{dt} = \frac{\partial (\text{Evidence Quality})}{\partial t} + \frac{\partial (\text{Reasoning Strength})}{\partial t} - \frac{\partial (\text{Uncertainty})}{\partial t}
->   $$
+>
+>   dT/dt = ∂(Evidence Quality)/∂t + ∂(Reasoning Strength)/∂t - ∂(Uncertainty)/∂t
+>
 > - **Truth Gradient:**
->   $$
->   \nabla(\text{Evidence} \times \text{Reasoning} \times \text{Consistency}) - \nabla(\text{Uncertainty} \times \text{Bias})
->   $$
+>
+>   ∇(Evidence × Reasoning × Consistency) - ∇(Uncertainty × Bias)
+>
 > - **Truth Score:**
->   $$
->   T(\text{statement}) = \sum_i E_i \times R_i \times C_i \times U_i
->   $$
->   Where $E_i$ is evidence strength, $R_i$ is reasoning validity, $C_i$ is source credibility, $U_i$ is uncertainty penalty.
+>
+>   T(statement) = Σ [E_i × R_i × C_i × U_i]
+>
+>   Where E_i is evidence strength, R_i is reasoning validity, C_i is source credibility, U_i is uncertainty penalty.
 >
 > **The Key Insight:**
 > Don't solve for truth directly—solve for the trajectory toward truth. This makes the model reward-seeking for reliable knowledge, not just confident pattern matching.
