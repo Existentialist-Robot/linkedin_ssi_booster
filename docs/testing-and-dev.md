@@ -17,9 +17,19 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 241         | 241    | 0      |
+| 250         | 250    | 0      |
 
-All tests pass as of April 23, 2026. The suite now also covers the Knowledge Graph subsystem (NetworkX), hybrid BM25+graph retrieval, and persona-aware reranking, in addition to avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features.
+All tests pass as of April 24, 2026. The suite now also covers:
+
+- Knowledge Graph subsystem (NetworkX)
+- Hybrid BM25+graph retrieval and persona-aware reranking
+- **Derivative of Truth framework** (truth gradient scoring, evidence/reasoning annotation, uncertainty logic)
+- Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
+
+**Derivative of Truth status:**
+
+- All annotation logic, uncertainty calculation, and scoring tests pass (see `tests/test_derivative_of_truth.py`).
+- Implementation is aligned with [design.md](features/derivative-of-truth/design.md) and [plan.md](features/derivative-of-truth/plan.md).
 
 ---
 

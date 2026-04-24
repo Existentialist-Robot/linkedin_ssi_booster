@@ -2,7 +2,7 @@
 
 #### _<u> — Persona-Grounded Truth-Gated Adaptive Continual Learning Hybrid RAG Agent with Domain Knowledge Graph</u>_
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0021](https://img.shields.io/badge/version-alpha--v0.0.2.1-orange.svg)]()
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0022](https://img.shields.io/badge/version-alpha--v0.0.2.2-orange.svg)]()
 
 **LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive continual learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, a NetworkX-powered knowledge graph, and local memory to generate, curate, rank, and route posts with more control and explainability than a basic AI writer workflow.
 
@@ -24,6 +24,31 @@
 - **No cloud AI keys required** — All generation is local (Ollama), with persona and learning data stored only on your machine.
 
 **Result:** You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency, control, and explainability.
+
+---
+
+## Derivative of Truth Framework: Status
+
+The Derivative of Truth framework is:
+
+- Truth gradient scoring, evidence/reasoning annotation, and uncertainty handling are integrated into the content pipeline.
+- All annotation logic and uncertainty calculations are aligned with the technical design and implementation plan.
+
+The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
+
+```mermaid
+flowchart TD
+    Subsystem["Content Generation / Curation"] -->|"Claims, Facts"| TruthGate["Truth Gate & Confidence Scoring"]
+    TruthGate -->|"BM25, Graph, Claim Support"| HybridRetriever["Hybrid Retriever & Reranker"]
+    HybridRetriever -->|"Candidate Claims"| DerivativeTruth["Derivative of Truth Scoring"]
+    DerivativeTruth -->|"Truth Gradient, Evidence Path, Uncertainty"| Explainability["Explainability & Reporting"]
+    DerivativeTruth -->|"Penalty/Flag"| Output["Final Output (Post/Claim)"]
+    ContinualLearning["Continual Learning"] -->|"New Evidence, Reasoning"| KnowledgeGraph["Knowledge Graph"]
+    KnowledgeGraph --> HybridRetriever
+    KnowledgeGraph --> DerivativeTruth
+```
+
+See [docs/features/derivative-of-truth/](docs/features/derivative-of-truth/) for technical details, schema, and scoring examples.
 
 ---
 
@@ -123,11 +148,13 @@ The system now includes a NetworkX-powered knowledge graph for incremental learn
 **Integration Philosophy:**
 
 - BM25 (lexical retrieval) remains the primary candidate selector for claims, project details, facts, narrative memory, and learned article summaries.
+
 - The NetworkX knowledge graph is used as a secondary, persona-aware reranker and explainer: it links persona ↔ skills ↔ projects ↔ claims ↔ domain facts.
+
 - Final candidate scoring is a hybrid:
 
   $$
-  	ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
+  ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
   $$
 
 ### Hybrid Retrieval and Scoring Architecture

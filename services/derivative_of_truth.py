@@ -1,0 +1,665 @@
+"""Derivative of Truth — Truth Gradient Scoring Subsystem.
+
+Implements the Derivative of Truth framework for AI truthfulness:
+  - Evidence & Reasoning Annotation (evidence_type, reasoning_type, source_credibility, uncertainty)
+  - Truth Gradient Scoring (score_claim_with_truth_gradient)
+  - Uncertainty Tracking & Penalty
+  - Report generation (report_truth_gradient)
+
+This subsystem augments the existing truth gate and hybrid retriever pipeline.
+It computes a truth gradient metric for every generated claim/post and provides
+explainability via evidence paths and uncertainty breakdown.
+
+Integration points:
+  - knowledge_graph.KnowledgeGraphManager  (annotated facts)
+  - hybrid_retriever.HybridRetriever       (reranking and filtering)
+  - console_grounding.truth_gate_result    (truth gate metadata)
+  - content_curator / main CLI             (reporting)
+
+Algorithm (per claim):
+  1. Gather all evidence paths (evidence_type, reasoning_type, credibility, uncertainty)
+  2. Compute weighted evidence strength:
+       evidence_weight(type) × reasoning_weight(type) × credibility
+  3. Apply uncertainty penalty:
+       conflicts, long inference chains, sparse evidence
+  4. Truth gradient = mean(weighted_strengths) × (1 - uncertainty_penalty)
+  5. Confidence calibration penalty = max(0, truth_gradient - raw_confidence)
+
+References:
+  - docs/features/derivative-of-truth/design.md
+  - docs/features/derivative-of-truth/plan.md
+  - "The Derivative of Truth: A New Mathematical Framework for AI Truthfulness"
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Evidence & Reasoning type constants
+# ---------------------------------------------------------------------------
+
+# Evidence type hierarchy — stronger evidence carries higher weight
+EVIDENCE_TYPE_PRIMARY = "primary"       # direct first-hand experience/data
+EVIDENCE_TYPE_SECONDARY = "secondary"  # peer-reviewed / well-sourced
+EVIDENCE_TYPE_DERIVED = "derived"      # inferred from primary/secondary
+EVIDENCE_TYPE_PATTERN = "pattern"      # pattern-based / generalisation
+
+EVIDENCE_WEIGHTS: dict[str, float] = {
+    EVIDENCE_TYPE_PRIMARY:   1.0,
+    EVIDENCE_TYPE_SECONDARY: 0.75,
+    EVIDENCE_TYPE_DERIVED:   0.5,
+    EVIDENCE_TYPE_PATTERN:   0.25,
+}
+
+# Reasoning type hierarchy
+REASONING_TYPE_LOGICAL = "logical"         # deductive / formally valid
+REASONING_TYPE_STATISTICAL = "statistical" # grounded in data/probability
+REASONING_TYPE_ANALOGY = "analogy"         # reasoning by similarity
+REASONING_TYPE_PATTERN = "pattern"         # heuristic / recognitional
+
+REASONING_WEIGHTS: dict[str, float] = {
+    REASONING_TYPE_LOGICAL:     1.0,
+    REASONING_TYPE_STATISTICAL: 0.85,
+    REASONING_TYPE_ANALOGY:     0.55,
+    REASONING_TYPE_PATTERN:     0.35,
+}
+
+# Uncertainty penalty sources
+UNCERTAINTY_CONFLICT = "conflict"            # contradictory evidence
+UNCERTAINTY_LONG_CHAIN = "long_chain"        # long inference chain (depth > 3)
+UNCERTAINTY_SPARSE = "sparse"                # fewer than 2 evidence paths
+UNCERTAINTY_LOW_CREDIBILITY = "low_credibility"  # credibility < 0.3
+
+
+# ---------------------------------------------------------------------------
+# Data classes
+# ---------------------------------------------------------------------------
+
+@dataclass
+class EvidencePath:
+    """A single evidence path supporting (or undermining) a claim.
+
+    Attributes
+    ----------
+    source:
+        Human-readable source identifier (e.g. node ID, article URL, persona fact ID).
+    evidence_type:
+        One of primary, secondary, derived, pattern.
+    reasoning_type:
+        One of logical, statistical, analogy, pattern.
+    credibility:
+        Numeric weight ∈ [0, 1] representing source credibility
+        (independence × expertise × historical accuracy).
+    uncertainty:
+        Numeric penalty ∈ [0, 1] for this path's uncertainty contribution.
+    chain_length:
+        Number of inference steps to derive this evidence (1 = direct).
+    conflicts_with:
+        List of other source IDs that contradict this path.
+    """
+
+    source: str
+    evidence_type: str = EVIDENCE_TYPE_SECONDARY
+    reasoning_type: str = REASONING_TYPE_LOGICAL
+    credibility: float = 0.5
+    uncertainty: float = 0.0
+    chain_length: int = 1
+    conflicts_with: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # Clamp to valid ranges
+        self.credibility = max(0.0, min(1.0, self.credibility))
+        self.uncertainty = max(0.0, min(1.0, self.uncertainty))
+        self.chain_length = max(1, self.chain_length)
+
+
+@dataclass
+class TruthGradientResult:
+    """Output of truth gradient scoring for a single claim.
+
+    Attributes
+    ----------
+    truth_gradient:
+        Composite score ∈ [0, 1] — higher is more trustworthy.
+    uncertainty:
+        Aggregate uncertainty penalty ∈ [0, 1] applied to the gradient.
+    confidence_penalty:
+        How much the gradient penalises overconfidence relative to raw BM25 confidence.
+    evidence_paths:
+        All evidence paths used in the computation.
+    uncertainty_sources:
+        List of uncertainty reason codes (e.g. 'sparse', 'conflict').
+    flagged:
+        True when truth_gradient < TRUTH_GRADIENT_FLAG_THRESHOLD.
+    explanation:
+        Human-readable explanation of the score components.
+    """
+
+    truth_gradient: float
+    uncertainty: float
+    confidence_penalty: float
+    evidence_paths: list[EvidencePath] = field(default_factory=list)
+    uncertainty_sources: list[str] = field(default_factory=list)
+    flagged: bool = False
+    explanation: str = ""
+
+
+@dataclass
+class AnnotatedFact:
+    """A knowledge-graph fact annotated with Derivative of Truth metadata.
+
+    These annotations are stored in the ``metadata`` dict of each KG node
+    under the key ``"dot"`` (Derivative of Truth).
+
+    Attributes
+    ----------
+    fact_id:
+        The knowledge graph node ID for this fact.
+    evidence_type:
+        Classification of the evidence quality.
+    reasoning_type:
+        Classification of the reasoning path.
+    source_credibility:
+        Numeric credibility weight ∈ [0, 1].
+    uncertainty:
+        Base uncertainty penalty for this fact ∈ [0, 1].
+    """
+
+    fact_id: str
+    evidence_type: str = EVIDENCE_TYPE_SECONDARY
+    reasoning_type: str = REASONING_TYPE_LOGICAL
+    source_credibility: float = 0.5
+    uncertainty: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+# Claims with truth_gradient below this threshold are flagged as weak
+TRUTH_GRADIENT_FLAG_THRESHOLD: float = 0.35
+
+# Weights for the composite truth gradient formula
+_W_EVIDENCE = 0.40
+_W_REASONING = 0.35
+_W_CREDIBILITY = 0.25
+
+# Uncertainty penalty caps
+_MAX_UNCERTAINTY_PENALTY = 0.5   # never discount gradient more than 50%
+_CONFLICT_PENALTY = 0.20
+_LONG_CHAIN_PENALTY = 0.10       # per extra hop beyond depth 3
+_SPARSE_PENALTY = 0.15           # fewer than 2 paths
+_LOW_CRED_PENALTY = 0.10
+
+
+# ---------------------------------------------------------------------------
+# Core API
+# ---------------------------------------------------------------------------
+
+def score_claim_with_truth_gradient(
+    claim: str,
+    evidence_paths: list[EvidencePath],
+    raw_confidence: float = 0.5,
+) -> TruthGradientResult:
+    """Compute the truth gradient score for *claim* given its *evidence_paths*.
+
+    Parameters
+    ----------
+    claim:
+        The text of the claim / sentence being evaluated.
+    evidence_paths:
+        All evidence paths supporting (or contradicting) the claim.
+    raw_confidence:
+        The raw BM25/hybrid confidence ∈ [0, 1] from the upstream retriever,
+        used to compute the confidence calibration penalty.
+
+    Returns
+    -------
+    TruthGradientResult
+        Full scoring result including truth_gradient, uncertainty, penalty,
+        uncertainty_sources, flagged flag, and explanation.
+
+    Algorithm
+    ---------
+    1. For each evidence path compute a weighted path score:
+         path_score = (W_evidence × evidence_weight(type)
+                       + W_reasoning × reasoning_weight(type)
+                       + W_credibility × credibility)
+    2. Aggregate: base_gradient = mean(path_scores) or 0 when no paths
+    3. Compute uncertainty penalty from:
+         - conflicts between paths
+         - long inference chains (chain_length > 3)
+         - sparse evidence (< 2 paths)
+         - low credibility paths (credibility < 0.3)
+    4. truth_gradient = base_gradient × (1 - min(total_penalty, MAX_PENALTY))
+    5. confidence_penalty = max(0, raw_confidence - truth_gradient)
+    6. flagged = truth_gradient < FLAG_THRESHOLD
+    """
+    if not evidence_paths:
+        # No evidence: return near-zero gradient
+        result = TruthGradientResult(
+            truth_gradient=0.0,
+            uncertainty=1.0,
+            confidence_penalty=max(0.0, raw_confidence),
+            evidence_paths=[],
+            uncertainty_sources=[UNCERTAINTY_SPARSE],
+            flagged=True,
+            explanation=(
+                "No evidence paths provided. "
+                "Claim cannot be supported by available knowledge."
+            ),
+        )
+        logger.debug(
+            "TruthGradient[no-evidence] claim='%s...': gradient=0.0 flagged=True",
+            claim[:60],
+        )
+        return result
+
+    # ------------------------------------------------------------------
+    # 1. Compute per-path weighted scores
+    # ------------------------------------------------------------------
+    path_scores: list[float] = []
+    for path in evidence_paths:
+        ev_weight = EVIDENCE_WEIGHTS.get(path.evidence_type, 0.25)
+        re_weight = REASONING_WEIGHTS.get(path.reasoning_type, 0.35)
+        path_score = (
+            _W_EVIDENCE * ev_weight
+            + _W_REASONING * re_weight
+            + _W_CREDIBILITY * path.credibility
+        )
+        path_scores.append(path_score)
+
+    base_gradient = sum(path_scores) / len(path_scores)
+
+    # ------------------------------------------------------------------
+    # 2. Compute uncertainty penalty
+    # ------------------------------------------------------------------
+    total_penalty = 0.0
+    uncertainty_sources: list[str] = []
+
+    # Carry per-path uncertainty forward
+    avg_path_uncertainty = sum(p.uncertainty for p in evidence_paths) / len(evidence_paths)
+    if avg_path_uncertainty > 0.0:
+        total_penalty += avg_path_uncertainty
+
+    # Conflict detection: any path that conflicts with another source
+    all_sources = {p.source for p in evidence_paths}
+    has_conflicts = any(
+        len(set(p.conflicts_with) & all_sources) > 0
+        for p in evidence_paths
+    )
+    if has_conflicts:
+        total_penalty += _CONFLICT_PENALTY
+        uncertainty_sources.append(UNCERTAINTY_CONFLICT)
+
+    # Long chain penalty
+    max_chain = max(p.chain_length for p in evidence_paths)
+    if max_chain > 3:
+        extra_hops = max_chain - 3
+        chain_penalty = _LONG_CHAIN_PENALTY * extra_hops
+        total_penalty += chain_penalty
+        uncertainty_sources.append(UNCERTAINTY_LONG_CHAIN)
+
+    # Sparse evidence
+    if len(evidence_paths) < 2:
+        total_penalty += _SPARSE_PENALTY
+        uncertainty_sources.append(UNCERTAINTY_SPARSE)
+
+    # Low credibility sources
+    low_cred_count = sum(1 for p in evidence_paths if p.credibility < 0.3)
+    if low_cred_count > 0:
+        total_penalty += _LOW_CRED_PENALTY * (low_cred_count / len(evidence_paths))
+        uncertainty_sources.append(UNCERTAINTY_LOW_CREDIBILITY)
+
+    # Cap penalty
+    clamped_penalty = min(total_penalty, _MAX_UNCERTAINTY_PENALTY)
+
+    # ------------------------------------------------------------------
+    # 3. Final truth gradient
+    # ------------------------------------------------------------------
+    truth_gradient = base_gradient * (1.0 - clamped_penalty)
+    truth_gradient = max(0.0, min(1.0, truth_gradient))
+
+    # ------------------------------------------------------------------
+    # 4. Confidence calibration penalty
+    # ------------------------------------------------------------------
+    confidence_penalty = max(0.0, raw_confidence - truth_gradient)
+
+    # ------------------------------------------------------------------
+    # 5. Flagging
+    # ------------------------------------------------------------------
+    flagged = truth_gradient < TRUTH_GRADIENT_FLAG_THRESHOLD
+
+    # ------------------------------------------------------------------
+    # 6. Human-readable explanation
+    # ------------------------------------------------------------------
+    explanation = _build_explanation(
+        claim=claim,
+        base_gradient=base_gradient,
+        clamped_penalty=clamped_penalty,
+        truth_gradient=truth_gradient,
+        uncertainty_sources=uncertainty_sources,
+        evidence_paths=evidence_paths,
+        flagged=flagged,
+    )
+
+    logger.debug(
+        "TruthGradient claim='%s...': base=%.3f penalty=%.3f gradient=%.3f flagged=%s",
+        claim[:60],
+        base_gradient,
+        clamped_penalty,
+        truth_gradient,
+        flagged,
+    )
+
+    return TruthGradientResult(
+        truth_gradient=truth_gradient,
+        uncertainty=clamped_penalty,
+        confidence_penalty=confidence_penalty,
+        evidence_paths=evidence_paths,
+        uncertainty_sources=uncertainty_sources,
+        flagged=flagged,
+        explanation=explanation,
+    )
+
+
+def annotate_evidence_and_reasoning(
+    fact: dict[str, Any],
+    default_evidence_type: str = EVIDENCE_TYPE_SECONDARY,
+    default_reasoning_type: str = REASONING_TYPE_LOGICAL,
+) -> AnnotatedFact:
+    """Derive Derivative of Truth annotations for a knowledge-graph fact dict.
+
+    Inspects available metadata to infer the most appropriate evidence type,
+    reasoning type, and source credibility.  Falls back to safe defaults when
+    fields are absent.
+
+    Parameters
+    ----------
+    fact:
+        A knowledge-graph node dict (as returned by KnowledgeGraphManager.query()).
+        Expected keys: ``id``, ``type``, ``metadata`` (nested dict with
+        ``source``, ``confidence``, ``tags``, etc.).
+    default_evidence_type:
+        Used when the fact's source cannot be classified.
+    default_reasoning_type:
+        Used when no reasoning chain is detectable.
+
+    Returns
+    -------
+    AnnotatedFact
+        Ready for storing back into the KG node metadata under ``"dot"``.
+    """
+    fact_id = fact.get("id", "")
+    meta: dict[str, Any] = fact.get("metadata", {}) or {}
+    source: str = str(meta.get("source", ""))
+    confidence_str: str = str(meta.get("confidence", "medium"))
+    node_type: str = str(fact.get("type", ""))
+
+    # --- Evidence type inference ---
+    # If source is missing or 'unknown', always use default_evidence_type
+    if not source or source == "unknown":
+        evidence_type = default_evidence_type
+    elif source in ("persona_graph",) or node_type in ("Person", "Project", "Company"):
+        evidence_type = EVIDENCE_TYPE_PRIMARY
+    elif source in ("domain_knowledge",) or node_type in ("Domain", "Fact"):
+        evidence_type = EVIDENCE_TYPE_SECONDARY
+    elif source in ("extracted_knowledge",) or node_type == "ExtractedFact":
+        evidence_type = EVIDENCE_TYPE_DERIVED
+    else:
+        evidence_type = default_evidence_type
+
+    # --- Reasoning type inference ---
+    tags: list[str] = meta.get("tags", []) or []
+    tag_set = {t.lower() for t in tags}
+    if any(t in tag_set for t in ("statistics", "benchmark", "performance", "measured", "data")):
+        reasoning_type = REASONING_TYPE_STATISTICAL
+    elif any(t in tag_set for t in ("pattern", "heuristic", "generalisation", "trend")):
+        reasoning_type = REASONING_TYPE_PATTERN
+    elif any(t in tag_set for t in ("analogy", "similar", "like", "comparable")):
+        reasoning_type = REASONING_TYPE_ANALOGY
+    else:
+        reasoning_type = default_reasoning_type
+
+    # --- Source credibility mapping ---
+    _confidence_credibility_map: dict[str, float] = {
+        "high": 0.90,
+        "medium": 0.60,
+        "low": 0.30,
+    }
+    source_credibility = _confidence_credibility_map.get(confidence_str.lower(), 0.50)
+
+    # --- Base uncertainty ---
+    # Derived/pattern evidence carries higher base uncertainty
+    _evidence_base_uncertainty: dict[str, float] = {
+        EVIDENCE_TYPE_PRIMARY:   0.05,
+        EVIDENCE_TYPE_SECONDARY: 0.15,
+        EVIDENCE_TYPE_DERIVED:   0.30,
+        EVIDENCE_TYPE_PATTERN:   0.45,
+    }
+    uncertainty = _evidence_base_uncertainty.get(evidence_type, 0.20)
+
+    logger.debug(
+        "annotate_evidence fact_id=%s ev=%s re=%s cred=%.2f unc=%.2f",
+        fact_id, evidence_type, reasoning_type, source_credibility, uncertainty,
+    )
+
+    return AnnotatedFact(
+        fact_id=fact_id,
+        evidence_type=evidence_type,
+        reasoning_type=reasoning_type,
+        source_credibility=source_credibility,
+        uncertainty=uncertainty,
+    )
+
+
+def build_evidence_paths_from_kg_facts(
+    kg_facts: list[dict[str, Any]],
+) -> list[EvidencePath]:
+    """Convert knowledge-graph fact dicts into EvidencePath objects.
+
+    Uses ``annotate_evidence_and_reasoning`` to derive annotation fields.
+    Pre-existing ``dot`` annotations in fact metadata take precedence over
+    freshly derived values.
+
+    Parameters
+    ----------
+    kg_facts:
+        List of KG node dicts (from KnowledgeGraphManager.query() or find_facts()).
+
+    Returns
+    -------
+    list[EvidencePath]
+    """
+    paths: list[EvidencePath] = []
+    for fact in kg_facts:
+        meta: dict[str, Any] = fact.get("metadata", {}) or {}
+        existing_dot: dict[str, Any] = meta.get("dot", {}) or {}
+
+        # Use stored annotation if present; otherwise derive it
+        if existing_dot:
+            ev_type = existing_dot.get("evidence_type", EVIDENCE_TYPE_SECONDARY)
+            re_type = existing_dot.get("reasoning_type", REASONING_TYPE_LOGICAL)
+            credibility = float(existing_dot.get("source_credibility", 0.5))
+            uncertainty = float(existing_dot.get("uncertainty", 0.15))
+        else:
+            annotation = annotate_evidence_and_reasoning(fact)
+            ev_type = annotation.evidence_type
+            re_type = annotation.reasoning_type
+            credibility = annotation.source_credibility
+            uncertainty = annotation.uncertainty
+
+        paths.append(
+            EvidencePath(
+                source=fact.get("id", "unknown"),
+                evidence_type=ev_type,
+                reasoning_type=re_type,
+                credibility=credibility,
+                uncertainty=uncertainty,
+            )
+        )
+    return paths
+
+
+def report_truth_gradient(
+    claim: str,
+    result: TruthGradientResult,
+    verbose: bool = False,
+) -> dict[str, Any]:
+    """Produce a structured report dict for a truth gradient result.
+
+    Parameters
+    ----------
+    claim:
+        The claim / sentence that was scored.
+    result:
+        The TruthGradientResult from score_claim_with_truth_gradient.
+    verbose:
+        When True, include per-path evidence breakdown.
+
+    Returns
+    -------
+    dict
+        Keys: claim_snippet, truth_gradient, uncertainty, confidence_penalty,
+        flagged, uncertainty_sources, explanation, [evidence_paths (verbose)].
+    """
+    report: dict[str, Any] = {
+        "claim_snippet": claim[:120] + ("…" if len(claim) > 120 else ""),
+        "truth_gradient": round(result.truth_gradient, 4),
+        "uncertainty": round(result.uncertainty, 4),
+        "confidence_penalty": round(result.confidence_penalty, 4),
+        "flagged": result.flagged,
+        "uncertainty_sources": result.uncertainty_sources,
+        "explanation": result.explanation,
+    }
+    if verbose:
+        report["evidence_paths"] = [
+            {
+                "source": p.source,
+                "evidence_type": p.evidence_type,
+                "reasoning_type": p.reasoning_type,
+                "credibility": round(p.credibility, 3),
+                "uncertainty": round(p.uncertainty, 3),
+                "chain_length": p.chain_length,
+                "conflicts_with": p.conflicts_with,
+            }
+            for p in result.evidence_paths
+        ]
+    return report
+
+
+def format_truth_gradient_report(report: dict[str, Any]) -> str:
+    """Format a truth gradient report dict as a human-readable CLI string.
+
+    Parameters
+    ----------
+    report:
+        A dict as returned by report_truth_gradient().
+
+    Returns
+    -------
+    str
+        Multi-line formatted output suitable for console display.
+    """
+    flag_indicator = "⚠️  FLAGGED" if report.get("flagged") else "✅ OK"
+    lines = [
+        f"  {flag_indicator} | Truth Gradient: {report['truth_gradient']:.4f}  "
+        f"Uncertainty: {report['uncertainty']:.4f}  "
+        f"Confidence Penalty: {report['confidence_penalty']:.4f}",
+        f"  Claim: {report['claim_snippet']}",
+    ]
+    if report.get("uncertainty_sources"):
+        lines.append(f"  Uncertainty Sources: {', '.join(report['uncertainty_sources'])}")
+    if report.get("explanation"):
+        lines.append(f"  Explanation: {report['explanation']}")
+    if "evidence_paths" in report:
+        lines.append("  Evidence Paths:")
+        for ep in report["evidence_paths"]:
+            lines.append(
+                f"    [{ep['evidence_type']} / {ep['reasoning_type']}] "
+                f"cred={ep['credibility']:.2f} unc={ep['uncertainty']:.2f} "
+                f"chain={ep['chain_length']} source={ep['source']}"
+            )
+    return "\n".join(lines)
+
+
+def apply_truth_gradient_to_kg_node(
+    node_data: dict[str, Any],
+    annotation: Optional[AnnotatedFact] = None,
+) -> dict[str, Any]:
+    """Return an updated metadata dict with Derivative of Truth annotations.
+
+    Adds or replaces the ``"dot"`` key in the node's ``metadata`` dict with
+    the annotation fields.  Does not mutate the input dict — returns a copy.
+
+    Parameters
+    ----------
+    node_data:
+        KG node dict (from add_node / query).
+    annotation:
+        Pre-computed AnnotatedFact; derived fresh if None.
+
+    Returns
+    -------
+    dict
+        Updated node_data with ``metadata["dot"]`` populated.
+    """
+    import copy
+    updated = copy.deepcopy(node_data)
+    meta: dict[str, Any] = updated.setdefault("metadata", {})
+
+    if annotation is None:
+        annotation = annotate_evidence_and_reasoning(node_data)
+
+    meta["dot"] = {
+        "evidence_type": annotation.evidence_type,
+        "reasoning_type": annotation.reasoning_type,
+        "source_credibility": annotation.source_credibility,
+        "uncertainty": annotation.uncertainty,
+    }
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _build_explanation(
+    claim: str,
+    base_gradient: float,
+    clamped_penalty: float,
+    truth_gradient: float,
+    uncertainty_sources: list[str],
+    evidence_paths: list[EvidencePath],
+    flagged: bool,
+) -> str:
+    """Build a concise human-readable explanation of the truth gradient."""
+    n_paths = len(evidence_paths)
+    ev_types = {p.evidence_type for p in evidence_paths}
+    re_types = {p.reasoning_type for p in evidence_paths}
+    avg_cred = (
+        sum(p.credibility for p in evidence_paths) / n_paths if n_paths else 0.0
+    )
+
+    parts = [
+        f"Base gradient {base_gradient:.3f} from {n_paths} evidence path(s) "
+        f"[types: {', '.join(sorted(ev_types))}; "
+        f"reasoning: {', '.join(sorted(re_types))}; "
+        f"avg credibility: {avg_cred:.2f}].",
+    ]
+    if clamped_penalty > 0:
+        parts.append(
+            f"Uncertainty penalty {clamped_penalty:.3f} "
+            f"({', '.join(uncertainty_sources) if uncertainty_sources else 'path uncertainty'})."
+        )
+    parts.append(f"Final truth gradient: {truth_gradient:.3f}.")
+    if flagged:
+        parts.append(
+            f"Claim flagged — gradient below threshold ({TRUTH_GRADIENT_FLAG_THRESHOLD})."
+        )
+    return " ".join(parts)

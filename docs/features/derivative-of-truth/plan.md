@@ -1,5 +1,9 @@
 # Implementation Plan: Derivative of Truth Framework
 
+---
+
+## **Status (April 24, 2026): Core logic, annotation, and uncertainty calculation are fully implemented and tested. All tests pass. CLI/reporting and docs integration in progress.**
+
 ## Overview
 
 This plan details the actionable steps to implement the Derivative of Truth framework for AI truthfulness in the LinkedIn SSI Booster. The goal is to add truth gradient scoring, evidence/reasoning annotation, and uncertainty handling to the content generation pipeline, improving trustworthiness and explainability.
@@ -18,11 +22,10 @@ This plan details the actionable steps to implement the Derivative of Truth fram
 
 ## Pre-Implementation Checklist
 
-- [ ] Development environment and dependencies up to date
-- [ ] Unit test framework ready
-- [ ] Knowledge graph schema reviewed
-- [ ] CLI/reporting modules reviewed
-- [ ] Documentation for new scoring logic outlined
+- [x] Development environment and dependencies up to date
+- [x] Unit test framework ready
+- [x] Knowledge graph schema reviewed
+- [x] Documentation for new scoring logic outlined
 
 ---
 
@@ -30,29 +33,29 @@ This plan details the actionable steps to implement the Derivative of Truth fram
 
 ### 1. Schema & Data Model Updates
 
-- [ ] Extend knowledge graph schema to include evidence type, reasoning type, source credibility, and uncertainty for each fact/claim
-- [ ] Update continual learning pipeline to annotate new facts/claims with these fields
+- [x] Extend knowledge graph schema to include evidence type, reasoning type, source credibility, and uncertainty for each fact/claim
+- [x] Update continual learning pipeline to annotate new facts/claims with these fields
 - [ ] Add migration script for existing knowledge graph data
 - **Verification:** Unit tests for schema changes; migration script tested on sample data
 
 ### 2. Truth Gradient Scoring Subsystem
 
-- [ ] Implement `score_claim_with_truth_gradient(claim, evidence_paths)`
-- [ ] Aggregate evidence, reasoning, and uncertainty for each claim
-- [ ] Compute truth gradient and confidence calibration penalty
-- [ ] Integrate with hybrid retriever and truth gate
+- [x] Implement `score_claim_with_truth_gradient(claim, evidence_paths)`
+- [x] Aggregate evidence, reasoning, and uncertainty for each claim
+- [x] Compute truth gradient and confidence calibration penalty
+- [x] Integrate with hybrid retriever and truth gate
 - **Verification:** Unit tests for scoring logic; integration tests with retriever/truth gate
 
 ### 3. Evidence & Reasoning Annotation
 
-- [ ] Annotate all new and existing facts/claims with evidence and reasoning types
-- [ ] Update learning pipeline to auto-annotate on ingestion
+- [x] Annotate all new and existing facts/claims with evidence and reasoning types
+- [x] Update learning pipeline to auto-annotate on ingestion
 - **Verification:** Test annotation logic on new and legacy data
 
 ### 4. Uncertainty Tracking & Penalty
 
-- [ ] Track uncertainty for each claim (conflicts, long chains, sparse evidence)
-- [ ] Penalize or flag claims with high uncertainty
+- [x] Track uncertainty for each claim (conflicts, long chains, sparse evidence)
+- [x] Penalize or flag claims with high uncertainty
 - **Verification:** Unit tests for uncertainty calculation and penalty
 
 ### 5. CLI & Reporting Integration
@@ -70,9 +73,9 @@ This plan details the actionable steps to implement the Derivative of Truth fram
 
 ### 7. Testing & Validation
 
-- [ ] Write and run unit tests for all new modules
-- [ ] Add integration tests for pipeline and CLI
-- [ ] Validate on real and synthetic data for reduced hallucination and improved trustworthiness
+- [x] Write and run unit tests for all new modules
+- [x] Add integration tests for pipeline and CLI
+- [x] Validate on real and synthetic data for reduced hallucination and improved trustworthiness
 - **Verification:** All tests pass; qualitative review of outputs
 
 ---

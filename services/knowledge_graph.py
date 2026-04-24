@@ -161,6 +161,10 @@ class KnowledgeGraphManager:
         ``fact`` must include at minimum ``id`` and ``type``.  Optional keys:
         ``text``, ``confidence``, ``source``, ``tags``, ``timestamp``.
 
+        Derivative of Truth (DoT) annotations are auto-derived and stored
+        under ``metadata["dot"]`` when not already present in the fact dict.
+        Callers may supply pre-computed annotations via ``fact["dot"]``.
+
         Returns the node_id.
         """
         node_id: str = fact.get("id", "")
@@ -179,6 +183,33 @@ class KnowledgeGraphManager:
             metadata["tags"] = fact["tags"]
         if "entities" in fact:
             metadata["entities"] = fact["entities"]
+
+        # --- Derivative of Truth annotations ---
+        # Use caller-supplied dot dict if present; otherwise auto-derive.
+        if "dot" in fact:
+            metadata["dot"] = fact["dot"]
+        else:
+            try:
+                from services.derivative_of_truth import annotate_evidence_and_reasoning
+                node_dict_for_annotation: dict[str, Any] = {
+                    "id": node_id,
+                    "type": node_type,
+                    "metadata": {
+                        "source": metadata["source"],
+                        "confidence": metadata["confidence"],
+                        "tags": metadata.get("tags", []),
+                    },
+                }
+                annotation = annotate_evidence_and_reasoning(node_dict_for_annotation)
+                metadata["dot"] = {
+                    "evidence_type": annotation.evidence_type,
+                    "reasoning_type": annotation.reasoning_type,
+                    "source_credibility": annotation.source_credibility,
+                    "uncertainty": annotation.uncertainty,
+                }
+            except Exception as _dot_exc:  # pragma: no cover
+                logger.debug("DoT annotation skipped for %s: %s", node_id, _dot_exc)
+
         return self.add_node(node_id, node_type, label=label, metadata=metadata)
 
     # ------------------------------------------------------------------

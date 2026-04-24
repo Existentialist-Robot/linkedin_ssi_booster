@@ -9,6 +9,7 @@ adds graph proximity and claim-support signals on top.
 Integrates with:
 - avatar_intelligence.retrieve_evidence (BM25 path)
 - knowledge_graph.KnowledgeGraphManager (graph path)
+- derivative_of_truth (truth gradient scoring in score_breakdown)
 
 Falls back gracefully to pure BM25 when networkx / KnowledgeGraphManager
 is unavailable.
@@ -252,11 +253,38 @@ class HybridRetriever:
         """Return per-candidate score breakdown for debugging.
 
         Returns a list of dicts with keys: fact_id, bm25, graph_proximity,
-        claim_support, hybrid.
+        claim_support, hybrid, and (when KG is available) truth_gradient,
+        uncertainty, confidence_penalty, flagged from the Derivative of Truth
+        subsystem.
         """
         bm25_scores = self._bm25_scores(query, candidates)
         graph_scores = self._graph_scores(candidates)
         claim_scores = self._claim_scores(candidates)
+
+        # Attempt to compute truth gradient for each candidate using KG facts
+        dot_results: list[Optional[dict[str, Any]]] = [None] * len(candidates)
+        try:
+            from services.derivative_of_truth import (
+                build_evidence_paths_from_kg_facts,
+                score_claim_with_truth_gradient,
+                report_truth_gradient,
+            )
+            for i, fact in enumerate(candidates):
+                gid = _fact_graph_id(fact)
+                if gid and self._kg is not None and self._kg._graph.has_node(gid):
+                    node_data = dict(self._kg._graph.nodes[gid])
+                    kg_node = {"id": gid, **node_data}
+                    evidence_paths = build_evidence_paths_from_kg_facts([kg_node])
+                    dot_result = score_claim_with_truth_gradient(
+                        claim=_fact_text(fact),
+                        evidence_paths=evidence_paths,
+                        raw_confidence=bm25_scores[i],
+                    )
+                    dot_results[i] = report_truth_gradient(
+                        _fact_text(fact), dot_result, verbose=False
+                    )
+        except Exception as _dot_exc:
+            logger.debug("DoT score_breakdown skipped: %s", _dot_exc)
 
         breakdown = []
         for i, fact in enumerate(candidates):
@@ -265,13 +293,19 @@ class HybridRetriever:
                 + self._w_graph * graph_scores[i]
                 + self._w_claim * claim_scores[i]
             )
-            breakdown.append(
-                {
-                    "fact_id": getattr(fact, "evidence_id", str(i)),
-                    "bm25": round(bm25_scores[i], 4),
-                    "graph_proximity": round(graph_scores[i], 4),
-                    "claim_support": round(claim_scores[i], 4),
-                    "hybrid": round(hybrid, 4),
-                }
-            )
+            entry: dict[str, Any] = {
+                "fact_id": getattr(fact, "evidence_id", str(i)),
+                "bm25": round(bm25_scores[i], 4),
+                "graph_proximity": round(graph_scores[i], 4),
+                "claim_support": round(claim_scores[i], 4),
+                "hybrid": round(hybrid, 4),
+            }
+            dr = dot_results[i]
+            if dr is not None:
+                entry["truth_gradient"] = dr.get("truth_gradient", 0.0)
+                entry["uncertainty"] = dr.get("uncertainty", 1.0)
+                entry["confidence_penalty"] = dr.get("confidence_penalty", 0.0)
+                entry["flagged"] = dr.get("flagged", False)
+                entry["uncertainty_sources"] = dr.get("uncertainty_sources", [])
+            breakdown.append(entry)
         return breakdown
