@@ -105,7 +105,21 @@ Most AI content tools rely on black-box vector search or generic LLM outputs, wh
 
 In short, this framework brings a new level of transparency, reliability, and control to automated content generation—making it ideal for professional, compliance-sensitive, and high-stakes environments.
 
-### Key Benefits
+### How Learning, Truth Gate, and Scoring Improve Future Generations
+
+The system’s continual learning and truth gate scoring directly shape the quality of future content:
+
+- **Curation Learning Loop:** Every generated post and curated article is logged with its truth gate score, evidence support, and publication outcome. Acceptance rates (priors) for sources, topics, and SSI components are updated based on what gets published or rejected. Over time, the system floats the best-performing patterns and demotes weak ones.
+
+- **Adaptive Retrieval and Grounding:** The retrieval layer learns which facts, themes, and evidence types are most likely to pass the truth gate. Future generations are more likely to ground claims in high-confidence, well-supported facts, making outputs more credible and relevant.
+
+- **Prompt and Policy Adaptation:** The LLM is guided by prompts that require factual grounding. As the system learns which claims are accepted, it adapts prompt constraints and retrieval strategies to favor those patterns. Confidence scoring and policy routing reinforce high-quality output.
+
+- **Feedback to the LLM:** When a post is rejected by the truth gate, the system suggests the closest matching facts or evidence, helping you or the LLM rephrase or better ground the claim. Over time, the LLM “learns” (via prompt engineering, retrieval adaptation, and user feedback) to avoid unsupported patterns and generate more credible content.
+
+- **Continual Learning:** As new facts and evidence are added (from curated articles, RSS feeds, etc.), the knowledge graph grows, providing richer grounding for future generations. Retrieval and scoring adapt to leverage this expanding evidence base.
+
+**Bottom line:** The system closes the loop between generation, evidence retrieval, truth gate scoring, and user feedback—so each new generation is smarter, more credible, and better aligned with your SSI goals.
 
 - **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, and uncertainty, going beyond simple fact-checking.
 - **Evidence & Reasoning Annotation:** Each fact/claim is annotated with evidence type, reasoning type, and source credibility for transparency and explainability.
