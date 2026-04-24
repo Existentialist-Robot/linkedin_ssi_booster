@@ -91,7 +91,7 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ## 🧩 Knowledge Graph & Hybrid Retrieval
 
-> **Inspiration:** This subsystem is inspired by the work of Dr. Ben Goertzel (SingularityNET) and the OpenCog team on AtomSpace and MeTTa, bringing incremental, explainable cognition to practical automation.
+> **Inspiration:** This subsystem is inspired by the work of Dr. Ben Goertzel (SingularityNET) and the OpenCog team on AtomSpace and MeTTa, bringing incremental, explainable cognition to practical automation. [Making AI learning AGI-capable: continual learning, transfer learning, lifelong learning - YouTube](https://youtu.be/n10J1OjmgLM)
 
 The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking. See [docs/features/atomspace-metta-knowledge/plan.md](docs/features/atomspace-metta-knowledge/plan.md) for implementation details.
 
