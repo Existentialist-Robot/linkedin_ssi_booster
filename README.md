@@ -27,7 +27,7 @@
 
 ---
 
-### **What is the LinkedIn SSI?**
+### 🏆 What is the LinkedIn SSI?
 
 The [LinkedIn Social Selling Index](https://www.linkedin.com/sales/ssi) is a 0–100 score LinkedIn updates daily. It measures how effectively you build your personal brand, find the right people, engage with insights, and build relationships — the four pillars LinkedIn's algorithm uses to determine how widely your content and profile are surfaced to others.
 
@@ -42,7 +42,7 @@ The score breaks down into four components (25 points each):
 | **Engage with insights**              | Shares, comments, and reactions on industry content; thought leadership signals   |
 | **Build relationships**               | Connection growth, message response rate, relationship depth                      |
 
-### Why automate it?
+### 🤖 Why automate it?
 
 SSI decays if you go quiet — LinkedIn penalises inconsistency. Manually writing 3 posts per week, curating industry articles with original commentary, and maintaining an on-brand voice across hundreds of posts is simply not sustainable alongside a full-time engineering role.
 
@@ -93,7 +93,7 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
 
-### Why This Approach Is Revolutionary
+### 🚩 Why This Approach Is Revolutionary
 
 Most AI content tools rely on black-box vector search or generic LLM outputs, which are hard to audit, explain, or trust. The LinkedIn SSI Booster’s Derivative of Truth framework is different:
 
@@ -105,7 +105,7 @@ Most AI content tools rely on black-box vector search or generic LLM outputs, wh
 
 In short, this framework brings a new level of transparency, reliability, and control to automated content generation—making it ideal for professional, compliance-sensitive, and high-stakes environments.
 
-### How Learning, Truth Gate, and Scoring Improve Future Generations
+### 🔄 How Learning, Truth Gate, and Scoring Improve Future Generations
 
 The system’s continual learning and truth gate scoring directly shape the quality of future content:
 
@@ -131,6 +131,8 @@ Key benefits:
 - **Better Content Quality:** Filters out weak claims, prioritizes well-grounded ones, and ensures published content is credible and authoritative.
 - **Adaptive Learning:** As more evidence and reasoning paths are accumulated, scoring and explanations improve, making automation smarter over time.
 - **Alignment with Best Practices:** Follows trustworthy AI and explainable AI (XAI) principles for robust, future-proof automation.
+
+#### 🛡️ Truth Gate & Confidence Scoring Pipeline
 
 ```mermaid
 flowchart TD
@@ -191,7 +193,7 @@ The system now includes a NetworkX-powered knowledge graph for incremental learn
   ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
   $$
 
-### Hybrid Retrieval and Scoring Architecture
+### 🧬 Hybrid Retrieval and Scoring Architecture
 
 ```mermaid
 flowchart TD
@@ -246,7 +248,7 @@ NLP primer in this repo:
 
 The primer covers core NLP concepts, practical communication techniques, technical writing examples, and ethical usage guidelines.
 
-## Docs map
+## 🗺️ Docs map
 
 - [Setup guide](docs/setup.md) — environment, dependencies, persona graph, and calendar setup.
 - [Architecture guide](docs/architecture.md) — learning pipeline, grounding flow, truth gate, and curation ranking.
@@ -259,7 +261,7 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (241/241) including knowledge graph and hybrid retrieval features.
 - [Selection learning](docs/selection-learning.md) — candidate logging, reconciliation, and acceptance priors.
 
-## Quickstart
+## ⚡ Quickstart
 
 ```bash
 python -m venv .venv
@@ -274,7 +276,7 @@ cp content_calendar.example.py content_calendar.py
 python main.py --schedule --week 1 --dry-run
 ```
 
-### Environment Variables
+### ⚙️ Environment Variables
 
 Add these to your `.env` file:
 
@@ -291,6 +293,6 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
 
-## License
+## 📄 License
 
 [MIT License](LICENSE) — see LICENSE for details.
