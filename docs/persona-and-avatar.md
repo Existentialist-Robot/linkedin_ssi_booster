@@ -2,24 +2,22 @@
 
 This guide covers how the project personalizes output to the user and how the optional Avatar Intelligence overlays help explain, score, and diversify generated content. Personalization is built from a persona graph, a persistent system prompt, writing rules, content angles, and local memory.
 
-
-
 Every post is plain text — there's no audio or special format involved."Personalised to you" means the AI prompt is pre-loaded with four layers of context so the output reads like _you_ wrote it, not a generic AI:
 
 **1. Your persona graph (`data/avatar/persona_graph.json`)** The authoritative identity source for every post: your name, role, location, specialties, and real project outcomes, stored as a structured JSON graph (projects, companies, skills, role history, and verifiable claims). Copy from `data/avatar/persona_graph.example.json`, fill in your own details, and edit directly in the repo — no env var required. Gitignored so your personal career data stays private. At startup, `load_avatar_state()` reads the graph and builds a ranked list of `EvidenceFact` objects used for all grounding, retrieval, and persona chat. Optionally enriched with live GitHub data via `services/github_service.py` — repo metadata plus compact README summaries (configurable) so the model has stronger project context.
 
 **2. Persona system prompt (`PERSONA_SYSTEM_PROMPT` in `.env`)** A detailed persona loaded into every AI call, covering:
 
-* Identity and credibility anchors — **domain-separated**: AI projects (2024–present) are listed separately from legacy infrastructure (TPG/USPS JMS work, pre-2024) with a hard rule forbidding the model from blending them
-* Target audience, voice guidance, and forbidden phrases
-* **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
+- Identity and credibility anchors — **domain-separated**: AI projects (2024–present) are listed separately from legacy infrastructure (TPG/USPS JMS work, pre-2024) with a hard rule forbidding the model from blending them
+- Target audience, voice guidance, and forbidden phrases
+- **Technical glossary** — 10 authoritative definitions (RAG, BM25, kNN, MCP, FastMCP, JMS, SentenceTransformers, CRISP-DM, etc.) with a hard rule: never expand an abbreviation that isn't in the glossary (prevents hallucinations like "RAG = Reactive Agent Framework")
 
 **3. Writing rules (configurable via `.env`, loaded by `ollama_service.py`)** Per-pillar instructions injected into every AI call. All four are overridable in `.env` without touching code (`SSI_ESTABLISH_BRAND`, `SSI_FIND_RIGHT_PEOPLE`, `SSI_ENGAGE_WITH_INSIGHTS`, `SSI_BUILD_RELATIONSHIPS`). The defaults live in `services/shared.py`. Built-in rules:
 
-* Never start with "I"
-* Never use filler phrases ("Game changer", "Excited to share", "landscape", "leverage", etc.)
-* No bullet points in the body — short punchy paragraphs only
-* Hook in the first line (bold claim, surprising stat, or short story)
+- Never start with "I"
+- Never use filler phrases ("Game changer", "Excited to share", "landscape", "leverage", etc.)
+- No bullet points in the body — short punchy paragraphs only
+- Hook in the first line (bold claim, surprising stat, or short story)
 
 ## Persona graph
 
@@ -75,18 +73,18 @@ The persona graph can also be enriched with live GitHub data through `services/g
 
 GitHub enrichment details:
 
-* Source data: public repo name, description, primary language, topics, stars, and optional README summary text
-* README handling: markdown is cleaned to plain text, then clipped to sentence boundaries for compact prompt injection
-* Caching: repo metadata is cached in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` (24h TTL)
-* Filtering: use `GITHUB_REPO_FILTER` to include only selected repos
-* Context budgeting: GitHub context is assembled with hard caps so prompts stay stable and fast
+- Source data: public repo name, description, primary language, topics, stars, and optional README summary text
+- README handling: markdown is cleaned to plain text, then clipped to sentence boundaries for compact prompt injection
+- Caching: repo metadata is cached in `github_repos_cache.json` and README summaries in `github_readmes_cache.json` (24h TTL)
+- Filtering: use `GITHUB_REPO_FILTER` to include only selected repos
+- Context budgeting: GitHub context is assembled with hard caps so prompts stay stable and fast
 
 GitHub context controls in `.env`:
 
-* `GITHUB_INCLUDE_README_SUMMARIES` (default `true`)
-* `GITHUB_REPO_MAX_COUNT` (default `12`)
-* `GITHUB_README_MAX_CHARS` (default `1200`)
-* `GITHUB_CONTEXT_MAX_CHARS` (default `30000`)
+- `GITHUB_INCLUDE_README_SUMMARIES` (default `true`)
+- `GITHUB_REPO_MAX_COUNT` (default `12`)
+- `GITHUB_README_MAX_CHARS` (default `1200`)
+- `GITHUB_CONTEXT_MAX_CHARS` (default `30000`)
 
 Below is a class diagram of the GitHub repos cache structure (`github_repos_cache.json`):
 
@@ -203,9 +201,36 @@ Curated posts receive a confidence score based on truth-gate signal, grounding q
 
 ## Narrative memory
 
-The local memory file `data/avatar/narrative_memory.json` stores extracted themes and bold-assertion claims from generated posts. These memory items are FIFO-trimmed to `AVATAR_MAX_MEMORY_ITEMS`, and the most recent items feed back into prompts as continuity hints while also contributing to a repetition penalty in confidence scoring.
+The local memory file `data/avatar/narrative_memory.json` stores extracted themes and bold-assertion claims from generated posts, curated articles, and interactive console chat. Narrative memory is a short-term, session-aware context store that powers continuity, diversity, and explainability across all modes of the system.
 
-The intended effect is to discourage repetitive framing across weeks, so recurring messages like the same RAG thesis gradually shift from direct scheduling toward draft review under the policy system.
+**What it contains:**
+
+- **recentThemes:** FIFO list of keywords and topics recently discussed, generated, or focused on (e.g., “reinforcement learning”, “agentic patterns”, “cloudflare mesh”, “build relationships”). These help the system avoid repetition, reinforce ongoing topics, and provide context for new content or answers.
+- **recentClaims:** FIFO list of recent, user-specific claims, insights, or statements (e.g., “the real engineering bottleneck is the inefficiency of maintaining unique copies for every specific task”). These can be surfaced as evidence, context, or inspiration for new posts, answers, or explanations.
+- **openNarrativeArcs:** (future) List for tracking ongoing storylines, projects, or multi-step explanations that are not yet resolved or closed.
+- **lastUpdated:** ISO timestamp of the last update to this memory file.
+
+**How it’s used:**
+
+- Narrative memory is referenced in all retrieval and grounding operations—including automated post generation, curation, and interactive console chat.
+- When you ask questions or generate posts, the system can pull supporting facts, stories, or context from narrative memory, just like it does from persona and domain knowledge.
+- It helps the agent avoid repeating itself, maintain continuity, and cite your own prior statements as evidence or context.
+- If your query or prompt matches a theme or claim in narrative memory, it can be surfaced as supporting evidence or context—helping the system stay contextually aware of your recent topics, claims, and ongoing narrative arcs.
+- The most recent items also contribute to a repetition penalty in confidence scoring, discouraging repetitive framing across weeks.
+
+**Example structure:**
+
+```json
+{
+    "recentThemes": ["reinforcement", "learning", "agentic", "patterns", ...],
+    "recentClaims": [
+        "the real engineering bottleneck is the inefficiency of maintaining unique copies for every specific task",
+        "verifiable rewards beat llm-as-a-judge every time"
+    ],
+    "openNarrativeArcs": [],
+    "lastUpdated": "2026-04-19T18:41:11.539183+00:00"
+}
+```
 
 Below is a class diagram of the narrative memory structure (`data/avatar/narrative_memory.json`):
 
