@@ -91,16 +91,40 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ## 🧩 Knowledge Graph & Hybrid Retrieval
 
-> **Inspiration:** This subsystem is inspired by the work of Dr. Ben Goertzel (SingularityNET) and the OpenCog team on AtomSpace and MeTTa, bringing incremental, explainable cognition to practical automation. [Making AI learning AGI-capable: continual learning, transfer learning, lifelong learning - YouTube](https://youtu.be/n10J1OjmgLM)
+The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking.
 
-The system now includes a NetworkX-powered knowledge graph for incremental learning, hybrid BM25+graph retrieval, and persona-aware reranking. 
+**Integration Philosophy:**
+
+- BM25 (lexical retrieval) remains the primary candidate selector for claims, project details, facts, narrative memory, and learned article summaries.
+- The NetworkX knowledge graph is used as a secondary, persona-aware reranker and explainer: it links persona ↔ skills ↔ projects ↔ claims ↔ domain facts.
+- Final candidate scoring is a hybrid:
+
+  $$
+  	ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
+  $$
+
+### Hybrid Retrieval and Scoring Architecture
+
+```mermaid
+flowchart TD
+    UserInput["User Interactions / Content Curation"] -->|"New Knowledge"| Learning["Avatar Learning Subsystem"]
+    Learning -->|"Add/Update"| KnowledgeGraph["Knowledge Graph (networkx)"]
+    UserQuery["User Query / Generation Request"] --> BM25["BM25 Lexical Retriever"]
+    BM25 -->|"Top Candidates"| GraphRerank["Graph Proximity & Claim Support"]
+    KnowledgeGraph -->|"Proximity/Support"| GraphRerank
+    GraphRerank -->|"Hybrid Score"| Generation["Post Generation / Explanation"]
+    Generation -->|"Citations/Explanations"| UserInput
+```
 
 ## 🔄 Continual Learning (NLP-Extracted Knowledge)
 
-The avatar now supports continual learning from new content streams (e.g., RSS feeds, curated articles) via an NLP-extracted knowledge graph. This enables the system to accumulate new facts, terms, and relationships over time, improving relevance and depth without requiring a graph database or major refactor.
+> **Inspiration:** This subsystem is inspired by the work of Dr. Ben Goertzel (SingularityNET) and the OpenCog team on AtomSpace and MeTTa, bringing incremental, explainable cognition to practical automation. [Making AI learning AGI-capable: continual learning, transfer learning, lifelong learning - YouTube](https://youtu.be/n10J1OjmgLM)
 
-- Extracted facts are stored in a structured JSON file (`data/avatar/extracted_knowledge.json`), loaded and validated alongside persona and domain knowledge.
-- The system can leverage these new facts in evidence retrieval, grounding, and explain outputs.
+The avatar supports fully automatic, incremental continual learning from new content streams (e.g., RSS feeds, curated articles) via an NLP-extracted knowledge graph. As new content is processed, spaCy is used to extract, structure, and normalize new facts, terms, and relationships. The system deduplicates and validates these facts, merging them into the knowledge graph alongside persona and domain knowledge.
+
+- Extracted knowledge is stored in `data/avatar/extracted_knowledge.json` and is automatically merged into the knowledge graph and BM25 candidate pool.
+- These new facts are used in both retrieval (BM25 and graph) and grounding, so your system's evidence base grows over time with no manual steps.
+- Deduplication and normalization ensure that only novel, high-quality knowledge is added, and all learning is ongoing as new content is ingested.
 - Modular, file-based design: easy to extend, debug, and test.
 
 See [docs/features/continual-learning/idea.md](docs/features/continual-learning/idea.md) for technical details and schema.
@@ -108,11 +132,11 @@ See [docs/features/continual-learning/idea.md](docs/features/continual-learning/
 - **Adaptive Curation Ranking:** The system tracks every generated and published post, learning which sources, topics, and themes you actually approve. Over time, it floats the best-performing sources and topics to the top using Beta-smoothed acceptance priors and theme-based ranking.
 - **Semantic Repetition Detection:** Uses spaCy-powered semantic similarity to detect and penalize repeated or paraphrased content, keeping your feed fresh and non-redundant.
 - **User Feedback Integration:** You can upvote, downvote, or override candidate posts, and this feedback is incorporated into future ranking and selection.
-- **Fact Suggestion for Truth Gate:** When a sentence is dropped for lacking evidence, the system suggests the closest matching facts from your persona graph to help you rephrase or ground your claims.
+- **Fact Suggestion for Truth Gate:** When a sentence is dropped for lacking evidence, the system suggests the closest matching facts from your persona graph or extracted knowledge to help you rephrase or ground your claims.
 - **Memory & Narrative Learning:** The system maintains a local memory of recent themes and claims, using this to diversify future outputs and avoid repetition.
-- **Explainability & Learning Reports:** CLI flags like `--avatar-explain` and `--avatar-learn-report` let you see exactly what the system has learned, which facts grounded each post, and which sources or topics are most effective.
+- **Explainability & Learning Reports:** CLI flags like `--avatar-explain` and `--avatar-learn-report` let you see exactly what the system has learned, which facts grounded each post (including those from continual learning), and which sources or topics are most effective.
 
-**Bottom line:** The more you use it, the smarter and more tailored your content pipeline becomes — adapting to your preferences, audience, and SSI goals.
+**Bottom line:** The more you use it, the smarter and more tailored your content pipeline becomes — adapting to your preferences, audience, and SSI goals. All new knowledge is immediately available for both retrieval and grounding, powering the hybrid pipeline.
 
 ---
 
