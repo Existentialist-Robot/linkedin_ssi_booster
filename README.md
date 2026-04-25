@@ -99,35 +99,29 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 ## 🧮 Derivative of Truth Framework
 
 > ### The Derivative of Truth: A New Mathematical Framework for AI Truthfulness
->
+> 
 > **The Core Problem:**
 > Current AI systems optimize for next token prediction, which can lead to reward hacking—models sound confident about memorized patterns, not about evidence.
 
 > **Breakthrough Insight:**
 > Truth is subjective and dynamic. Instead of solving for absolute truth T, we optimize for dT/dt—the derivative of truth, representing movement toward more reliable knowledge.
->
+> 
 > **Key Mathematical Components:**
->
+> 
 > - **Truth-Seeking Loss:**
->
 >   L_current = -log P(next_token | context)
->
 >   L_truth = -log P(truth_direction | evidence, reasoning, uncertainty)
->
+> 
 > - **Derivative of Truth:**
->
 >   dT/dt = ∂(Evidence Quality)/∂t + ∂(Reasoning Strength)/∂t - ∂(Uncertainty)/∂t
->
+> 
 > - **Truth Gradient:**
->
 >   ∇(Evidence × Reasoning × Consistency) - ∇(Uncertainty × Bias)
->
+> 
 > - **Truth Score:**
->
 >   T(statement) = Σ [E_i × R_i × C_i × U_i]
->
 >   Where E_i is evidence strength, R_i is reasoning validity, C_i is source credibility, U_i is uncertainty penalty.
->
+> 
 > **The Key Insight:**
 > Don't solve for truth directly—solve for the trajectory toward truth. This makes the model reward-seeking for reliable knowledge, not just confident pattern matching.
 
@@ -228,7 +222,7 @@ The system now includes a NetworkX-powered knowledge graph for incremental learn
 - The NetworkX knowledge graph is used as a secondary, persona-aware reranker and explainer: it links persona ↔ skills ↔ projects ↔ claims ↔ domain facts.
 
 - Final candidate scoring is a hybrid:
-
+  
   $$
   ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
   $$
@@ -298,7 +292,7 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Usage guide](docs/usage-schedule-curate-console.md) — scheduling, curation, console mode, channels, and CLI examples.
 - [SSI strategy](docs/ssi-and-strategy.md) — SSI model, content mapping, scheduler behavior, and reporting.
 - [AI backend](docs/ai-backend-and-models.md) — Ollama setup and model recommendations.
-- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (241/241) including knowledge graph and hybrid retrieval features.
+- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (291/291)
 - [Selection learning](docs/selection-learning.md) — candidate logging, reconciliation, and acceptance priors.
 
 ## ⚡ Quickstart
