@@ -33,37 +33,6 @@ All tests pass as of April 24, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 
 ---
 
-**Latest test session:**
-
-```text
-=========================== test session starts ============================
-platform linux -- Python 3.12.2, pytest-9.0.3, pluggy-1.6.0
-rootdir: /home/shawn/projs/linkedin_ssi_booster
-plugins: anyio-4.13.0
-collected 291 items
-
-tests/test_avatar_state_loader.py ....................               [  6%]
-tests/test_buffer_service.py ..                                      [  7%]
-tests/test_confidence_scoring.py ......................              [ 15%]
-tests/test_content_curator.py ..                                     [ 15%]
-tests/test_continual_learning.py ................................... [ 27%]
-                                                                     [ 27%]
-tests/test_derivative_of_truth.py .................................. [ 39%]
-................                                                     [ 45%]
-tests/test_evidence_mapping.py ...........................           [ 54%]
-tests/test_integration_flags.py .......                              [ 56%]
-tests/test_knowledge_graph.py ...................................... [ 69%]
-..                                                                   [ 70%]
-tests/test_learning_report.py .....................                  [ 77%]
-tests/test_persona_graph_retrieval.py ............                   [ 81%]
-tests/test_selection_learning.py .............................       [ 91%]
-tests/test_spacy_nlp.py ........................                     [100%]
-
-=========================== 291 passed in 7.18s ============================
-```
-
----
-
 #### Test coverage by file
 
 | Test file                               | What it covers                                                                                       |
