@@ -96,9 +96,7 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ---
 
-## 🧮 Derivative of Truth Framework - Next Generation Reasoning Layer
-
-#### 📈 How DoT Acts as a Reasoning Layer
+## 🧮 Derivative of Truth Framework - DoT - Next Generation Reasoning Layer
 
 ```mermaid
 flowchart TD
