@@ -289,7 +289,17 @@ class TestAnnotateEvidenceAndReasoning:
         assert ann.uncertainty == pytest.approx(0.05, abs=1e-6)
 
     def test_pattern_evidence_has_high_base_uncertainty(self):
-        fact = make_kg_fact(node_type="Fact", source="unknown")
+        # Use an unmapped node_type so default_evidence_type=PATTERN is applied
+        fact = {
+            "id": "fact:pattern_test",
+            "type": "UnknownNodeType",
+            "label": "Pattern test",
+            "metadata": {
+                "source": "unknown_source",
+                "confidence": "medium",
+                "tags": [],
+            },
+        }
         ann = annotate_evidence_and_reasoning(
             fact, default_evidence_type=EVIDENCE_TYPE_PATTERN
         )

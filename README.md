@@ -21,6 +21,7 @@
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
+- **Derivative of Truth (DoT) reporting** — Use `--dot-report` with either `--schedule` or `--curate` to print a detailed truth gradient, evidence, and uncertainty breakdown for every generated post or curated idea.
 - **No cloud AI keys required** — All generation is local (Ollama), with persona and learning data stored only on your machine.
 
 **Result:** You get a self-improving, persona-driven content engine that adapts to your taste, avoids repetition, and systematically grows your SSI — with full transparency, control, and explainability.
@@ -54,6 +55,12 @@ This tool handles the repeatable parts:
 - **Curation pipeline** — fetches today's AI/GovTech news, filters by your niche, and generates commentary that you can either:
   - push to Buffer Ideas for review and manual approval (default), or
   - schedule directly as posts to your Buffer queue (using `--type post`)
+
+**Advanced Reporting CLI Flags:**
+
+- `--dot-report` — Show a Derivative of Truth (truth gradient, evidence, uncertainty) report for every generated post (with `--schedule`) or curated idea (with `--curate`).
+- `--avatar-explain` — Show evidence IDs and grounding summary after each generation.
+- `--avatar-learn-report` — Print learning report from captured moderation events and exit.
 
 You control whether curated content is reviewed before publishing or scheduled directly. The tool removes the blank-page problem, but you decide what goes live.
 

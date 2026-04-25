@@ -740,6 +740,46 @@ def truth_gate_result(
         total_sentences=len(sentences),
         reason_codes=[r.split(":")[0] for _, r in removed],
     )
+
+    # --- Derivative of Truth scoring on the kept post text ---
+    try:
+        from services.derivative_of_truth import (
+            EvidencePath,
+            EVIDENCE_TYPE_SECONDARY,
+            REASONING_TYPE_LOGICAL,
+            score_claim_with_truth_gradient,
+        )
+        kept_text = " ".join(kept).strip()
+        ev_paths = [
+            EvidencePath(
+                source=f.source,
+                evidence_type=EVIDENCE_TYPE_SECONDARY,
+                reasoning_type=REASONING_TYPE_LOGICAL,
+                credibility=0.7,
+            )
+            for f in all_facts
+        ] if all_facts else []
+        _dot = score_claim_with_truth_gradient(kept_text, ev_paths)
+        meta.truth_gradient = _dot.truth_gradient
+        meta.dot_uncertainty = _dot.uncertainty
+        meta.dot_flagged = _dot.flagged
+        meta.dot_uncertainty_sources = _dot.uncertainty_sources
+        if _dot.flagged:
+            _truth_logger.warning(
+                "DoT: truth gradient %.3f below threshold — post flagged (channel=%s)",
+                _dot.truth_gradient,
+                channel,
+            )
+        else:
+            _truth_logger.debug(
+                "DoT: truth gradient=%.3f uncertainty=%.3f (channel=%s)",
+                _dot.truth_gradient,
+                _dot.uncertainty,
+                channel,
+            )
+    except Exception as _dot_exc:
+        _truth_logger.debug("DoT scoring unavailable: %s", _dot_exc)
+
     return " ".join(kept).strip(), meta
 
 

@@ -320,6 +320,8 @@ def main():
     parser.add_argument("--avatar-learn-report", action="store_true", help="Print learning report from captured moderation events and exit")
     parser.add_argument("--confidence-policy", choices=["strict", "balanced", "draft-first"], default=None,
                         help="Confidence policy for curate path: strict|balanced|draft-first (default: AVATAR_CONFIDENCE_POLICY env var, else balanced)")
+    parser.add_argument("--dot-report", action="store_true",
+                        help="Display Derivative of Truth (truth gradient, uncertainty, evidence breakdown) for each generated post")
     parser.add_argument("--reconcile", action="store_true",
                         help="Fetch published Buffer posts and reconcile with generated candidates to build acceptance priors")
     args = parser.parse_args()
@@ -418,6 +420,7 @@ def main():
                     print(f"  {tp['url']}")
         return
 
+
     if args.curate:
         buffer = build_buffer_service()
         from services.shared import AVATAR_CONFIDENCE_POLICY
@@ -449,6 +452,39 @@ def main():
                 continue
             noun = "posts" if args.type == "post" else "ideas"
             print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({ch})" + str(Style.RESET_ALL))
+
+            # --- Derivative of Truth reporting for curated ideas ---
+            if args.dot_report:
+                try:
+                    from services.derivative_of_truth import (
+                        EvidencePath,
+                        EVIDENCE_TYPE_SECONDARY,
+                        REASONING_TYPE_LOGICAL,
+                        score_claim_with_truth_gradient,
+                        report_truth_gradient,
+                        format_truth_gradient_report,
+                    )
+                    for idea in ideas:
+                        # Try to extract grounding facts if present, else use idea text only
+                        grounding_facts = idea.get("grounding_facts", []) if isinstance(idea, dict) else []
+                        _dot_paths = [
+                            EvidencePath(
+                                source=f.source if hasattr(f, "source") else str(f),
+                                evidence_type=EVIDENCE_TYPE_SECONDARY,
+                                reasoning_type=REASONING_TYPE_LOGICAL,
+                                credibility=0.7,
+                            )
+                            for f in grounding_facts
+                        ] if grounding_facts else []
+                        post_text = idea["generated_text"] if isinstance(idea, dict) and "generated_text" in idea else str(idea)
+                        _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
+                        _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
+                        _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
+                        print(_dot_colour + "\n🔬 Derivative of Truth Report (curate):" + str(Style.RESET_ALL))
+                        print(format_truth_gradient_report(_dot_report_dict))
+                        print()
+                except Exception as _dot_err:
+                    logger.debug("DoT report unavailable (curate): %s", _dot_err)
         return
 
 
@@ -544,6 +580,34 @@ def main():
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']} (channel: {channel})" + str(Style.RESET_ALL))
                     print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))
                     print(f"\n{post}\n")
+
+                if args.dot_report:
+                    try:
+                        from services.derivative_of_truth import (
+                            EvidencePath,
+                            EVIDENCE_TYPE_SECONDARY,
+                            REASONING_TYPE_LOGICAL,
+                            score_claim_with_truth_gradient,
+                            report_truth_gradient,
+                            format_truth_gradient_report,
+                        )
+                        _dot_paths = [
+                            EvidencePath(
+                                source=f.source if hasattr(f, "source") else str(f),
+                                evidence_type=EVIDENCE_TYPE_SECONDARY,
+                                reasoning_type=REASONING_TYPE_LOGICAL,
+                                credibility=0.7,
+                            )
+                            for f in grounding_facts
+                        ]
+                        _dot_result = score_claim_with_truth_gradient(post, _dot_paths)
+                        _dot_report_dict = report_truth_gradient(post, _dot_result, verbose=True)
+                        _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
+                        print(_dot_colour + "\n🔬 Derivative of Truth Report:" + str(Style.RESET_ALL))
+                        print(format_truth_gradient_report(_dot_report_dict))
+                        print()
+                    except Exception as _dot_err:
+                        logger.debug("DoT report unavailable: %s", _dot_err)
 
                 if args.avatar_explain:
                     # Combine project and domain facts for retrieval
