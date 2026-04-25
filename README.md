@@ -98,6 +98,42 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ## 🧮 Derivative of Truth Framework
 
+#### 📈 How DoT Acts as a Reasoning Layer
+
+```mermaid
+flowchart TD
+  ClaimQuery(["Claim / Query"]) --> BM25Retriever[BM25 Retriever]
+  ClaimQuery --> KnowledgeGraph[Knowledge Graph]
+  BM25Retriever -- "Top Candidates" --> EvidencePaths((Evidence Paths))
+  KnowledgeGraph -- "Proximity / Support" --> EvidencePaths
+  EvidencePaths --> DoT["Derivative of Truth\n(Reasoning Layer)"]
+  DoT -- "Truth Gradient, Reasoning, Uncertainty" --> Explainability["Explainability & Reporting"]
+  DoT -- "Flag / Score" --> FinalOutput["Final Output\n(Accept / Reject / Flag)"]
+  Explainability --> UserDisplay["User"]
+  FinalOutput --> UserDisplay
+```
+
+**Explanation:**
+
+- BM25 and the Knowledge Graph retrieve and rerank evidence for each claim.
+- The Derivative of Truth (DoT) layer analyzes the quality of evidence, the type of reasoning, and uncertainty, producing a truth gradient score and a human-readable explanation.
+- The system outputs both a decision (accept/reject/flag) and an explanation, closing the loop with the user.
+
+#### How BM25, the Knowledge Graph, and DoT Work Together
+
+The Derivative of Truth framework is powerful because it combines deterministic evidence retrieval (BM25), explicit knowledge graph reasoning, and a transparent reasoning layer:
+
+- **BM25** is used to find the most relevant evidence for each claim, based on token overlap. This ensures that only facts with strong lexical support (matching numbers, names, technical terms) are considered. BM25’s scores are transparent and auditable.
+- **The Knowledge Graph** encodes relationships between your persona, projects, facts, and evidence. It enables the system to compute proximity, support, and reasoning chains—so you can see exactly why a fact supports a claim, and trace the evidence path.
+- **Hybrid Scoring** combines BM25’s lexical precision with graph-based proximity/support, giving both high recall (BM25 finds candidates) and high precision (the graph reranks by relevance to your persona/context).
+- **The DoT Reasoning Layer** sits on top of retrieval. For each claim, DoT:
+  - Annotates evidence by type (primary, secondary, derived, pattern), reasoning (logical, statistical, analogy, pattern), and credibility.
+  - Aggregates the quality of evidence and the type of reasoning supporting the claim.
+  - Tracks and penalizes uncertainty (weak evidence, long inference chains, conflicts, sparse support).
+  - Composes a single, interpretable “truth gradient” score, and explains why a claim is strong or weak.
+
+**In effect, DoT turns your system into not just a retriever, but a reasoner—able to justify, explain, and flag claims based on the quality of their support and the reasoning behind them.**
+
 > ### The Derivative of Truth: A New Mathematical Framework for AI Truthfulness
 > 
 > **The Core Problem:**
@@ -111,13 +147,10 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 > - **Truth-Seeking Loss:**
 >   L_current = -log P(next_token | context)
 >   L_truth = -log P(truth_direction | evidence, reasoning, uncertainty)
-> 
 > - **Derivative of Truth:**
 >   dT/dt = ∂(Evidence Quality)/∂t + ∂(Reasoning Strength)/∂t - ∂(Uncertainty)/∂t
-> 
 > - **Truth Gradient:**
 >   ∇(Evidence × Reasoning × Consistency) - ∇(Uncertainty × Bias)
-> 
 > - **Truth Score:**
 >   T(statement) = Σ [E_i × R_i × C_i × U_i]
 >   Where E_i is evidence strength, R_i is reasoning validity, C_i is source credibility, U_i is uncertainty penalty.
