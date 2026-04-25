@@ -17,9 +17,9 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 250         | 250    | 0      |
+| 291         | 291    | 0      |
 
-All tests pass as of April 24, 2026. The suite now also covers:
+All tests pass as of April 24, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
 - Knowledge Graph subsystem (NetworkX)
 - Hybrid BM25+graph retrieval and persona-aware reranking
