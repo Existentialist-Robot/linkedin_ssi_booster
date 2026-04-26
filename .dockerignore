@@ -1,0 +1,68 @@
+# Secrets — never bake into the image
+.env
+*.env
+
+# Git
+.git/
+.gitignore
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.pytype/
+
+# IDEs
+.idea/
+*.swp
+*.swo
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Docker files themselves (no need to copy into the image)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Personal / runtime data (mounted as volumes at runtime)
+data/avatar/persona_graph.json
+data/avatar/narrative_memory.json
+data/avatar/learning_log.jsonl
+data/avatar/domain_knowledge.json
+data/selection/generated_candidates.jsonl
+yt-vid-data/*
+
+# Large media files not needed in the image
+media/
+docs/
+
+# Project-specific runtime artefacts
+ssi_data.json
+ssi_history.json
+github_repos_cache.json
+github_readmes_cache.json
+published_ideas_cache.json
+files.zip

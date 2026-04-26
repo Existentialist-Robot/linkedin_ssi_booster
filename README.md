@@ -133,15 +133,15 @@ The Derivative of Truth framework is powerful because it combines deterministic 
 **In effect, DoT turns your system into not just a retriever, but a reasoner—able to justify, explain, and flag claims based on the quality of their support and the reasoning behind them.**
 
 > ### The Derivative of Truth: A New Mathematical Framework for AI Truthfulness
-> 
+>
 > **The Core Problem:**
 > Current AI systems optimize for next token prediction, which can lead to reward hacking—models sound confident about memorized patterns, not about evidence.
 
 > **Breakthrough Insight:**
 > Truth is subjective and dynamic. Instead of solving for absolute truth T, we optimize for dT/dt—the derivative of truth, representing movement toward more reliable knowledge.
-> 
+>
 > **Key Mathematical Components:**
-> 
+>
 > - **Truth-Seeking Loss:**
 >   L_current = -log P(next_token | context)
 >   L_truth = -log P(truth_direction | evidence, reasoning, uncertainty)
@@ -152,7 +152,7 @@ The Derivative of Truth framework is powerful because it combines deterministic 
 > - **Truth Score:**
 >   T(statement) = Σ [E_i × R_i × C_i × U_i]
 >   Where E_i is evidence strength, R_i is reasoning validity, C_i is source credibility, U_i is uncertainty penalty.
-> 
+>
 > **The Key Insight:**
 > Don't solve for truth directly—solve for the trajectory toward truth. This makes the model reward-seeking for reliable knowledge, not just confident pattern matching.
 
@@ -253,7 +253,7 @@ The system now includes a NetworkX-powered knowledge graph for incremental learn
 - The NetworkX knowledge graph is used as a secondary, persona-aware reranker and explainer: it links persona ↔ skills ↔ projects ↔ claims ↔ domain facts.
 
 - Final candidate scoring is a hybrid:
-  
+
   $$
   ext{final} = 0.7 \times \text{bm25} + 0.2 \times \text{graph proximity} + 0.1 \times \text{claim support}
   $$
@@ -326,7 +326,78 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (291/291)
 - [Selection learning](docs/selection-learning.md) — candidate logging, reconciliation, and acceptance priors.
 
-## ⚡ Quickstart
+## 🐳 Docker Compose (Recommended)
+
+Run the full stack — Ollama LLM server + SSI Booster app — with a single command, no local Python environment required.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Docker Compose v2)
+- A filled-in `.env` file (see below)
+
+### 1. Configure your environment
+
+```bash
+cp .env.example .env
+# Edit .env — set BUFFER_API_KEY, OLLAMA_MODEL, persona vars, etc.
+# Leave OLLAMA_BASE_URL as http://localhost:11434 — docker-compose overrides it automatically.
+```
+
+Also copy the required data files (these are bind-mounted into the container at runtime):
+
+```bash
+cp data/avatar/persona_graph.example.json   data/avatar/persona_graph.json
+cp data/avatar/domain_knowledge.example.json data/avatar/domain_knowledge.json
+cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
+cp content_calendar.example.py               content_calendar.py
+```
+
+Edit `data/avatar/persona_graph.json` with your real career facts before running.
+
+### 2. Pull models and start Ollama
+
+```bash
+# Start Ollama in the background and pull the configured model (one-time)
+docker compose up ollama ollama-init
+```
+
+`ollama-init` exits automatically once the model pull completes. Leave `ollama` running.
+
+### 3. Build the app image (first time only)
+
+```bash
+docker compose build app
+```
+
+### 4. Run any command
+
+```bash
+# Dry-run post schedule (no Buffer calls)
+docker compose run --rm app python main.py --schedule --week 1 --dry-run
+
+# Curate AI news → Buffer Ideas (live)
+docker compose run --rm app python main.py --curate
+
+# Interactive persona console (TTY required)
+docker compose run --rm -it app python main.py --console
+
+# Record today's SSI scores
+docker compose run --rm app python main.py --save-ssi 10.49 9.69 11.0 12.15
+```
+
+### Docker notes
+
+| Topic                                  | Detail                                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OLLAMA_BASE_URL`                      | Overridden to `http://ollama:11434` in `docker-compose.yml` — do not change it in `.env` for Docker use                                                                                     |
+| Ollama model storage                   | Persisted in the `ollama_data` Docker volume — survives container restarts                                                                                                                  |
+| Runtime data (`data/`, `yt-vid-data/`) | Bind-mounted from the host — changes are visible immediately                                                                                                                                |
+| GPU (NVIDIA)                           | Uncomment the `deploy:` block in `docker-compose.yml` after installing the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
+| Rebuilding after code changes          | `docker compose build app`                                                                                                                                                                  |
+
+---
+
+## ⚡ Quickstart (local Python)
 
 ```bash
 python -m venv .venv

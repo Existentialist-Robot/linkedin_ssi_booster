@@ -1,0 +1,82 @@
+services:
+  # ── Ollama LLM server ──────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ssi_booster_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # Uncomment the section below to enable NVIDIA GPU passthrough.
+    # Requires the NVIDIA Container Toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Ollama model initialiser (runs once, then exits) ──────────────────────
+  # Pulls the configured model so it is ready before the app starts.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ssi_booster_ollama_init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: >
+      sh -c "
+        MODEL=$${OLLAMA_MODEL:-llama3.2}
+        echo \"[ollama-init] Pulling model: $$MODEL\";
+        ollama pull $$MODEL;
+        FALLBACK=$${OLLAMA_MODEL_FALLBACK:-};
+        if [ -n \"$$FALLBACK\" ]; then
+          echo \"[ollama-init] Pulling fallback model: $$FALLBACK\";
+          ollama pull $$FALLBACK;
+        fi;
+        echo \"[ollama-init] Done.\"
+      "
+    restart: "no"
+
+  # ── LinkedIn SSI Booster application ──────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ssi_booster_app
+    depends_on:
+      ollama:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # Override the Ollama URL to reach the ollama service by its Docker name.
+      # This replaces localhost:11434 which does not resolve inside the container.
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      # Persist runtime data (persona graph, narrative memory, learning log,
+      # domain knowledge, selection candidates, YouTube scripts) on the host.
+      - ./data:/app/data
+      - ./yt-vid-data:/app/yt-vid-data
+      # Mount content_calendar.py and .env so edits on the host take effect
+      # without rebuilding the image.
+      - ./content_calendar.py:/app/content_calendar.py:ro
+    stdin_open: true   # keep stdin open for --console interactive mode
+    tty: true          # allocate a pseudo-TTY for coloured output
+    # Default: print help. Override with `docker compose run app python main.py --schedule`
+    command: ["python", "main.py", "--help"]
+    restart: "no"
+
+volumes:
+  ollama_data:
+    driver: local
