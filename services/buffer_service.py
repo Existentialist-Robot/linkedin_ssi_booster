@@ -168,14 +168,15 @@ class BufferService:
           }
         }
         """
-        variables = {
-            "input": {
-                "channelId": channel_id,
-                "text": text,
-                **({"scheduledAt": scheduled_at} if scheduled_at else {})
-            }
+        post_input = {
+            "channelId": channel_id,
+            "text": text,
+            "schedulingType": "automatic",
+            "mode": "addToQueue",
         }
-        data = self._query(mutation, variables)
+        # If scheduled_at is provided, Buffer API may require a different schedulingType or field. Adjust as needed.
+        # If you want to support scheduled time, you may need to use a different mutation or input structure.
+        data = self._query(mutation, {"input": post_input})
         result = data.get("createPost", {})
         if "message" in result:
             msg = result["message"]
