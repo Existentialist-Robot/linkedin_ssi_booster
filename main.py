@@ -15,11 +15,14 @@ Usage:
     python main.py --report
 """
 
+from __future__ import annotations
+
 import os
 import json
 import argparse
 import logging
 import re
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
@@ -27,9 +30,25 @@ from colorama import Fore, Style, init as _colorama_init
 
 from scheduler import PostScheduler
 from content_calendar import CONTENT_CALENDAR
+from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
 from services.selection_learning import ACCEPTANCE_WINDOW_DAYS
 
 
+def _configure_stdio() -> None:
+    """Keep emoji/Unicode status output from crashing Windows cp1252 shells."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (TypeError, ValueError, OSError):
+            # Some wrapped streams do not allow reconfiguration; best effort only.
+            pass
+
+
+_configure_stdio()
 _colorama_init(autoreset=True)
 load_dotenv()
 
@@ -93,26 +112,6 @@ _handler.setFormatter(_ColourFormatter("%(asctime)s [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 
-
-import os
-import json
-import argparse
-import logging
-import re
-from datetime import datetime
-from pathlib import Path
-from dotenv import load_dotenv
-from colorama import Fore, Style, init as _colorama_init
-
-from content_calendar import CONTENT_CALENDAR
-
-_colorama_init(autoreset=True)
-
-
-from services.ollama_service import OllamaService
-from services.buffer_service import BufferService, BufferQueueFullError, BufferRateLimitError, BufferChannelNotConnectedError
-from services.content_curator import ContentCurator
-from services.ssi_tracker import SSITracker
 
 from services.console_grounding import (
     parse_query_constraints,
@@ -288,7 +287,6 @@ def run_console(ai: OllamaService) -> None:
 
 
 def main():
-    print_startup_notice()
     parser = argparse.ArgumentParser(description="LinkedIn SSI Booster via Buffer API")
     parser.add_argument("--schedule",  action="store_true", help="Generate and schedule posts to Buffer (use with --dry-run to preview only)")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
@@ -330,13 +328,6 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
         logging.getLogger("httpx").setLevel(logging.WARNING)  # suppress noisy HTTP client logs
 
-    ai = OllamaService(
-        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-    )
-    print(f"[INFO] Using Ollama model: {ai.model}")
-    tracker = SSITracker()
-
     if args.console:
         incompatible = []
         if args.schedule:
@@ -356,14 +347,20 @@ def main():
                 + str(Style.RESET_ALL)
             )
             return
-        run_console(ai=ai)
-        return
-
     def build_buffer_service() -> BufferService:
         buffer_api_key = os.getenv("BUFFER_API_KEY")
         if not buffer_api_key:
             raise ValueError("BUFFER_API_KEY environment variable is required")
         return BufferService(api_key=buffer_api_key)
+
+    if args.avatar_learn_report:
+        from services.avatar_intelligence import build_learning_report, format_learning_report
+        report = build_learning_report()
+        print(format_learning_report(report))
+        return
+
+    from services.ssi_tracker import SSITracker
+    tracker = SSITracker()
 
     if args.report:
         tracker.print_report()
@@ -383,12 +380,6 @@ def main():
         print(str(Fore.GREEN) + "\n✅  Reconcile complete" + str(Style.RESET_ALL))
         for k, v in stats.items():
             print(f"   {k}: {v}")
-        return
-
-    if args.avatar_learn_report:
-        from services.avatar_intelligence import build_learning_report, format_learning_report
-        report = build_learning_report()
-        print(format_learning_report(report))
         return
 
     if args.save_ssi:
@@ -421,9 +412,27 @@ def main():
         return
 
 
+    if not (args.schedule or args.curate or args.console):
+        parser.print_help()
+        return
+
+    print_startup_notice()
+
+    from services.ollama_service import OllamaService
+    ai = OllamaService(
+        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    )
+    print(f"[INFO] Using Ollama model: {ai.model}")
+
+    if args.console:
+        run_console(ai=ai)
+        return
+
     if args.curate:
-        buffer = build_buffer_service()
+        buffer = None if args.dry_run else build_buffer_service()
         from services.shared import AVATAR_CONFIDENCE_POLICY
+        from services.content_curator import ContentCurator
         confidence_policy = args.confidence_policy or AVATAR_CONFIDENCE_POLICY
         curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy)
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
