@@ -19,7 +19,7 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 | ----------- | ------ | ------ |
 | 291         | 291    | 0      |
 
-All tests pass as of April 24, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
+All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
 - Knowledge Graph subsystem (NetworkX)
 - Hybrid BM25+graph retrieval and persona-aware reranking
@@ -38,16 +38,18 @@ All tests pass as of April 24, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | Test file                               | What it covers                                                                                       |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `tests/test_avatar_state_loader.py`     | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.         |
-| `tests/test_evidence_mapping.py`        | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.               |
-| `tests/test_learning_report.py`         | JSONL moderation capture, heuristics, aggregation, and report formatting.                            |
+| `tests/test_buffer_service.py`          | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                       |
 | `tests/test_confidence_scoring.py`      | Signal extraction, score thresholds, and policy routing.                                             |
+| `tests/test_content_curator.py`         | RSS curation pipeline, keyword filtering, and article processing.                                    |
+| `tests/test_continual_learning.py`      | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration. |
+| `tests/test_derivative_of_truth.py`     | Truth gradient scoring, evidence/reasoning annotation, and uncertainty logic.                        |
+| `tests/test_evidence_mapping.py`        | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.               |
 | `tests/test_integration_flags.py`       | CLI flag registration and invalid-value handling.                                                    |
+| `tests/test_knowledge_graph.py`         | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries. |
+| `tests/test_learning_report.py`         | JSONL moderation capture, heuristics, aggregation, and report formatting.                            |
 | `tests/test_persona_graph_retrieval.py` | Real persona graph loading, retrieval spot checks, and fallback logic.                               |
 | `tests/test_selection_learning.py`      | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                |
 | `tests/test_spacy_nlp.py`               | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                   |
-| `tests/test_continual_learning.py`      | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration. |
-| `tests/test_knowledge_graph.py`         | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries. |
-| `tests/test_hybrid_retriever.py`        | BM25+graph hybrid retrieval, reranking, and scoring logic.                                           |
 
 ## Repository structure
 

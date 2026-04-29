@@ -2,7 +2,7 @@
 
 #### _<u> — Persona-Grounded Truth-Gated Adaptive-Continual-Learning Hybrid-RAG Agent with Domain-Knowledge-Graph</u>_
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0022](https://img.shields.io/badge/version-alpha--v0.0.2.2-orange.svg)]()
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)[![Version alphav0023](https://img.shields.io/badge/version-alpha--v0.0.2.3-orange.svg)]()
 
 **LinkedIn SSI Booster** isn't just a prompt wrapper — it's an adaptive continual learning automation system for content, curation, and persona growth. It combines spaCy-based NLP, a persona graph, BM25 retrieval, a truth gate, confidence scoring, a NetworkX-powered knowledge graph, and local memory to generate, curate, rank, and route posts with more control and explainability than a basic AI writer workflow.
 
@@ -419,12 +419,12 @@ Add these to your `.env` file:
 ```
 BUFFER_API_KEY=...
 OLLAMA_MODEL=gemma4:26b
-OLLAMA_MODEL_FALLBACK=qwen2.5:14b  # (optional, fallback model for YouTube Shorts)
+OLLAMA_MODEL_FALLBACK=qwen2.5:14b  # fallback for ALL generation calls when primary model fails
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
 - `OLLAMA_MODEL` — Main Ollama model for all generations (e.g. `gemma4:26b`).
-- `OLLAMA_MODEL_FALLBACK` — Fallback model for YouTube Shorts if the main model fails (default: `qwen2.5:14b`).
+- `OLLAMA_MODEL_FALLBACK` — Fallback model auto-retried once on empty output or error for all generation calls (default: `qwen2.5:14b`).
 - `OLLAMA_BASE_URL` — Ollama server URL (default: `http://localhost:11434`).
 
 The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
