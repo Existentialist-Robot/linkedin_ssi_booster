@@ -356,8 +356,17 @@ def build_deterministic_grounded_reply(query: str, facts: list[ProjectFact], con
     return "\n".join(lines)
 
 
-def build_grounding_facts_block(facts: list[ProjectFact], limit: int = 5) -> str:
-    """Build a compact deterministic facts block for generation prompts."""
+def build_grounding_facts_block(facts: list[ProjectFact], limit: int | None = None) -> str:
+    """Build a compact deterministic facts block for generation prompts.
+
+    ``limit`` defaults to EVIDENCE_PROJECT_COUNT + EVIDENCE_DOMAIN_COUNT from .env
+    (falling back to 5) so the display cap always matches the retrieval split.
+    """
+    if limit is None:
+        try:
+            limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+        except Exception:
+            limit = 5
     if not facts:
         return ""
 

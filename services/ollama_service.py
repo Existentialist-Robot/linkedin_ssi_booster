@@ -45,7 +45,7 @@ class OllamaService:
         Generate a YouTube Short script using the dedicated persona prompt and structure.
         Handles empty LLM output robustly, with fallback model support.
         """
-        grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
+        grounding_block = build_grounding_facts_block(grounding_facts or [])
         _continuity_block = (
             f"\n\nContinuity context (avoid repeating these recent topics; build on or contrast them):\n{continuity_context}"
             if continuity_context
@@ -209,7 +209,7 @@ You are in interactive console chat mode.
         else:
             _platform_block = ""
 
-        grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
+        grounding_block = build_grounding_facts_block(grounding_facts or [])
 
         _continuity_block = (
             f"\n\nContinuity context (avoid repeating these recent topics; build on or contrast them):\n{continuity_context}"
@@ -413,7 +413,7 @@ Balance rules (non-negotiable):
 - Reference your own background at most once per post, and only when it maps directly to one of the profile facts provided. If none connect naturally, write the post without a personal reference.
 - Do not invent percentages, performance numbers, timelines, or outcomes that are not stated in the article or profile facts."""
 
-        grounding_block = build_grounding_facts_block(grounding_facts or [], limit=5)
+        grounding_block = build_grounding_facts_block(grounding_facts or [])
 
         _continuity_block = (
             f"\n\nContinuity context (avoid repeating these recent topics; build on or contrast them):\n{continuity_context}"
