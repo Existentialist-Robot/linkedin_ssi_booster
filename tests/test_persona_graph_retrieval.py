@@ -40,6 +40,12 @@ def real_state():
     state = load_avatar_state()
     ai.PERSONA_GRAPH_PATH = old_pg
     ai.NARRATIVE_MEMORY_PATH = old_nm
+    project_names = {p.name for p in state.persona_graph.projects} if state.persona_graph else set()
+    required_private_projects = {"G7 GovAI Grand Challenge RIA", "Answer42"}
+    if not required_private_projects.issubset(project_names):
+        pytest.skip(
+            "Maintainer-specific persona graph not configured; skipping private persona retrieval checks."
+        )
     return state
 
 

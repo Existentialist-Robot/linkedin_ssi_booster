@@ -1027,7 +1027,21 @@ def get_grounding_context_for_query(
             context_parts.append(build_grounding_context(top_projects))
         if top_domains:
             context_parts.append(build_domain_grounding_context(top_domains))
-        return "\n\n".join(context_parts) if context_parts else ""
+        if context_parts:
+            return "\n\n".join(context_parts)
+
+        # Tiny corpora can produce zero/non-positive BM25 scores even for a
+        # useful token match. Fall back to the retrieval helper so callers still
+        # get grounding context instead of a blank prompt block.
+        relevant = retrieve_evidence(query, facts + domain_facts, limit=limit)
+        project_facts = [f for f in relevant if isinstance(f, EvidenceFact)]
+        domain_facts_sel = [f for f in relevant if isinstance(f, DomainEvidenceFact)]
+        fallback_parts = []
+        if project_facts:
+            fallback_parts.append(build_grounding_context(project_facts))
+        if domain_facts_sel:
+            fallback_parts.append(build_domain_grounding_context(domain_facts_sel))
+        return "\n\n".join(fallback_parts) if fallback_parts else ""
     else:
         # Fallback: use retrieve_evidence (which now uses the same split)
         relevant = retrieve_evidence(query, facts + domain_facts, limit=limit)
