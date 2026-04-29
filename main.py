@@ -118,8 +118,10 @@ from services.console_grounding import (
     retrieve_relevant_facts,
     build_deterministic_grounded_reply,
 )
+from services.ollama_service import OllamaService
+from services.github_service import build_github_profile_context
 
-def run_console(ai: OllamaService) -> None:
+def run_console(ai: OllamaService, github_context: str = "") -> None:
     """Run interactive persona chat mode in the terminal."""
     # Patterns that should always route to LLM (not deterministic fact citation)
     GENERATIVE_REQUEST_PHRASES = [
@@ -179,6 +181,8 @@ def run_console(ai: OllamaService) -> None:
 
     _profile_facts = evidence_facts_to_project_facts(_avatar_facts) + _domain_facts
     _grounding_context = build_grounding_context(_avatar_facts)
+    if github_context:
+        _grounding_context = f"{_grounding_context}\n\n{github_context}" if _grounding_context else github_context
 
     while True:
         try:
@@ -418,7 +422,12 @@ def main():
 
     print_startup_notice()
 
-    from services.ollama_service import OllamaService
+    _github_context = build_github_profile_context(
+        max_chars=int(os.getenv("GITHUB_CONTEXT_MAX_CHARS", "30000"))
+    )
+    if _github_context:
+        logger.info("GitHub context loaded: %d chars", len(_github_context))
+
     ai = OllamaService(
         model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -426,7 +435,7 @@ def main():
     print(f"[INFO] Using Ollama model: {ai.model}")
 
     if args.console:
-        run_console(ai=ai)
+        run_console(ai=ai, github_context=_github_context)
         return
 
     if args.curate:
@@ -434,7 +443,7 @@ def main():
         from services.shared import AVATAR_CONFIDENCE_POLICY
         from services.content_curator import ContentCurator
         confidence_policy = args.confidence_policy or AVATAR_CONFIDENCE_POLICY
-        curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy)
+        curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context)
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         for ch in curate_channels:
             print(f"[INFO] 🔍 Curating AI news sources (channel: {ch}, type: {args.type})...")

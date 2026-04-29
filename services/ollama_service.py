@@ -383,6 +383,7 @@ Post:
         grounding_facts: Optional[list[ProjectFact]] = None,
         interactive: bool = False,
         continuity_context: str = "",
+        github_context: str = "",
     ) -> Optional[str]:
         """
         Summarise a curated article into a LinkedIn post with personal commentary.
@@ -467,7 +468,11 @@ Write a LinkedIn post reacting to this article.
 
 {format_instructions}{_continuity_block}"""
 
-        result = clean_llm_text(self._chat(PERSONA_SYSTEM_PROMPT, prompt, max_tokens=800))
+        result = clean_llm_text(self._chat(
+            PERSONA_SYSTEM_PROMPT + (f"\n\n{github_context}" if github_context else ""),
+            prompt,
+            max_tokens=800,
+        ))
 
         # Lightweight truth gate — strip sentences with unsupported claims
         if result:

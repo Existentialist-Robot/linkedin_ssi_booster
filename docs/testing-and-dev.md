@@ -22,7 +22,8 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
 - Knowledge Graph subsystem (NetworkX)
-- Hybrid BM25+graph retrieval and persona-aware reranking
+- Hybrid BM25+graph retrieval and persona-aware reranking (now active in production via `ContentCurator`)
+- GitHub repo context enrichment (`github_service.py` now wired into `main.py`, console mode, and curation)
 - **Derivative of Truth framework** (truth gradient scoring, evidence/reasoning annotation, uncertainty logic)
 - Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
 
@@ -30,6 +31,13 @@ All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 
 - All annotation logic, uncertainty calculation, and scoring tests pass (see `tests/test_derivative_of_truth.py`).
 - Implementation is aligned with [design.md](features/derivative-of-truth/design.md) and [plan.md](features/derivative-of-truth/plan.md).
+
+**Active production modules (as of April 29, 2026):**
+
+| Module                         | Status    | Integration point                                                                                     |
+| ------------------------------ | --------- | ----------------------------------------------------------------------------------------------------- |
+| `services/github_service.py`   | ✅ Active | `main.py` startup; context passed to `run_console()` and `ContentCurator` system prompt               |
+| `services/hybrid_retriever.py` | ✅ Active | `ContentCurator.__init__` bootstraps KG + `HybridRetriever`; used in `_grounding_facts_for_article()` |
 
 ---
 

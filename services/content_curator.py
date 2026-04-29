@@ -272,17 +272,20 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
 
 class ContentCurator:
 
-    def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced", enable_spacy_summarization: bool = True):
+    def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced", enable_spacy_summarization: bool = True, github_context: str = ""):
         self.ai = ai_service
         self.buffer = buffer_service
         self.confidence_policy = confidence_policy
         self.enable_spacy_summarization = enable_spacy_summarization
+        self.github_context = github_context
         self.curation_grounding_keywords = _load_curation_grounding_keywords()
         self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
         self._avatar_facts: list = []
         self._domain_facts: list = []
         self._narrative_memory = None
         self._spacy_nlp = None
+        self._kg = None
+        self._hybrid_retriever = None
 
         # Load spaCy for article summarization if enabled
         if self.enable_spacy_summarization:
@@ -300,13 +303,23 @@ class ContentCurator:
             self._domain_facts = normalize_domain_facts(_state)
             if AVATAR_LEARNING_ENABLED and _state.narrative_memory is not None:
                 self._narrative_memory = _state.narrative_memory
+            # Bootstrap KG and HybridRetriever for graph-aware reranking
+            try:
+                from services.knowledge_graph import KnowledgeGraphManager
+                from services.hybrid_retriever import HybridRetriever
+                self._kg = KnowledgeGraphManager()
+                self._kg.bootstrap_from_avatar_state(_state)
+                self._hybrid_retriever = HybridRetriever(kg=self._kg)
+                logger.debug("HybridRetriever initialised with KG")
+            except Exception as _kg_exc:
+                logger.debug("KG/HybridRetriever init skipped: %s", _kg_exc)
         except Exception as _exc:
             logger.warning("Avatar state init failed (continuing): %s", _exc)
 
     def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
         """
-        Retrieve top-N persona and top-N domain facts separately, then merge as ProjectFact.
-        Allows tuning of the split and avoids mixed-type errors in evidence retrieval.
+        Retrieve top-N persona and top-N domain facts, reranked via HybridRetriever when a
+        KnowledgeGraph is available, falling back to plain BM25 retrieve_evidence otherwise.
         """
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
         if self._avatar_facts or self._domain_facts:
@@ -319,11 +332,21 @@ class ContentCurator:
                 _get_evidence_split,
             )
             n_persona, n_domain = _get_evidence_split()
-            persona_hits = retrieve_evidence(query, self._avatar_facts, limit=n_persona) if self._avatar_facts else []
-            domain_hits = retrieve_evidence(query, self._domain_facts, limit=n_domain) if self._domain_facts else []
-            # Type narrowing for static checkers
-            persona_hits_typed: list[EvidenceFact] = [f for f in persona_hits if isinstance(f, EvidenceFact)]
-            domain_hits_typed: list[DomainEvidenceFact] = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
+
+            if self._hybrid_retriever is not None:
+                # Hybrid path: rerank all candidates together, then split by type
+                all_candidates = list(self._avatar_facts) + list(self._domain_facts)
+                total = n_persona + n_domain
+                ranked = self._hybrid_retriever.find_facts(query, all_candidates, limit=total)
+                persona_hits_typed: list[EvidenceFact] = [f for f in ranked if isinstance(f, EvidenceFact)][:n_persona]
+                domain_hits_typed: list[DomainEvidenceFact] = [f for f in ranked if isinstance(f, DomainEvidenceFact)][:n_domain]
+            else:
+                # Pure BM25 fallback
+                persona_hits = retrieve_evidence(query, self._avatar_facts, limit=n_persona) if self._avatar_facts else []
+                domain_hits = retrieve_evidence(query, self._domain_facts, limit=n_domain) if self._domain_facts else []
+                persona_hits_typed = [f for f in persona_hits if isinstance(f, EvidenceFact)]
+                domain_hits_typed = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
+
             persona_pf = evidence_facts_to_project_facts(persona_hits_typed)
             domain_pf = domain_facts_to_project_facts(domain_hits_typed)
             return persona_pf + domain_pf
@@ -510,6 +533,7 @@ class ContentCurator:
                     post_mode=True,
                     grounding_facts=grounding_facts,
                     interactive=interactive,
+                    github_context=self.github_context,
                 )
 
                 if not li_text:
@@ -537,6 +561,7 @@ class ContentCurator:
                     "x",
                     grounding_facts=grounding_facts,
                     interactive=interactive,
+                    github_context=self.github_context,
                 )
                 if x_post:
                     x_budget = X_CHAR_LIMIT - X_URL_CHARS  # 257 — cap text before URL is added
@@ -551,6 +576,7 @@ class ContentCurator:
                     "bluesky",
                     grounding_facts=grounding_facts,
                     interactive=interactive,
+                    github_context=self.github_context,
                 )
                 if bsky_post:
                     url_overhead = (2 + len(article["link"])) if article.get("link") else 0
@@ -568,6 +594,7 @@ class ContentCurator:
                     post_mode=True,
                     grounding_facts=grounding_facts,
                     interactive=interactive,
+                    github_context=self.github_context,
                 )
                 if yt_script:
                     yt_script = _truncate_at_sentence(yt_script, 500)
@@ -751,6 +778,7 @@ class ContentCurator:
                     grounding_facts=grounding_facts,
                     interactive=interactive,
                     continuity_context=_continuity,
+                    github_context=self.github_context,
                 )
                 if not post_text:
                     logger.info(f"Skipping article with no usable content: {article['title'][:60]}")
