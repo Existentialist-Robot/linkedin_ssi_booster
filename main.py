@@ -448,7 +448,7 @@ def main():
         for ch in curate_channels:
             print(f"[INFO] 🔍 Curating AI news sources (channel: {ch}, type: {args.type})...")
             try:
-                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain)
+                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report)
             except BufferQueueFullError as e:
                 print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
                 continue
@@ -470,39 +470,6 @@ def main():
                 continue
             noun = "posts" if args.type == "post" else "ideas"
             print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({ch})" + str(Style.RESET_ALL))
-
-            # --- Derivative of Truth reporting for curated ideas ---
-            if args.dot_report:
-                try:
-                    from services.derivative_of_truth import (
-                        EvidencePath,
-                        EVIDENCE_TYPE_SECONDARY,
-                        REASONING_TYPE_LOGICAL,
-                        score_claim_with_truth_gradient,
-                        report_truth_gradient,
-                        format_truth_gradient_report,
-                    )
-                    for idea in ideas:
-                        # Try to extract grounding facts if present, else use idea text only
-                        grounding_facts = idea.get("grounding_facts", []) if isinstance(idea, dict) else []
-                        _dot_paths = [
-                            EvidencePath(
-                                source=f.source if hasattr(f, "source") else str(f),
-                                evidence_type=EVIDENCE_TYPE_SECONDARY,
-                                reasoning_type=REASONING_TYPE_LOGICAL,
-                                credibility=0.7,
-                            )
-                            for f in grounding_facts
-                        ] if grounding_facts else []
-                        post_text = idea["generated_text"] if isinstance(idea, dict) and "generated_text" in idea else str(idea)
-                        _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
-                        _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
-                        _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
-                        print(_dot_colour + "\n🔬 Derivative of Truth Report (curate):" + str(Style.RESET_ALL))
-                        print(format_truth_gradient_report(_dot_report_dict))
-                        print()
-                except Exception as _dot_err:
-                    logger.debug("DoT report unavailable (curate): %s", _dot_err)
         return
 
 
@@ -541,7 +508,9 @@ def main():
                 _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
                 _gen_domain_facts = normalize_domain_facts(_gen_avatar_state)
                 all_facts = list(_gen_avatar_facts) + list(_gen_domain_facts)
-                relevant = retrieve_evidence(grounding_query, all_facts, limit=5)
+                _ev_proj = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3"))
+                _ev_dom = int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+                relevant = retrieve_evidence(grounding_query, all_facts, limit=_ev_proj + _ev_dom)
 
                 # Split by type and convert
                 persona_facts = [f for f in relevant if isinstance(f, EvidenceFact)]
@@ -632,7 +601,9 @@ def main():
                     from typing import Sequence, Union
                     from services.avatar_intelligence import EvidenceFact, DomainEvidenceFact
                     _all_facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]] = list(_gen_avatar_facts) + list(_gen_domain_facts)
-                    _relevant = retrieve_evidence(grounding_query, _all_facts, limit=5)
+                    _ev_proj2 = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3"))
+                    _ev_dom2 = int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+                    _relevant = retrieve_evidence(grounding_query, _all_facts, limit=_ev_proj2 + _ev_dom2)
                     _explain = build_explain_output(
                         evidence_facts=_relevant,
                         article_ref=topic.get("title", ""),

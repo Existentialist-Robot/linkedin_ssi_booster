@@ -437,7 +437,7 @@ class ContentCurator:
                 total_sentences=gate_meta.total_sentences,
                 reason_codes=gate_meta.reason_codes,
                 grounding_facts_count=len(grounding_facts),
-                max_grounding_facts=5,
+                max_grounding_facts=int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2")),
                 channel=channel,
                 post_length=len(post_text),
                 narrative_repetition_score=rep_score,
@@ -463,7 +463,7 @@ class ContentCurator:
             )
             return requested_mode, "confidence scoring unavailable — using requested mode"
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False) -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False, dot_report: bool = False) -> list:
         """
         Main entry point: fetch articles, generate posts with the configured AI service,
                         # --- Confidence scoring for all-channel mode (use LinkedIn post) ---
@@ -637,7 +637,8 @@ class ContentCurator:
                             )
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
                             all_facts = self._avatar_facts + self._domain_facts
-                            _relevant = retrieve_evidence(grounding_query, all_facts)
+                            _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+                            _relevant = retrieve_evidence(grounding_query, all_facts, limit=_exp_limit)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
@@ -647,6 +648,32 @@ class ContentCurator:
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
                             logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    if dot_report:
+                        try:
+                            from services.derivative_of_truth import (
+                                EvidencePath,
+                                EVIDENCE_TYPE_SECONDARY,
+                                REASONING_TYPE_LOGICAL,
+                                score_claim_with_truth_gradient,
+                                report_truth_gradient,
+                                format_truth_gradient_report,
+                            )
+                            _dot_paths = [
+                                EvidencePath(
+                                    source=f.source if hasattr(f, "source") else str(f),
+                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
+                                    reasoning_type=REASONING_TYPE_LOGICAL,
+                                    credibility=0.7,
+                                )
+                                for f in (grounding_facts or [])
+                            ]
+                            _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
+                            _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
+                            _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
+                            print(_dot_colour + "\n🔬 Derivative of Truth Report (curate):" + str(Style.RESET_ALL))
+                            print(format_truth_gradient_report(_dot_report_dict))
+                        except Exception as _dot_err:
+                            logger.debug("DoT report unavailable (curate): %s", _dot_err)
                     
                     created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
                     # Do NOT log candidates in dry_run mode. Only log when user is actually reviewing or publishing, to avoid biasing acceptance priors with unreviewed content.
@@ -691,7 +718,8 @@ class ContentCurator:
                                 format_explain_output,
                             )
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
-                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
@@ -701,6 +729,32 @@ class ContentCurator:
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
                             logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    if dot_report:
+                        try:
+                            from services.derivative_of_truth import (
+                                EvidencePath,
+                                EVIDENCE_TYPE_SECONDARY,
+                                REASONING_TYPE_LOGICAL,
+                                score_claim_with_truth_gradient,
+                                report_truth_gradient,
+                                format_truth_gradient_report,
+                            )
+                            _dot_paths = [
+                                EvidencePath(
+                                    source=f.source if hasattr(f, "source") else str(f),
+                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
+                                    reasoning_type=REASONING_TYPE_LOGICAL,
+                                    credibility=0.7,
+                                )
+                                for f in (grounding_facts or [])
+                            ]
+                            _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
+                            _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
+                            _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
+                            print(_dot_colour + "\n🔬 Derivative of Truth Report (curate):" + str(Style.RESET_ALL))
+                            print(format_truth_gradient_report(_dot_report_dict))
+                        except Exception as _dot_err:
+                            logger.debug("DoT report unavailable (curate): %s", _dot_err)
                     
                     if self.buffer:
                         try:
@@ -875,7 +929,8 @@ class ContentCurator:
                                 format_explain_output,
                             )
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
-                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
@@ -885,8 +940,34 @@ class ContentCurator:
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
                             logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    if dot_report:
+                        try:
+                            from services.derivative_of_truth import (
+                                EvidencePath,
+                                EVIDENCE_TYPE_SECONDARY,
+                                REASONING_TYPE_LOGICAL,
+                                score_claim_with_truth_gradient,
+                                report_truth_gradient,
+                                format_truth_gradient_report,
+                            )
+                            _dot_paths = [
+                                EvidencePath(
+                                    source=f.source if hasattr(f, "source") else str(f),
+                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
+                                    reasoning_type=REASONING_TYPE_LOGICAL,
+                                    credibility=0.7,
+                                )
+                                for f in (grounding_facts or [])
+                            ]
+                            _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
+                            _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
+                            _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
+                            print(_dot_colour + "\n🔬 Derivative of Truth Report (curate):" + str(Style.RESET_ALL))
+                            print(format_truth_gradient_report(_dot_report_dict))
+                        except Exception as _dot_err:
+                            logger.debug("DoT report unavailable (curate): %s", _dot_err)
                     
-                    created_ideas.append({"dry_run": True, "title": article["title"], "text": post_text, "ssi_component": ssi_component, "channel": channel, "confidence_route": _conf_route})
+                    created_ideas.append({"dry_run": True, "title": article["title"], "generated_text": post_text, "grounding_facts": grounding_facts, "ssi_component": ssi_component, "channel": channel, "confidence_route": _conf_route})
                 else:
                     # Display generated post for traceability
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
@@ -906,7 +987,8 @@ class ContentCurator:
                                 format_explain_output,
                             )
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
-                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts)
+                            _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
+                            _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
@@ -916,6 +998,32 @@ class ContentCurator:
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
                             logger.warning("Avatar explanation failed (continuing): %s", _exp_exc)
+                    if dot_report:
+                        try:
+                            from services.derivative_of_truth import (
+                                EvidencePath,
+                                EVIDENCE_TYPE_SECONDARY,
+                                REASONING_TYPE_LOGICAL,
+                                score_claim_with_truth_gradient,
+                                report_truth_gradient,
+                                format_truth_gradient_report,
+                            )
+                            _dot_paths = [
+                                EvidencePath(
+                                    source=f.source if hasattr(f, "source") else str(f),
+                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
+                                    reasoning_type=REASONING_TYPE_LOGICAL,
+                                    credibility=0.7,
+                                )
+                                for f in (grounding_facts or [])
+                            ]
+                            _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
+                            _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
+                            _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
+                            print(_dot_colour + "\n🔬 Derivative of Truth Report (curate):" + str(Style.RESET_ALL))
+                            print(format_truth_gradient_report(_dot_report_dict))
+                        except Exception as _dot_err:
+                            logger.debug("DoT report unavailable (curate): %s", _dot_err)
 
                     # Confidence policy: block → skip this article entirely
                     if _conf_route == "block":
@@ -966,7 +1074,7 @@ class ContentCurator:
                                     _upd(_candidate_id, post.get("id", ""))
                                 except Exception as _upd_exc:
                                     logger.warning("selection_learning: buffer_id update failed (continuing): %s", _upd_exc)
-                                created_ideas.append(post)
+                                created_ideas.append({**(post if isinstance(post, dict) else {}), "generated_text": post_text, "grounding_facts": grounding_facts})
                             except BufferQueueFullError as e:
                                 logger.warning(
                                     str(Fore.YELLOW) + f"⚠️  Buffer queue is full — stopping early. "
@@ -984,7 +1092,7 @@ class ContentCurator:
                                 _upd(_candidate_id, idea.get("id", ""))
                             except Exception as _upd_exc:
                                 logger.warning("selection_learning: buffer_id update failed (continuing): %s", _upd_exc)
-                            created_ideas.append(idea)
+                            created_ideas.append({**(idea if isinstance(idea, dict) else {}), "generated_text": post_text, "grounding_facts": grounding_facts})
                     else:
                         logger.warning("No buffer_service provided — skipping idea creation")
 
