@@ -16,7 +16,7 @@ import time
 import uuid
 from colorama import Fore, Style
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from services.ollama_service import OllamaService
 from services.shared import SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS
 from services.buffer_service import BufferQueueFullError, BufferChannelNotConnectedError
@@ -268,6 +268,71 @@ def _load_curation_grounding_tag_expansions() -> dict[str, set[str]]:
         if base and related:
             expansions[base] = related
     return expansions or get_console_grounding_tag_expansions_from_graph()
+
+
+def _fact_to_evidence_path(fact: Any, claim_text: str) -> Any:
+    """Convert a ProjectFact to a real EvidencePath with differentiated scoring.
+
+    - avatar:* facts → primary evidence, logical reasoning, credibility scaled
+      by years of direct experience parsed from the years field
+    - domain:* facts → secondary evidence, statistical reasoning, credibility
+      scaled by tag count (proxy for fact specificity)
+    - uncertainty: derived from token overlap between fact details and claim
+      text — lower overlap means the fact is less directly relevant to this
+      specific claim, so uncertainty rises accordingly
+    """
+    from services.derivative_of_truth import (
+        EvidencePath,
+        EVIDENCE_TYPE_PRIMARY,
+        EVIDENCE_TYPE_SECONDARY,
+        REASONING_TYPE_LOGICAL,
+        REASONING_TYPE_STATISTICAL,
+    )
+    source = getattr(fact, "source", str(fact))
+    is_avatar = source.startswith("avatar:")
+    evidence_type = EVIDENCE_TYPE_PRIMARY if is_avatar else EVIDENCE_TYPE_SECONDARY
+    reasoning_type = REASONING_TYPE_LOGICAL if is_avatar else REASONING_TYPE_STATISTICAL
+
+    # --- Credibility ---
+    if is_avatar:
+        years_str = getattr(fact, "years", "") or ""
+        year_nums = re.findall(r"\b(19|20)\d{2}\b", years_str)
+        if len(year_nums) >= 2:
+            span = abs(int(year_nums[-1]) - int(year_nums[0]))
+        else:
+            nums = re.findall(r"\d+", years_str)
+            span = int(nums[0]) if nums and "year" in years_str.lower() else 0
+        if span >= 10:
+            credibility = 0.95
+        elif span >= 6:
+            credibility = 0.90
+        elif span >= 3:
+            credibility = 0.85
+        else:
+            credibility = 0.80  # direct experience, no year span parsed
+    else:
+        tag_count = len(getattr(fact, "tags", set()) or set())
+        credibility = 0.72 if tag_count >= 6 else (0.65 if tag_count >= 3 else 0.58)
+
+    # --- Uncertainty via token overlap ---
+    details = getattr(fact, "details", "") or ""
+    claim_tokens = set(re.findall(r"[a-z]{3,}", claim_text.lower()))
+    fact_tokens = set(re.findall(r"[a-z]{3,}", details.lower()))
+    if claim_tokens:
+        overlap = len(claim_tokens & fact_tokens) / len(claim_tokens)
+        # Map overlap ∈ [0,1] → uncertainty ∈ [0.25, 0]: high overlap = low uncertainty
+        uncertainty = round(max(0.0, 0.25 * (1.0 - min(overlap * 3, 1.0))), 3)
+    else:
+        uncertainty = 0.10
+
+    return EvidencePath(
+        source=source,
+        evidence_type=evidence_type,
+        reasoning_type=reasoning_type,
+        credibility=credibility,
+        uncertainty=uncertainty,
+        chain_length=1,
+    )
 
 
 class ContentCurator:
@@ -651,22 +716,11 @@ class ContentCurator:
                     if dot_report:
                         try:
                             from services.derivative_of_truth import (
-                                EvidencePath,
-                                EVIDENCE_TYPE_SECONDARY,
-                                REASONING_TYPE_LOGICAL,
                                 score_claim_with_truth_gradient,
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [
-                                EvidencePath(
-                                    source=f.source if hasattr(f, "source") else str(f),
-                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
-                                    reasoning_type=REASONING_TYPE_LOGICAL,
-                                    credibility=0.7,
-                                )
-                                for f in (grounding_facts or [])
-                            ]
+                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])]
                             _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -732,22 +786,11 @@ class ContentCurator:
                     if dot_report:
                         try:
                             from services.derivative_of_truth import (
-                                EvidencePath,
-                                EVIDENCE_TYPE_SECONDARY,
-                                REASONING_TYPE_LOGICAL,
                                 score_claim_with_truth_gradient,
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [
-                                EvidencePath(
-                                    source=f.source if hasattr(f, "source") else str(f),
-                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
-                                    reasoning_type=REASONING_TYPE_LOGICAL,
-                                    credibility=0.7,
-                                )
-                                for f in (grounding_facts or [])
-                            ]
+                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])]
                             _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -943,22 +986,11 @@ class ContentCurator:
                     if dot_report:
                         try:
                             from services.derivative_of_truth import (
-                                EvidencePath,
-                                EVIDENCE_TYPE_SECONDARY,
-                                REASONING_TYPE_LOGICAL,
                                 score_claim_with_truth_gradient,
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [
-                                EvidencePath(
-                                    source=f.source if hasattr(f, "source") else str(f),
-                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
-                                    reasoning_type=REASONING_TYPE_LOGICAL,
-                                    credibility=0.7,
-                                )
-                                for f in (grounding_facts or [])
-                            ]
+                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])]
                             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -1001,22 +1033,11 @@ class ContentCurator:
                     if dot_report:
                         try:
                             from services.derivative_of_truth import (
-                                EvidencePath,
-                                EVIDENCE_TYPE_SECONDARY,
-                                REASONING_TYPE_LOGICAL,
                                 score_claim_with_truth_gradient,
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [
-                                EvidencePath(
-                                    source=f.source if hasattr(f, "source") else str(f),
-                                    evidence_type=EVIDENCE_TYPE_SECONDARY,
-                                    reasoning_type=REASONING_TYPE_LOGICAL,
-                                    credibility=0.7,
-                                )
-                                for f in (grounding_facts or [])
-                            ]
+                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])]
                             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
