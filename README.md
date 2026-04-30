@@ -433,6 +433,9 @@ OLLAMA_BASE_URL=http://localhost:11434
 - `OLLAMA_MODEL` — Main Ollama model for all generations (e.g. `gemma4:26b`).
 - `OLLAMA_MODEL_FALLBACK` — Fallback model auto-retried once on empty output or error for all generation calls (default: `qwen2.5:14b`).
 - `OLLAMA_BASE_URL` — Ollama server URL (default: `http://localhost:11434`).
+- `EXTRACTED_CONTEXT_LIMIT` — Max extracted facts injected into curation prompts (default: `10`).
+- `EXTRACTED_EVIDENCE_COUNT` — Max extracted facts considered as evidence per article during grounding/DoT (default: `2`).
+- `TOPIC_SIGNAL_WINDOW` — Number of most-recent extracted facts used to build adaptive topic signal (default: `50`).
 
 The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
 

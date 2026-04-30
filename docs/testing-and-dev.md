@@ -17,7 +17,7 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 291         | 291    | 0      |
+| 295         | 295    | 0      |
 
 All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
@@ -25,6 +25,7 @@ All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - Hybrid BM25+graph retrieval and persona-aware reranking (now active in production via `ContentCurator`)
 - GitHub repo context enrichment (`github_service.py` now wired into `main.py`, console mode, and curation)
 - **Derivative of Truth framework** (truth gradient scoring, evidence/reasoning annotation, uncertainty logic)
+- **Extracted knowledge application flow** (prompt grounding injection, extracted evidence scoring paths, and adaptive topic signal)
 - Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
 
 **Derivative of Truth status:**
@@ -34,30 +35,33 @@ All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 
 **Active production modules (as of April 29, 2026):**
 
-| Module                         | Status    | Integration point                                                                                     |
-| ------------------------------ | --------- | ----------------------------------------------------------------------------------------------------- |
-| `services/github_service.py`   | ✅ Active | `main.py` startup; context passed to `run_console()` and `ContentCurator` system prompt               |
-| `services/hybrid_retriever.py` | ✅ Active | `ContentCurator.__init__` bootstraps KG + `HybridRetriever`; used in `_grounding_facts_for_article()` |
+| Module                         | Status    | Integration point                                                                                        |
+| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
+| `services/github_service.py`   | ✅ Active | `main.py` startup; context passed to `run_console()` and `ContentCurator` system prompt                  |
+| `services/hybrid_retriever.py` | ✅ Active | `ContentCurator.__init__` bootstraps KG + `HybridRetriever`; used in `_grounding_facts_for_article()`    |
+| `services/ollama_service.py`   | ✅ Active | `summarise_for_curation()` injects extracted grounding context (via `build_extracted_grounding_context`) |
+| `services/content_curator.py`  | ✅ Active | Loads/uses extracted facts for prompt grounding, DoT evidence paths, and adaptive SSI component tilt     |
 
 ---
 
 #### Test coverage by file
 
-| Test file                               | What it covers                                                                                       |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `tests/test_avatar_state_loader.py`     | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.         |
-| `tests/test_buffer_service.py`          | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                       |
-| `tests/test_confidence_scoring.py`      | Signal extraction, score thresholds, and policy routing.                                             |
-| `tests/test_content_curator.py`         | RSS curation pipeline, keyword filtering, and article processing.                                    |
-| `tests/test_continual_learning.py`      | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration. |
-| `tests/test_derivative_of_truth.py`     | Truth gradient scoring, evidence/reasoning annotation, and uncertainty logic.                        |
-| `tests/test_evidence_mapping.py`        | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.               |
-| `tests/test_integration_flags.py`       | CLI flag registration and invalid-value handling.                                                    |
-| `tests/test_knowledge_graph.py`         | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries. |
-| `tests/test_learning_report.py`         | JSONL moderation capture, heuristics, aggregation, and report formatting.                            |
-| `tests/test_persona_graph_retrieval.py` | Real persona graph loading, retrieval spot checks, and fallback logic.                               |
-| `tests/test_selection_learning.py`      | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                |
-| `tests/test_spacy_nlp.py`               | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                   |
+| Test file                                  | What it covers                                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `tests/test_avatar_state_loader.py`        | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.         |
+| `tests/test_buffer_service.py`             | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                       |
+| `tests/test_confidence_scoring.py`         | Signal extraction, score thresholds, and policy routing.                                             |
+| `tests/test_content_curator.py`            | RSS curation pipeline, keyword filtering, and article processing.                                    |
+| `tests/test_continual_learning.py`         | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration. |
+| `tests/test_derivative_of_truth.py`        | Truth gradient scoring, evidence/reasoning annotation, and uncertainty logic.                        |
+| `tests/test_evidence_mapping.py`           | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.               |
+| `tests/test_integration_flags.py`          | CLI flag registration and invalid-value handling.                                                    |
+| `tests/test_knowledge_graph.py`            | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries. |
+| `tests/test_learning_report.py`            | JSONL moderation capture, heuristics, aggregation, and report formatting.                            |
+| `tests/test_persona_graph_retrieval.py`    | Real persona graph loading, retrieval spot checks, and fallback logic.                               |
+| `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                |
+| `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                   |
+| `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                            |
 
 ## Repository structure
 

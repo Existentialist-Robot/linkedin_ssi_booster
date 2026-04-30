@@ -10,6 +10,7 @@ Pull a model: ollama pull qwen2.5:14b
 """
 
 import os
+import re
 
 import logging
 from typing import Any, Optional
@@ -19,6 +20,7 @@ import ollama
 import json
 from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, clean_llm_text, format_post_paragraphs
 from services.console_grounding import build_grounding_facts_block, ProjectFact, truth_gate
+from services.avatar_intelligence import build_extracted_grounding_context, ExtractedEvidenceFact
 
 logger = logging.getLogger(__name__)
 
@@ -381,6 +383,7 @@ Post:
         channel: str = "linkedin",
         post_mode: bool = False,
         grounding_facts: Optional[list[ProjectFact]] = None,
+        extracted_facts: Optional[list[ExtractedEvidenceFact]] = None,
         interactive: bool = False,
         continuity_context: str = "",
         github_context: str = "",
@@ -449,11 +452,24 @@ Balance rules (non-negotiable):
 
         grounding_block = build_grounding_facts_block(grounding_facts or [])
 
+        # Inject recently extracted knowledge as additional grounding context.
+        _extracted_context = ""
+        if extracted_facts:
+            _limit = int(os.getenv("EXTRACTED_CONTEXT_LIMIT", "10"))
+            art_tokens = set(re.findall(r"[a-zA-Z0-9]{3,}", article_text.lower()))
+            relevant = [
+                f for f in extracted_facts
+                if art_tokens & set(re.findall(r"[a-zA-Z0-9]{3,}", f.statement.lower()))
+            ] or extracted_facts
+            _extracted_context = build_extracted_grounding_context(relevant[:_limit])
+
         _continuity_block = (
             f"\n\nContinuity context (avoid repeating these recent topics; build on or contrast them):\n{continuity_context}"
             if continuity_context
             else ""
         )
+
+        _extracted_block = f"\n\n{_extracted_context}" if _extracted_context else ""
 
         prompt = f"""Article:
 ---
@@ -464,7 +480,7 @@ Write a LinkedIn post reacting to this article.
 
 {ssi_instruction}
 
-{grounding_block}
+{grounding_block}{_extracted_block}
 
 {format_instructions}{_continuity_block}"""
 

@@ -2020,9 +2020,18 @@ def extract_and_append_knowledge(
     # RSS <description> fields often contain raw HTML markup which spaCy would
     # parse as text, polluting entities and tags with CSS property names, href
     # values, and other non-factual noise.
-    clean_text = re.sub(r"<[^>]+>", " ", article_text)  # remove all HTML tags
-    clean_text = re.sub(r"&[a-zA-Z]+;", " ", clean_text)  # &amp; &nbsp; etc.
+    clean_text = re.sub(r"<[^>]+>", " ", article_text)   # remove all HTML tags
+    clean_text = re.sub(r"&[a-zA-Z]+;", " ", clean_text) # &amp; &nbsp; etc.
     clean_text = re.sub(r"&#\d+;", " ", clean_text)       # &#8230; etc.
+    # Strip leftover link-placeholder artefacts: [ ], [&#8230;], [...]
+    clean_text = re.sub(r"\[\s*[^\]]{0,20}\s*\]", " ", clean_text)
+    # Strip RSS boilerplate footers: "The post X appeared first on Y."
+    clean_text = re.sub(
+        r"The post .+? appeared first on .+?\s*\.",
+        " ",
+        clean_text,
+        flags=re.IGNORECASE,
+    )
     clean_text = re.sub(r"\s{2,}", " ", clean_text).strip()
 
     # Skip extraction if nothing useful remains after stripping
@@ -2052,8 +2061,17 @@ def extract_and_append_knowledge(
         # Skip sentences that still contain HTML artefacts (residual tags or entities)
         if re.search(r"[<>]|&[a-zA-Z#]", sentence):
             continue
+        # Skip RSS footer boilerplate: "The post X appeared first on Y"
+        if re.search(r"appeared first on|^The post\b|^From this\b", sentence, re.IGNORECASE):
+            continue
+        # Skip sentences that are just a list of topics with no verb (e.g. "Caching, lazy-loading, routing, compaction, and more")
+        if re.match(r"^[\w\s,\-]+,\s+and\s+more\.?$", sentence, re.IGNORECASE):
+            continue
         # Skip rhetorical hooks — they carry no factual content worth storing
         if re.match(r"^(Have you ever|Did you know|Are you |Do you |What if |Ever wonder)", sentence, re.IGNORECASE):
+            continue
+        # Skip sentences with unresolved pronouns and no prior context (too ambiguous to be useful)
+        if re.match(r"^(It|They|This|That|These|Those)\s+(was|were|is|are|has|have|had|added|changed|became)\b", sentence, re.IGNORECASE):
             continue
         if len(new_facts) >= max_facts_per_article:
             break

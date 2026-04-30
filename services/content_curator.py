@@ -110,11 +110,41 @@ _SSI_WEIGHTS: dict[str, float] = {
     "build_relationships":  float(os.getenv("SSI_FOCUS_BUILD_RELATIONSHIPS",  "24")),
 }
 
+_SSI_TOPIC_HINTS: dict[str, set[str]] = {
+    "establish_brand": {"nlp", "spacy", "bm25", "rag", "graph", "knowledge"},
+    "find_right_people": {"community", "developer", "platform", "tools", "ecosystem"},
+    "engage_with_insights": {"anthropic", "openai", "llm", "agent", "aiops", "aws"},
+    "build_relationships": {"team", "culture", "leadership", "hiring", "lessons"},
+}
 
-def _pick_ssi_component() -> str:
-    """Pick a component proportionally to its configured focus percentage."""
-    components = list(_SSI_WEIGHTS.keys())
-    weights    = list(_SSI_WEIGHTS.values())
+
+def _build_topic_signal(extracted_facts: list[Any], window: int = 50) -> dict[str, int]:
+    """Aggregate recent extracted fact tags/entities into a topic frequency map."""
+    signal: dict[str, int] = {}
+    recent = extracted_facts[-window:]
+    for fact in recent:
+        for tag in (getattr(fact, "tags", []) or []):
+            key = str(tag).strip().lower()
+            if key:
+                signal[key] = signal.get(key, 0) + 1
+        for entity in (getattr(fact, "entities", []) or []):
+            key = str(entity).strip().lower()
+            if key:
+                signal[key] = signal.get(key, 0) + 1
+    return signal
+
+
+def _pick_ssi_component(topic_signal: Optional[dict[str, int]] = None) -> str:
+    """Pick a component proportionally to configured weights, with soft topic tilt."""
+    weights = dict(_SSI_WEIGHTS)
+    if topic_signal:
+        for component, hints in _SSI_TOPIC_HINTS.items():
+            match_score = sum(topic_signal.get(h, 0) for h in hints)
+            # Soft upweight: max +50% bias so base SSI strategy remains dominant.
+            weights[component] = weights[component] * (1.0 + min(match_score * 0.10, 0.50))
+
+    components = list(weights.keys())
+    weights = list(weights.values())
     return random.choices(components, weights=weights, k=1)[0]
 
 
@@ -393,6 +423,44 @@ def _article_to_evidence_path(article: dict[str, Any], claim_text: str) -> Any:
     )
 
 
+def _extracted_fact_to_evidence_path(extracted_fact: Any, claim_text: str) -> Any:
+    """Convert one extracted fact into an EvidencePath for DoT scoring."""
+    from services.derivative_of_truth import (
+        EvidencePath,
+        EVIDENCE_TYPE_SECONDARY,
+        REASONING_TYPE_STATISTICAL,
+    )
+
+    confidence = str(getattr(extracted_fact, "confidence", "medium") or "medium").lower()
+    credibility = {
+        "high": 0.85,
+        "medium": 0.65,
+        "low": 0.45,
+    }.get(confidence, 0.65)
+
+    statement = str(getattr(extracted_fact, "statement", "") or "")
+    source_id = str(getattr(extracted_fact, "source_fact_id", "unknown") or "unknown")
+    source = f"extracted_knowledge:{source_id[:8]}"
+
+    claim_tokens = set(re.findall(r"[a-z]{3,}", claim_text.lower()))
+    fact_tokens = set(re.findall(r"[a-z]{3,}", statement.lower()))
+    overlap = 0.0
+    if claim_tokens and fact_tokens:
+        overlap = len(claim_tokens & fact_tokens) / len(claim_tokens)
+
+    uncertainty = round(max(0.05, 0.35 * (1.0 - min(overlap * 3, 1.0))), 3)
+
+    return EvidencePath(
+        source=source,
+        evidence_type=EVIDENCE_TYPE_SECONDARY,
+        reasoning_type=REASONING_TYPE_STATISTICAL,
+        credibility=credibility,
+        uncertainty=uncertainty,
+        chain_length=1,
+        overlap=round(min(overlap * 3, 1.0), 3) if claim_tokens else 0.0,
+    )
+
+
 class ContentCurator:
 
     def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced", enable_spacy_summarization: bool = True, github_context: str = ""):
@@ -405,6 +473,8 @@ class ContentCurator:
         self.curation_grounding_tag_expansions = _load_curation_grounding_tag_expansions()
         self._avatar_facts: list = []
         self._domain_facts: list = []
+        self._extracted_facts: list = []
+        self._topic_signal: dict[str, int] = {}
         self._narrative_memory = None
         self._spacy_nlp = None
         self._kg = None
@@ -420,10 +490,18 @@ class ContentCurator:
 
         try:
             from services.shared import AVATAR_LEARNING_ENABLED
-            from services.avatar_intelligence import load_avatar_state, normalize_evidence_facts, normalize_domain_facts
+            from services.avatar_intelligence import (
+                load_avatar_state,
+                normalize_evidence_facts,
+                normalize_domain_facts,
+                normalize_extracted_facts,
+            )
             _state = load_avatar_state()
             self._avatar_facts = normalize_evidence_facts(_state)
             self._domain_facts = normalize_domain_facts(_state)
+            self._extracted_facts = normalize_extracted_facts(_state)
+            _topic_window = int(os.getenv("TOPIC_SIGNAL_WINDOW", "50"))
+            self._topic_signal = _build_topic_signal(self._extracted_facts, window=_topic_window)
             if AVATAR_LEARNING_ENABLED and _state.narrative_memory is not None:
                 self._narrative_memory = _state.narrative_memory
             # Bootstrap KG and HybridRetriever for graph-aware reranking
@@ -439,42 +517,61 @@ class ContentCurator:
         except Exception as _exc:
             logger.warning("Avatar state init failed (continuing): %s", _exc)
 
-    def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> list[ProjectFact]:
+    def _grounding_facts_for_article(self, article_title: str, article_summary: str, ssi_component: str) -> tuple[list[ProjectFact], list[Any]]:
         """
         Retrieve top-N persona and top-N domain facts, reranked via HybridRetriever when a
         KnowledgeGraph is available, falling back to plain BM25 retrieve_evidence otherwise.
         """
         query = f"{article_title}. {article_summary[:600]}. {ssi_component}"
-        if self._avatar_facts or self._domain_facts:
+        if self._avatar_facts or self._domain_facts or self._extracted_facts:
             from services.avatar_intelligence import (
                 retrieve_evidence,
                 evidence_facts_to_project_facts,
                 domain_facts_to_project_facts,
                 EvidenceFact,
                 DomainEvidenceFact,
+                ExtractedEvidenceFact,
                 _get_evidence_split,
             )
             n_persona, n_domain = _get_evidence_split()
+            n_extracted = int(os.getenv("EXTRACTED_EVIDENCE_COUNT", "2"))
 
             if self._hybrid_retriever is not None:
                 # Hybrid path: rerank all candidates together, then split by type
-                all_candidates = list(self._avatar_facts) + list(self._domain_facts)
-                total = n_persona + n_domain
+                all_candidates = list(self._avatar_facts) + list(self._domain_facts) + list(self._extracted_facts)
+                total = n_persona + n_domain + n_extracted
                 ranked = self._hybrid_retriever.find_facts(query, all_candidates, limit=total)
                 persona_hits_typed: list[EvidenceFact] = [f for f in ranked if isinstance(f, EvidenceFact)][:n_persona]
                 domain_hits_typed: list[DomainEvidenceFact] = [f for f in ranked if isinstance(f, DomainEvidenceFact)][:n_domain]
+                extracted_hits_typed: list[ExtractedEvidenceFact] = [f for f in ranked if isinstance(f, ExtractedEvidenceFact)][:n_extracted]
             else:
                 # Pure BM25 fallback
                 persona_hits = retrieve_evidence(query, self._avatar_facts, limit=n_persona) if self._avatar_facts else []
                 domain_hits = retrieve_evidence(query, self._domain_facts, limit=n_domain) if self._domain_facts else []
                 persona_hits_typed = [f for f in persona_hits if isinstance(f, EvidenceFact)]
                 domain_hits_typed = [f for f in domain_hits if isinstance(f, DomainEvidenceFact)]
+                q_tokens = set(re.findall(r"[a-zA-Z0-9_+#.-]{2,}", query.lower()))
+                scored_extracted = []
+                for fact in self._extracted_facts:
+                    text = " ".join([
+                        getattr(fact, "statement", ""),
+                        getattr(fact, "source_title", ""),
+                        " ".join(getattr(fact, "tags", []) or []),
+                        " ".join(getattr(fact, "entities", []) or []),
+                    ])
+                    tokens = set(re.findall(r"[a-zA-Z0-9_+#.-]{2,}", text.lower()))
+                    score = len(q_tokens & tokens)
+                    scored_extracted.append((score, fact))
+                scored_extracted.sort(key=lambda x: x[0], reverse=True)
+                extracted_hits_typed = [f for s, f in scored_extracted if s > 0][:n_extracted]
+                if not extracted_hits_typed:
+                    extracted_hits_typed = list(self._extracted_facts)[:n_extracted]
 
             persona_pf = evidence_facts_to_project_facts(persona_hits_typed)
             domain_pf = domain_facts_to_project_facts(domain_hits_typed)
-            return persona_pf + domain_pf
+            return persona_pf + domain_pf, extracted_hits_typed
         # Fallback: no avatar graph loaded — return empty (post still generated, just ungrounded)
-        return []
+        return [], []
 
     def _load_published_titles(self) -> set:
         if IDEAS_CACHE_PATH.exists():
@@ -634,8 +731,8 @@ class ContentCurator:
                 time.sleep(request_delay)
             _candidate_id = str(uuid.uuid4())
             # Weighted random pick: components with lower scores get more posts
-            ssi_component = _pick_ssi_component()
-            grounding_facts = self._grounding_facts_for_article(
+            ssi_component = _pick_ssi_component(self._topic_signal)
+            grounding_facts, extracted_facts = self._grounding_facts_for_article(
                 article_title=article["title"],
                 article_summary=article["summary"],
                 ssi_component=ssi_component,
@@ -668,6 +765,7 @@ class ContentCurator:
                     channel="linkedin",
                     post_mode=True,
                     grounding_facts=grounding_facts,
+                    extracted_facts=extracted_facts,
                     interactive=interactive,
                     github_context=self.github_context,
                 )
@@ -696,6 +794,7 @@ class ContentCurator:
                     ssi_component,
                     "x",
                     grounding_facts=grounding_facts,
+                    extracted_facts=extracted_facts,
                     interactive=interactive,
                     github_context=self.github_context,
                 )
@@ -711,6 +810,7 @@ class ContentCurator:
                     ssi_component,
                     "bluesky",
                     grounding_facts=grounding_facts,
+                    extracted_facts=extracted_facts,
                     interactive=interactive,
                     github_context=self.github_context,
                 )
@@ -729,6 +829,7 @@ class ContentCurator:
                     "youtube",
                     post_mode=True,
                     grounding_facts=grounding_facts,
+                    extracted_facts=extracted_facts,
                     interactive=interactive,
                     github_context=self.github_context,
                 )
@@ -791,7 +892,11 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, li_text)]
+                            _dot_paths = (
+                                [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])]
+                                + [_extracted_fact_to_evidence_path(f, li_text) for f in (extracted_facts or [])]
+                                + [_article_to_evidence_path(article, li_text)]
+                            )
                             _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -944,6 +1049,7 @@ class ContentCurator:
                     channel=effective_channel,
                     post_mode=(message_type == "post"),
                     grounding_facts=grounding_facts,
+                    extracted_facts=extracted_facts,
                     interactive=interactive,
                     continuity_context=_continuity,
                     github_context=self.github_context,
@@ -1061,7 +1167,11 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, post_text)]
+                            _dot_paths = (
+                                [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])]
+                                + [_extracted_fact_to_evidence_path(f, post_text) for f in (extracted_facts or [])]
+                                + [_article_to_evidence_path(article, post_text)]
+                            )
                             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -1108,7 +1218,11 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, post_text)]
+                            _dot_paths = (
+                                [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])]
+                                + [_extracted_fact_to_evidence_path(f, post_text) for f in (extracted_facts or [])]
+                                + [_article_to_evidence_path(article, post_text)]
+                            )
                             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
