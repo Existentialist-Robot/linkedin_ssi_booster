@@ -109,8 +109,8 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
             else:
                 icon, src_colour = "🔗", Fore.WHITE
 
-            cred_col = Fore.GREEN if cred >= 0.80 else (Fore.YELLOW if cred >= 0.55 else Fore.RED)
-            unc_col = Fore.RED if unc_ep >= 0.35 else (Fore.YELLOW if unc_ep >= 0.20 else Fore.GREEN)
+            cred_col = Fore.GREEN if cred >= 0.75 else (Fore.YELLOW if cred >= 0.62 else Fore.RED)
+            unc_col = Fore.RED if unc_ep >= 0.29 else (Fore.YELLOW if unc_ep >= 0.16 else Fore.GREEN)
 
             lines.append(
                 f"    {icon} {src_colour}{source}{r}  "
@@ -157,8 +157,8 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
     lines.append(divider)
     lines.append(
         f"  {Fore.WHITE}Legend  "
-        f"cred: {Fore.GREEN}≥0.80 high{Fore.WHITE} · {Fore.YELLOW}≥0.55 mod{Fore.WHITE} · {Fore.RED}<0.55 low{Fore.WHITE}   "
-        f"unc: {Fore.GREEN}≤0.19 low{Fore.WHITE} · {Fore.YELLOW}0.20–0.34 mod{Fore.WHITE} · {Fore.RED}≥0.35 high{Fore.WHITE}   "
+        f"cred: {Fore.GREEN}≥0.75 high{Fore.WHITE} · {Fore.YELLOW}0.62–0.74 mod{Fore.WHITE} · {Fore.RED}<0.62 low{Fore.WHITE}   "
+        f"unc: {Fore.GREEN}≤0.15 low{Fore.WHITE} · {Fore.YELLOW}0.16–0.28 mod{Fore.WHITE} · {Fore.RED}≥0.29 high{Fore.WHITE}   "
         f"gradient: {Fore.GREEN}≥0.70 strong{Fore.WHITE} · {Fore.YELLOW}0.50–0.69 moderate{Fore.WHITE} · {Fore.RED}<0.50 weak{r}"
     )
     return "\n".join(lines)
@@ -167,9 +167,9 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
 def _unc_colour(value: float) -> str:
     """Return a colorama colour code based on uncertainty magnitude."""
     from colorama import Fore
-    if value >= 0.35:
+    if value >= 0.29:
         return str(Fore.RED)
-    if value >= 0.20:
+    if value >= 0.16:
         return str(Fore.YELLOW)
     return str(Fore.GREEN)
 
@@ -188,7 +188,7 @@ def _explain_evidence_path_line(ep: dict[str, Any]) -> str:
         source_desc = f"first-hand persona fact from your avatar graph ('{node}')"
     elif source.startswith("domain:"):
         node = source.split(":", 1)[1]
-        source_desc = f"domain knowledge fact ('{node}')"
+        source_desc = f"user-curated domain knowledge ('{node}')"
     else:
         source_desc = f"knowledge source ('{source}')"
 

@@ -43,8 +43,10 @@ def fact_to_evidence_path(fact: Any, claim_text: str) -> Any:
 
     source = getattr(fact, "source", str(fact))
     is_avatar = source.startswith("avatar:")
-    evidence_type = EVIDENCE_TYPE_PRIMARY if is_avatar else EVIDENCE_TYPE_SECONDARY
-    reasoning_type = REASONING_TYPE_LOGICAL if is_avatar else REASONING_TYPE_STATISTICAL
+    is_domain = source.startswith("domain:")
+    # Domain knowledge is user-curated (1st/2nd-hand) — treat as primary, logical
+    evidence_type = EVIDENCE_TYPE_PRIMARY if (is_avatar or is_domain) else EVIDENCE_TYPE_SECONDARY
+    reasoning_type = REASONING_TYPE_LOGICAL if (is_avatar or is_domain) else REASONING_TYPE_STATISTICAL
 
     # Credibility
     if is_avatar:
@@ -63,6 +65,10 @@ def fact_to_evidence_path(fact: Any, claim_text: str) -> Any:
             credibility = 0.85
         else:
             credibility = 0.80
+    elif is_domain:
+        # User-curated domain knowledge — just under persona, scaled by tag specificity
+        tag_count = len(getattr(fact, "tags", set()) or set())
+        credibility = 0.88 if tag_count >= 6 else (0.82 if tag_count >= 3 else 0.76)
     else:
         tag_count = len(getattr(fact, "tags", set()) or set())
         credibility = 0.72 if tag_count >= 6 else (0.65 if tag_count >= 3 else 0.58)
