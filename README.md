@@ -115,7 +115,7 @@ flowchart TD
 **Explanation:**
 
 - BM25 and the Knowledge Graph retrieve and rerank evidence for each claim.
-- The Derivative of Truth (DoT) layer analyzes the quality of evidence, the type of reasoning, and uncertainty, producing a truth gradient score and a human-readable explanation.
+- The Derivative of Truth (DoT) layer analyzes the quality of evidence, the type of reasoning, and uncertainty, **and how well the generated text aligns with that evidence**, producing a truth gradient score and a human-readable explanation.
 - The system outputs both a decision (accept/reject/flag) and an explanation, closing the loop with the user.
 
 #### How BM25, the Knowledge Graph, and DoT Work Together
@@ -127,11 +127,12 @@ The Derivative of Truth framework is powerful because it combines deterministic 
 - **Hybrid Scoring** combines BM25’s lexical precision with graph-based proximity/support, giving both high recall (BM25 finds candidates) and high precision (the graph reranks by relevance to your persona/context).
 - **The DoT Reasoning Layer** sits on top of retrieval. For each claim, DoT:
   - Annotates evidence by type (primary, secondary, derived, pattern), reasoning (logical, statistical, analogy, pattern), and credibility.
-  - Aggregates the quality of evidence and the type of reasoning supporting the claim.
+  - Computes **claim-evidence token overlap** — how much the generated text's language actually reflects the evidence it was grounded in.
+  - Aggregates evidence quality, reasoning type, credibility, and overlap into a single composite score.
   - Tracks and penalizes uncertainty (weak evidence, long inference chains, conflicts, sparse support).
-  - Composes a single, interpretable “truth gradient” score, and explains why a claim is strong or weak.
+  - Composes a single, interpretable "truth gradient" score, and explains why a claim is strong or weak.
 
-**In effect, DoT turns your system into not just a retriever, but a reasoner—able to justify, explain, and flag claims based on the quality of their support and the reasoning behind them.**
+**In effect, DoT turns your system into not just a retriever, but a reasoner—able to justify, explain, and flag claims based on both the quality of their evidence _and_ how faithfully the LLM output reflects that evidence.**
 
 > ### The Derivative of Truth: A New Mathematical Framework for AI Truthfulness
 >
@@ -153,6 +154,10 @@ The Derivative of Truth framework is powerful because it combines deterministic 
 > - **Truth Score:**
 >   T(statement) = Σ [E_i × R_i × C_i × U_i]
 >   Where E_i is evidence strength, R_i is reasoning validity, C_i is source credibility, U_i is uncertainty penalty.
+> - **Implemented base_gradient formula (with claim-evidence overlap O_i):**
+>   With overlap: `0.30×E_i + 0.25×R_i + 0.20×C_i + 0.25×O_i`
+>   Without overlap (KG-only paths): `0.40×E_i + 0.35×R_i + 0.25×C_i`
+>   O_i ∈ [0,1] is the token overlap between the LLM output and the supporting evidence text, scaled to reward alignment.
 >
 > **The Key Insight:**
 > Don't solve for truth directly—solve for the trajectory toward truth. This makes the model reward-seeking for reliable knowledge, not just confident pattern matching.
@@ -190,10 +195,11 @@ The system closes the loop between generation, evidence retrieval, truth gate sc
 
 Key benefits:
 
-- **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, and uncertainty, going beyond simple fact-checking.
+- **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, credibility, **and how well the LLM output aligns with the evidence it was given** — not just how good the evidence was.
+- **Claim-Evidence Alignment:** Each evidence path now carries a token overlap score (weak / moderate / strong) shown in the CLI report, revealing when the LLM's language drifts from its grounding facts.
 - **Evidence & Reasoning Annotation:** Each fact/claim is annotated with evidence type, reasoning type, and source credibility for transparency and explainability.
 - **Uncertainty Handling:** Tracks and penalizes uncertainty (weak evidence, long chains, conflicts, sparse support), flagging overconfident or unsupported claims.
-- **Improved Explainability:** CLI and reports show why claims are accepted/rejected, what evidence supports them, and how uncertainty affects scores.
+- **Improved Explainability:** CLI and reports show why claims are accepted/rejected, what evidence supports them, alignment strength per path, and how uncertainty affects scores.
 - **Better Content Quality:** Filters out weak claims, prioritizes well-grounded ones, and ensures published content is credible and authoritative.
 - **Adaptive Learning:** As more evidence and reasoning paths are accumulated, scoring and explanations improve, making automation smarter over time.
 - **Alignment with Best Practices:** Follows trustworthy AI and explainable AI (XAI) principles for robust, future-proof automation.
