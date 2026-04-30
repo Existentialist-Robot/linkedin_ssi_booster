@@ -604,15 +604,19 @@ def main():
                     # Combine project and domain facts for retrieval
                     from typing import Sequence, Union
                     from services.avatar_intelligence import EvidenceFact, DomainEvidenceFact
+                    from services.console_grounding import truth_gate_result as _tgr_exp
                     _all_facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]] = list(_gen_avatar_facts) + list(_gen_domain_facts)
                     _ev_proj2 = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3"))
                     _ev_dom2 = int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
                     _relevant = retrieve_evidence(grounding_query, _all_facts, limit=_ev_proj2 + _ev_dom2)
+                    _, _gate_meta = _tgr_exp(post, topic.get("angle", ""), grounding_facts)
                     _explain = build_explain_output(
                         evidence_facts=_relevant,
                         article_ref=topic.get("title", ""),
                         channel=channel,
                         ssi_component=topic.get("ssi_component", ""),
+                        dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
+                        spacy_sim_scores=_gate_meta.spacy_sim_scores,
                     )
                     print(format_explain_output(_explain))
 

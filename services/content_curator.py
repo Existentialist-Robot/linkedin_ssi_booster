@@ -897,15 +897,19 @@ class ContentCurator:
                                 build_explain_output,
                                 format_explain_output,
                             )
+                            from services.console_grounding import truth_gate_result as _tgr_exp
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
                             all_facts = self._avatar_facts + self._domain_facts
                             _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
                             _relevant = retrieve_evidence(grounding_query, all_facts, limit=_exp_limit)
+                            _, _gate_meta = _tgr_exp(li_text, article["summary"], grounding_facts)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
                                 channel="all",
                                 ssi_component=ssi_component,
+                                dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
+                                spacy_sim_scores=_gate_meta.spacy_sim_scores,
                             )
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
@@ -972,14 +976,18 @@ class ContentCurator:
                                 build_explain_output,
                                 format_explain_output,
                             )
+                            from services.console_grounding import truth_gate_result as _tgr_exp
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
                             _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
                             _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
+                            _, _gate_meta = _tgr_exp(li_text, article["summary"], grounding_facts)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
                                 channel="all",
                                 ssi_component=ssi_component,
+                                dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
+                                spacy_sim_scores=_gate_meta.spacy_sim_scores,
                             )
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
@@ -1173,14 +1181,18 @@ class ContentCurator:
                                 build_explain_output,
                                 format_explain_output,
                             )
+                            from services.console_grounding import truth_gate_result as _tgr_exp
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
                             _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
                             _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
+                            _, _gate_meta = _tgr_exp(post_text, article["summary"], grounding_facts)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
                                 channel=effective_channel,
                                 ssi_component=ssi_component,
+                                dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
+                                spacy_sim_scores=_gate_meta.spacy_sim_scores,
                             )
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:
@@ -1224,14 +1236,18 @@ class ContentCurator:
                                 build_explain_output,
                                 format_explain_output,
                             )
+                            from services.console_grounding import truth_gate_result as _tgr_exp
                             grounding_query = f"{article['title']}. {article['summary'][:600]}. {ssi_component}"
                             _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
                             _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
+                            _, _gate_meta = _tgr_exp(post_text, article["summary"], grounding_facts)
                             _explain = build_explain_output(
                                 evidence_facts=_relevant,
                                 article_ref=article.get("title", ""),
                                 channel=effective_channel,
                                 ssi_component=ssi_component,
+                                dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
+                                spacy_sim_scores=_gate_meta.spacy_sim_scores,
                             )
                             print(format_explain_output(_explain))
                         except Exception as _exp_exc:

@@ -263,6 +263,9 @@ class ExplainOutput:
     article_ref: str
     channel: str
     ssi_component: str
+    # Truth-gate internals — populated when gate_meta is passed to build_explain_output
+    dot_per_sentence_scores: list[float] = field(default_factory=list)
+    spacy_sim_scores: dict[str, float] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -1144,8 +1147,19 @@ def build_explain_output(
     article_ref: str,
     channel: str,
     ssi_component: str,
+    dot_per_sentence_scores: list[float] | None = None,
+    spacy_sim_scores: dict[str, float] | None = None,
 ) -> ExplainOutput:
-    """Build an ExplainOutput summary from the evidence facts used in a generation."""
+    """Build an ExplainOutput summary from the evidence facts used in a generation.
+
+    Args:
+        evidence_facts:           Facts retrieved for grounding.
+        article_ref:              Article title or URL for display.
+        channel:                  Target channel (linkedin, x, bluesky, etc.).
+        ssi_component:            SSI component the post targets.
+        dot_per_sentence_scores:  Per-sentence DoT gradient from TruthGateMeta.
+        spacy_sim_scores:         Per-sentence spaCy similarity from TruthGateMeta.
+    """
     ids = [f.evidence_id for f in evidence_facts]
     summaries = []
     for f in evidence_facts:
@@ -1167,6 +1181,8 @@ def build_explain_output(
         article_ref=article_ref,
         channel=channel,
         ssi_component=ssi_component,
+        dot_per_sentence_scores=dot_per_sentence_scores or [],
+        spacy_sim_scores=spacy_sim_scores or {},
     )
 
 
@@ -1234,6 +1250,34 @@ def format_explain_output(explain: ExplainOutput) -> str:
                 lines.append(f"    {summary}")
     else:
         lines.append(f"  {DIM}No persona graph facts were used (graph is empty or not loaded).{R}")
+
+    # --- Per-sentence DoT gradient scores (Part B) ---
+    if explain.dot_per_sentence_scores:
+        lines.append("")
+        lines.append(f"  {Y}Truth gate — per-sentence DoT gradient:{R}")
+        for i, score in enumerate(explain.dot_per_sentence_scores, 1):
+            if score >= 0.6:
+                bar_col = G
+            elif score >= 0.35:
+                bar_col = Y
+            else:
+                bar_col = str(Fore.RED)
+            bar_width = max(1, round(score * 20))
+            bar = "█" * bar_width
+            lines.append(f"  {DIM}▸{R} sentence {i:>2}  {bar_col}{bar:<20}{R}  {score:.3f}")
+    # --- Per-sentence spaCy similarity scores (Part C) ---
+    if explain.spacy_sim_scores:
+        lines.append("")
+        lines.append(f"  {Y}Truth gate — spaCy semantic similarity (specific-claim sentences):{R}")
+        for sentence, sim in explain.spacy_sim_scores.items():
+            short = sentence[:70] + "…" if len(sentence) > 70 else sentence
+            if sim >= 0.5:
+                sim_col = G
+            elif sim >= 0.25:
+                sim_col = Y
+            else:
+                sim_col = str(Fore.RED)
+            lines.append(f"  {DIM}▸{R} {sim_col}{sim:.3f}{R}  {DIM}{short}{R}")
 
     lines.append(divider)
     return "\n".join(lines)
