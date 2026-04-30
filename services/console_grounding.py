@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import os
 import re
 from typing import TYPE_CHECKING
+from colorama import Fore, Style
 
 if TYPE_CHECKING:
     pass  # avoid circular import; avatar_intelligence imported lazily inside truth_gate
@@ -629,6 +630,10 @@ def truth_gate_result(
         if all(url_pattern.match(word) for word in stripped.split()):
             kept.append(sentence)
             continue
+        # Any sentence containing a URL should be preserved (CTA/source links)
+        if _re.search(r"https?://\S+", stripped):
+            kept.append(sentence)
+            continue
         # Questions (ending with '?')
         if stripped.endswith('?'):
             kept.append(sentence)
@@ -730,12 +735,21 @@ def truth_gate_result(
 
     if removed:
         for full_sentence, reason in removed:
-            _truth_logger.info("Truth gate removed [channel=%s] [%s]: %s", channel, reason, full_sentence)
+            _truth_logger.info(
+                "%s🛑 Truth gate removed [channel=%s] [%s]: %s%s",
+                str(Fore.RED),
+                channel,
+                reason,
+                full_sentence,
+                str(Style.RESET_ALL),
+            )
         _truth_logger.info(
-            "Truth gate summary [channel=%s]: removed %d of %d sentences",
+            "%s⚖️  Truth gate summary [channel=%s]: removed %d of %d sentences%s",
+            str(Fore.YELLOW),
             channel,
             len(removed),
             len(sentences),
+            str(Style.RESET_ALL),
         )
     else:
         _truth_logger.debug(

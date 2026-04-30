@@ -60,10 +60,10 @@ def fetch_relevant_articles(max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
                         "link":   link,
                         "published": entry.get("published", "")
                     })
-                    logger.info(f"  Matched: [{feed_info['name']}] {title[:60]}")
+                    logger.info(f"  🧲 Matched: [{feed_info['name']}] {title[:60]}")
         except Exception as e:
             logger.warning(f"Failed to fetch {feed_info['name']}: {e}")
-    logger.info(f"Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
+    logger.info(f"🗞️  Found {len(articles)} relevant articles across {len(RSS_FEEDS)} feeds")
     return articles
 
 def _truncate_at_sentence(text: str, budget: int) -> str:
@@ -742,13 +742,38 @@ class ContentCurator:
             if not dry_run or learn:
                 try:
                     from services.avatar_intelligence import extract_and_append_knowledge
-                    extract_and_append_knowledge(
+                    _new_facts = extract_and_append_knowledge(
                         article_text=article["summary"],
                         source_url=article["link"],
                         source_title=article["title"],
                     )
+                    if _new_facts:
+                        # Reload extracted-fact pool so subsequent articles in this same run
+                        # can use newly learned facts for grounding / DoT / topic signal.
+                        from services.avatar_intelligence import load_avatar_state, normalize_extracted_facts
+                        _latest_state = load_avatar_state()
+                        self._extracted_facts = normalize_extracted_facts(_latest_state)
+                        _topic_window = int(os.getenv("TOPIC_SIGNAL_WINDOW", "50"))
+                        self._topic_signal = _build_topic_signal(self._extracted_facts, window=_topic_window)
+                        logger.info(
+                            "🧠 Knowledge extraction: ✨ +%d fact(s) from '%s' (📚 pool=%d)",
+                            len(_new_facts),
+                            article["title"][:60],
+                            len(self._extracted_facts),
+                        )
+                    else:
+                        logger.info(
+                            "🧠 Knowledge extraction: ➕ 0 new facts from '%s' (📚 pool=%d)",
+                            article["title"][:60],
+                            len(self._extracted_facts),
+                        )
                 except Exception as _exc:
                     logger.debug("Knowledge extraction skipped (continuing): %s", _exc)
+            else:
+                logger.info(
+                    "Knowledge extraction skipped for '%s' (dry_run without --learn)",
+                    article["title"][:60],
+                )
 
             logger.info(f"Generating [{message_type}|{ssi_component}] for: {article['title'][:60]}...")
 
