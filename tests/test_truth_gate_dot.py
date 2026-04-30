@@ -282,6 +282,55 @@ class TestPerSentenceDoTScoring:
         )
         assert "weak_dot_gradient" in meta.reason_codes
 
+    def test_project_like_org_phrase_not_flagged_g7_ria(self) -> None:
+        """Do not flag ORG-like phrases when used as explicit project mentions."""
+        fact = make_fact(
+            project="G7 GovAI Grand Challenge RIA",
+            details="Built bilingual NLP retrieval over Canadian federal law",
+        )
+        text = (
+            "A 397k+ document index with sub-500ms query times is a benchmark worth "
+            "striving for, as seen in our G7 RIA project."
+        )
+
+        with (
+            patch("services.console_grounding._truth_gate._extract_spacy_orgs", return_value=["G7 RIA"]),
+            patch("services.console_grounding._truth_gate._score_sentence_bm25", return_value=10.0),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="GovTech RIA project retrieval benchmarks",
+                facts=[fact],
+                interactive=False,
+            )
+
+        assert meta.removed_count == 0
+        assert "G7 RIA project" in filtered
+
+    def test_project_like_org_phrase_not_flagged_g7_govtech_ai(self) -> None:
+        """Do not flag ORG-like phrases when sentence is explicitly about a project."""
+        fact = make_fact(
+            project="G7 GovAI Grand Challenge RIA",
+            details="Used bilingual NLP over Canadian federal law",
+        )
+        text = "The G7 GovTech AI project has already shown promise in using bilingual NLP over Canadian federal law."
+
+        with (
+            patch("services.console_grounding._truth_gate._extract_spacy_orgs", return_value=["G7 GovTech AI"]),
+            patch("services.console_grounding._truth_gate._score_sentence_bm25", return_value=10.0),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="GovTech AI project outcomes in bilingual NLP",
+                facts=[fact],
+                interactive=False,
+            )
+
+        assert meta.removed_count == 0
+        assert "G7 GovTech AI project" in filtered
+
 
 # ---------------------------------------------------------------------------
 # Part C — spaCy similarity floor (truth_gate_result integration)

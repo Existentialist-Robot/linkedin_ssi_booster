@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 import logging
-from typing import Any, Sequence, Union
+from typing import Any, Sequence, TypeVar, Union, cast
 
 from services.avatar_intelligence._models import (
     DomainEvidenceFact,
@@ -13,6 +13,8 @@ from services.avatar_intelligence._models import (
 )
 
 logger = logging.getLogger(__name__)
+
+_EvidenceT = TypeVar("_EvidenceT", EvidenceFact, DomainEvidenceFact)
 
 try:
     from rank_bm25 import BM25Okapi as _BM25Okapi
@@ -199,9 +201,9 @@ def retrieve_domain_evidence(
 
 def retrieve_evidence(
     query: str,
-    facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]],
+    facts: Sequence[_EvidenceT],
     limit: int = 5,
-) -> list[Union[EvidenceFact, DomainEvidenceFact]]:
+) -> list[_EvidenceT]:
     """Score and retrieve the most relevant evidence facts for a query.
 
     Uses BM25Okapi (rank_bm25) when available — accounts for term-frequency
@@ -255,4 +257,4 @@ def retrieve_evidence(
             if len(results) >= limit:
                 break
 
-    return results[:limit]
+    return cast(list[_EvidenceT], results[:limit])

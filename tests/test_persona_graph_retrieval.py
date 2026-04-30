@@ -143,17 +143,25 @@ def test_app_starts_without_profile_context(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_no_profile_context_env_loading_in_retrieval_code() -> None:
-    """Verify console_grounding.py no longer loads PROFILE_CONTEXT from env (T7.4).
+    """Verify console_grounding no longer loads PROFILE_CONTEXT from env (T7.4).
 
     The function parse_profile_project_facts may still exist as a utility but
     must not call os.getenv('PROFILE_CONTEXT') so the env var is not required.
+    Now checks the console_grounding package directory (refactored from single file).
     """
-    cg_path = Path(__file__).parent.parent / "services" / "console_grounding.py"
-    source = cg_path.read_text(encoding="utf-8")
-    # The env var must not be loaded from the environment
-    assert 'os.getenv("PROFILE_CONTEXT"' not in source, (
-        "console_grounding.py still loads PROFILE_CONTEXT from env — migration incomplete"
+    cg_dir = Path(__file__).parent.parent / "services" / "console_grounding"
+    sources: list[str] = []
+    if cg_dir.is_dir():
+        for py_file in sorted(cg_dir.glob("*.py")):
+            sources.append(py_file.read_text(encoding="utf-8"))
+    else:
+        # Fallback: single-file layout (pre-refactor)
+        cg_path = Path(__file__).parent.parent / "services" / "console_grounding.py"
+        sources.append(cg_path.read_text(encoding="utf-8"))
+    combined = "\n".join(sources)
+    assert 'os.getenv("PROFILE_CONTEXT"' not in combined, (
+        "console_grounding still loads PROFILE_CONTEXT from env — migration incomplete"
     )
-    assert "os.getenv('PROFILE_CONTEXT'" not in source, (
-        "console_grounding.py still loads PROFILE_CONTEXT from env — migration incomplete"
+    assert "os.getenv('PROFILE_CONTEXT'" not in combined, (
+        "console_grounding still loads PROFILE_CONTEXT from env — migration incomplete"
     )
