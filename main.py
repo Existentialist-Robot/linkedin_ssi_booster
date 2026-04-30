@@ -309,7 +309,7 @@ def main():
         if invalid:
             parser.error(f"invalid --channel value(s): {', '.join(invalid)}. Choose from: {', '.join(sorted(_VALID_CHANNELS))}")
         if "all" in parts:
-            return ["linkedin", "x", "bluesky", "youtube"]
+            return ["all"]
         return parts
 
     parser.add_argument("--channel",   type=_parse_channels, default=["linkedin"],
@@ -479,6 +479,9 @@ def main():
             return
 
         target_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
+        # --schedule has no "all" handler — expand it here
+        if target_channels == ["all"]:
+            target_channels = ["linkedin", "x", "bluesky", "youtube"]
 
 
         for channel in target_channels:
