@@ -595,6 +595,7 @@ def main():
                         _dot_report_dict = report_truth_gradient(post, _dot_result, verbose=True)
                         _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
                         print(_dot_colour + "\n🔬 Derivative of Truth Report:" + str(Style.RESET_ALL))
+                        print(str(Style.DIM) + "   Measures relevance alignment between evidence and claim — penalizes off-topic grounding" + str(Style.RESET_ALL))
                         print(format_truth_gradient_report(_dot_report_dict))
                         print()
                     except Exception as _dot_err:

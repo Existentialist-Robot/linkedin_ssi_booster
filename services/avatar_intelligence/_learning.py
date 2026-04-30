@@ -228,6 +228,7 @@ def format_explain_output(explain: ExplainOutput) -> str:
     lines = [
         divider,
         f"  {Y}🧠 Avatar Explain{R}",
+        f"  {DIM}Shows which facts grounded this post — credibility check per evidence source{R}",
         divider,
         f"  {C}Article  :{R} {W}{explain.article_ref}{R}",
         f"  {C}Channel  :{R} {W}{explain.channel}{R}",
