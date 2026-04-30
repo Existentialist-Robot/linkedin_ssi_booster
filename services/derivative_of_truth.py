@@ -646,6 +646,26 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
             lines.append(_explain_evidence_path_line(ep))
 
     lines.append(divider)
+
+    # --- Footer: what this report means ---
+    DIM = str(Style.DIM)
+    if flagged:
+        footer_note = (
+            f"  {DIM}⚠  The evidence feeding this generation was weak. "
+            f"Review the post carefully before publishing.{R}"
+        )
+    elif tg >= 0.70:
+        footer_note = (
+            f"  {DIM}ℹ  Strong grounding: the evidence fed to the model was high quality. "
+            f"This scores your inputs, not factual accuracy of the output.{R}"
+        )
+    else:
+        footer_note = (
+            f"  {DIM}ℹ  Moderate grounding: scores how trustworthy the evidence fed to the "
+            f"model was — not whether the output is factually accurate.{R}"
+        )
+    lines.append(footer_note)
+    lines.append(divider)
     return "\n".join(lines)
 
 
