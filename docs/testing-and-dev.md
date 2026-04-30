@@ -11,6 +11,12 @@ pytest tests/ -v
 
 For tests that depend on environment variables such as `BUFFER_API_KEY`, the README recommends loading `.env` values with `python-dotenv`, including `python -m dotenv run -- python -m pytest tests/test_buffer_service.py -v`.
 
+Latest full-suite run command (excluding Buffer service tests):
+
+```bash
+python -m pytest -q tests/ --ignore=tests/test_buffer_service.py
+```
+
 ## Test coverage and results (latest)
 
 ### Summary
@@ -32,6 +38,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - **`content_curator` package refactor** (`services/content_curator.py` split into a proper Python package with seven focused submodules)
 - **`avatar_intelligence` package refactor** (`services/avatar_intelligence.py` split into a proper Python package with ten focused submodules: `_paths`, `_models`, `_loaders`, `_normalizers`, `_retrieval`, `_grounding`, `_learning`, `_confidence`, `_narrative`, `_extraction`)
 - **`console_grounding` package refactor** (`services/console_grounding.py` split into a proper Python package with focused submodules: `_config`, `_models`, `_profile_parser`, `_retrieval`, `_gate_helpers`, `_truth_gate`)
+- **`selection_learning` package refactor** (`services/selection_learning.py` split into a proper Python package with focused submodules: `_constants`, `_models`, `_storage`, `_text`, `_logging`, `_published`, `_reconcile`, `_priors`, `_ranking`, `_feedback`)
 - Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
 
 **Derivative of Truth status:**
@@ -68,6 +75,9 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `services/content_curator/_grounding.py` | ✅ Active | `load_curation_grounding_keywords()`, `load_curation_grounding_tag_expansions()`                         |
 | `services/console_grounding/_truth_gate.py` | ✅ Active | `truth_gate()` and `truth_gate_result()` with DoT + spaCy safety checks                                   |
 | `services/console_grounding/_retrieval.py` | ✅ Active | Query constraints, deterministic fact ranking, and grounded reply construction                              |
+| `services/selection_learning/__init__.py` | ✅ Active | Public API shim for candidate logging, reconciliation, priors, ranking, and user feedback                  |
+| `services/selection_learning/_reconcile.py` | ✅ Active | `reconcile_published()` match/label flow for Buffer SENT posts and acceptance-window rejection labeling     |
+| `services/selection_learning/_ranking.py` | ✅ Active | `rank_articles()` using relevance + freshness + acceptance priors + boost factors                           |
 
 ---
 
@@ -86,7 +96,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `tests/test_knowledge_graph.py`            | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries.                                                                   |
 | `tests/test_learning_report.py`            | JSONL moderation capture, heuristics, aggregation, and report formatting.                                                                                              |
 | `tests/test_persona_graph_retrieval.py`    | Real persona graph loading, retrieval spot checks, and fallback logic.                                                                                                 |
-| `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                                                                                  |
+| `tests/test_selection_learning.py`         | Candidate logging, buffer-id update, published reconciliation, acceptance priors, and ranking behavior (including package-refactor compatibility).                   |
 | `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based). Default model is `en_core_web_md` (configurable via `SPACY_MODEL`).                 |
 | `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                                                                                              |
 | `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, concept/service false-positive filters (`S3`, `Java 21`, `AI Q&A`), and `TruthGateMeta` field coverage. |
@@ -132,6 +142,18 @@ Project file tree (top-level):
 │   │   ├── _retrieval.py         # deterministic retrieval + grounded replies
 │   │   ├── _gate_helpers.py      # regex/BM25 helpers and evidence checks
 │   │   └── _truth_gate.py        # truth gate orchestration + moderation hooks
+│   ├── selection_learning/       # refactored package (was selection_learning.py)
+│   │   ├── __init__.py           # backward-compatible public API re-exports
+│   │   ├── _constants.py         # paths and scoring thresholds
+│   │   ├── _models.py            # CandidateRecord / PublishedRecord / FeaturePrior
+│   │   ├── _storage.py           # JSONL read/append/rewrite helpers
+│   │   ├── _text.py              # hashing, tokenization, Jaccard, matching
+│   │   ├── _logging.py           # candidate logging + NLP enrichment
+│   │   ├── _published.py         # published-cache upsert helpers
+│   │   ├── _reconcile.py         # Buffer SENT reconciliation and labeling
+│   │   ├── _priors.py            # Beta-smoothed acceptance priors + boosts
+│   │   ├── _ranking.py           # article ranking formula and freshness decay
+│   │   └── _feedback.py          # explicit user feedback capture/application
 │   ├── buffer_service.py
 │   ├── ...
 ├── data/
