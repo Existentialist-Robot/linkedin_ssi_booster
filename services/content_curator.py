@@ -335,6 +335,62 @@ def _fact_to_evidence_path(fact: Any, claim_text: str) -> Any:
     )
 
 
+def _article_to_evidence_path(article: dict[str, Any], claim_text: str) -> Any:
+    """Convert the source article into an EvidencePath for DoT scoring.
+
+    The article is the *primary trigger* for the generated post, so it must
+    be represented in the evidence.  Credibility is based on the source domain
+    (known quality publishers score higher); uncertainty is derived from token
+    overlap between the article summary and the generated claim text.
+    """
+    from services.derivative_of_truth import (
+        EvidencePath,
+        EVIDENCE_TYPE_SECONDARY,
+        REASONING_TYPE_STATISTICAL,
+    )
+
+    # Source credibility by known publisher tier
+    _TIER_HIGH = {"thenewstack.io", "martinfowler.com", "engineering.atspotify.com",
+                  "netflixtechblog.com", "research.google", "arxiv.org", "huggingface.co"}
+    _TIER_MED  = {"medium.com", "dev.to", "hackernoon.com", "infoq.com",
+                  "dzone.com", "towardsdatascience.com"}
+    link: str = article.get("link", "")
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(link).netloc.lower().lstrip("www.")
+    except Exception:
+        domain = ""
+
+    if domain in _TIER_HIGH:
+        credibility = 0.82
+    elif domain in _TIER_MED:
+        credibility = 0.65
+    elif domain:
+        credibility = 0.55
+    else:
+        credibility = 0.45  # unknown source
+
+    # Uncertainty: how much does the article summary overlap with the claim?
+    summary = article.get("summary", "") or ""
+    claim_tokens = set(re.findall(r"[a-z]{3,}", claim_text.lower()))
+    art_tokens   = set(re.findall(r"[a-z]{3,}", summary.lower()))
+    if claim_tokens and art_tokens:
+        overlap = len(claim_tokens & art_tokens) / len(claim_tokens)
+        uncertainty = round(max(0.05, 0.30 * (1.0 - min(overlap * 2, 1.0))), 3)
+    else:
+        uncertainty = 0.20
+
+    source_label = f"article:{domain}" if domain else "article:unknown"
+    return EvidencePath(
+        source=source_label,
+        evidence_type=EVIDENCE_TYPE_SECONDARY,
+        reasoning_type=REASONING_TYPE_STATISTICAL,
+        credibility=credibility,
+        uncertainty=uncertainty,
+        chain_length=1,
+    )
+
+
 class ContentCurator:
 
     def __init__(self, ai_service: OllamaService, buffer_service=None, confidence_policy: str = "balanced", enable_spacy_summarization: bool = True, github_context: str = ""):
@@ -528,7 +584,7 @@ class ContentCurator:
             )
             return requested_mode, "confidence scoring unavailable — using requested mode"
 
-    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False, dot_report: bool = False) -> list:
+    def curate_and_create_ideas(self, dry_run: bool = False, max_ideas: int = 5, request_delay: float = 5.0, channel: str = "linkedin", message_type: str = "idea", interactive: bool = False, avatar_explain: bool = False, dot_report: bool = False, learn: bool = False) -> list:
         """
         Main entry point: fetch articles, generate posts with the configured AI service,
                         # --- Confidence scoring for all-channel mode (use LinkedIn post) ---
@@ -582,6 +638,19 @@ class ContentCurator:
                 article_summary=article["summary"],
                 ssi_component=ssi_component,
             )
+
+            # Persist new knowledge — runs live always; in dry_run only when --learn is also set
+            if not dry_run or learn:
+                try:
+                    from services.avatar_intelligence import extract_and_append_knowledge
+                    extract_and_append_knowledge(
+                        article_text=article["summary"],
+                        source_url=article["link"],
+                        source_title=article["title"],
+                    )
+                except Exception as _exc:
+                    logger.debug("Knowledge extraction skipped (continuing): %s", _exc)
+
             logger.info(f"Generating [{message_type}|{ssi_component}] for: {article['title'][:60]}...")
 
             # ----------------------------------------------------------------
@@ -720,7 +789,7 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])]
+                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, li_text)]
                             _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -790,7 +859,7 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])]
+                            _dot_paths = [_fact_to_evidence_path(f, li_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, li_text)]
                             _dot_result = score_claim_with_truth_gradient(li_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(li_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -990,7 +1059,7 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])]
+                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, post_text)]
                             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
@@ -1037,7 +1106,7 @@ class ContentCurator:
                                 report_truth_gradient,
                                 format_truth_gradient_report,
                             )
-                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])]
+                            _dot_paths = [_fact_to_evidence_path(f, post_text) for f in (grounding_facts or [])] + [_article_to_evidence_path(article, post_text)]
                             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
                             _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
                             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)

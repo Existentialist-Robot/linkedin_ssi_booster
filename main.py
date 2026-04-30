@@ -324,6 +324,8 @@ def main():
                         help="Confidence policy for curate path: strict|balanced|draft-first (default: AVATAR_CONFIDENCE_POLICY env var, else balanced)")
     parser.add_argument("--dot-report", action="store_true",
                         help="Display Derivative of Truth (truth gradient, uncertainty, evidence breakdown) for each generated post")
+    parser.add_argument("--learn", action="store_true",
+                        help="Extract and persist knowledge from curated articles into extracted_knowledge.json (skipped on --dry-run unless this flag is also set)")
     parser.add_argument("--reconcile", action="store_true",
                         help="Fetch published Buffer posts and reconcile with generated candidates to build acceptance priors")
     args = parser.parse_args()
@@ -447,7 +449,7 @@ def main():
         for ch in curate_channels:
             logger.info("🔍 Curating AI news sources (channel: %s, type: %s)...", ch, args.type)
             try:
-                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report)
+                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report, learn=args.learn)
             except BufferQueueFullError as e:
                 print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
                 continue
