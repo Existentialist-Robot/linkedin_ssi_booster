@@ -650,3 +650,77 @@ class TestTruthGateMetaBackwardCompatibility:
         )
         assert "weak_evidence_bm25" in meta.reason_codes
         assert "unsupported_numeric" in meta.reason_codes
+
+
+# ---------------------------------------------------------------------------
+# _check_project_claim — multi-project sentence regression
+# ---------------------------------------------------------------------------
+
+
+class TestCheckProjectClaimMultiProject:
+    """Regression tests for _check_project_claim when a sentence mentions
+    multiple projects and a tech keyword legitimately belongs to one of them.
+    """
+
+    def _project_map(self) -> dict[str, str]:
+        from services.console_grounding._gate_helpers import _build_project_tech_map
+        from services.console_grounding import ProjectFact
+
+        answer42_fact = ProjectFact(
+            project="Answer42",
+            company="Acme",
+            years="2023-2025",
+            details="9-agent Spring Batch pipeline for academic paper analysis",
+            source="PROFILE_CONTEXT",
+            tags={"spring", "java"},
+        )
+        ssi_fact = ProjectFact(
+            project="LinkedIn SSI Booster",
+            company="Personal",
+            years="2024-2025",
+            details="Persona-grounded adaptive learning agents for content curation",
+            source="PROFILE_CONTEXT",
+            tags={"python", "llm"},
+        )
+        return _build_project_tech_map([answer42_fact, ssi_fact], article_text="")
+
+    def test_spring_in_answer42_sentence_not_flagged_due_to_ssi_booster(self) -> None:
+        """Regression: sentence attributing Spring Batch to Answer42 while also
+        mentioning LinkedIn SSI Booster must NOT be flagged as a false project claim.
+
+        Previously, the truth gate would find 'linkedin ssi booster' in the sentence,
+        see 'spring' also present, and flag it — even though 'spring' clearly
+        belongs to 'answer42' earlier in the same sentence.
+        """
+        from services.console_grounding._gate_helpers import _check_project_claim
+
+        sentence = (
+            "Similarly, Answer42's 9-agent Spring Batch pipeline has been crucial in "
+            "analyzing academic papers, while my own LinkedIn SSI Booster project continues "
+            "to refine persona-grounded adaptive learning agents for content curation."
+        )
+        tech_keywords = {"spring", "batch", "python", "llm"}
+        project_map = self._project_map()
+
+        result = _check_project_claim(sentence, project_map, tech_keywords)
+        assert result is None, (
+            f"Expected no false-positive flag but got: {result!r}\n"
+            "Likely cause: 'spring' was attributed to 'linkedin ssi booster' even though "
+            "'answer42' owns 'spring' and is also mentioned in the sentence."
+        )
+
+    def test_tech_not_owned_by_any_project_still_flagged(self) -> None:
+        """A keyword genuinely unowned by any project in the sentence is still flagged."""
+        from services.console_grounding._gate_helpers import _check_project_claim
+
+        sentence = (
+            "Answer42 uses Kubernetes to orchestrate its pipeline while "
+            "LinkedIn SSI Booster also relies on Kubernetes for scaling."
+        )
+        tech_keywords = {"kubernetes"}
+        # Neither project has 'kubernetes' in its evidence
+        project_map = self._project_map()
+
+        result = _check_project_claim(sentence, project_map, tech_keywords)
+        # Both projects are in sentence, neither owns kubernetes — should flag one of them
+        assert result is not None

@@ -152,17 +152,35 @@ def _check_project_claim(
     project_map: dict[str, str],
     tech_keywords: set[str],
 ) -> str | None:
-    """Return a reason string if the sentence falsely links a tech to a project."""
+    """Return a reason string if the sentence falsely links a tech to a project.
+
+    A keyword is only flagged as a false attribution when it appears in the
+    sentence alongside project_name AND no other project mentioned in the same
+    sentence already accounts for that keyword.  This prevents false positives
+    in sentences that mention multiple projects where one legitimately owns the
+    tech (e.g. "Answer42's Spring Batch … while LinkedIn SSI Booster does X").
+    """
     sent_lower = sentence.lower()
     for project_name, evidence_text in project_map.items():
         if project_name not in sent_lower:
             continue
         for kw in tech_keywords:
-            if kw in sent_lower and kw not in evidence_text:
-                return (
-                    f"project_claim: '{kw}' attributed to "
-                    f"'{project_name}' but not in its detail or article"
-                )
+            if kw not in sent_lower or kw in evidence_text:
+                continue
+            # Before flagging: check if another project mentioned in this
+            # sentence already owns this keyword in its evidence.
+            other_project_owns = any(
+                other_name != project_name
+                and other_name in sent_lower
+                and kw in other_evidence
+                for other_name, other_evidence in project_map.items()
+            )
+            if other_project_owns:
+                continue
+            return (
+                f"project_claim: '{kw}' attributed to "
+                f"'{project_name}' but not in its detail or article"
+            )
     return None
 
 # ---------------------------------------------------------------------------
