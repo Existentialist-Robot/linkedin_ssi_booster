@@ -23,7 +23,7 @@ python -m pytest -q tests/ --ignore=tests/test_buffer_service.py
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 331         | 331    | 0      |
+| 333         | 333    | 0      |
 
 All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
@@ -99,7 +99,8 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `tests/test_selection_learning.py`         | Candidate logging, buffer-id update, published reconciliation, acceptance priors, and ranking behavior (including package-refactor compatibility).                                                                                                                                                                            |
 | `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based). Default model is `en_core_web_md` (configurable via `SPACY_MODEL`).                                                                                                                                                                        |
 | `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                                                                                                                                                                                                                                                     |
-| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, concept/service false-positive filters (`S3`, `Java 21`, `AI Q&A`), project-name substring false-positive guard (`Regulatory Intelligence Assistant`), and `TruthGateMeta` field coverage. |
+| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, concept/service false-positive filters (`S3`, `Java 21`, `AI Q&A`), project-name substring false-positive guard (`Regulatory Intelligence Assistant`), formatting artifact detection (`Scale
+If` newline splits), community tag detection (`AI/GovTech/Ottawa` slash-separated), and `TruthGateMeta` field coverage. |
 
 ## Repository structure
 

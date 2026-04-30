@@ -52,6 +52,21 @@ def _is_project_like_org_mention(sentence: str, org_phrase: str) -> bool:
     return re.search(rf"\b{re.escape(org_lower)}\s+project\b", sent_lower) is not None
 
 
+def _is_likely_false_positive_org(org_phrase: str) -> bool:
+    """Return True when an ORG phrase is likely a formatting artifact or tag.
+
+    Skips:
+      - Phrases containing newlines (e.g., 'Scale\nIf' from text wrapping)
+      - Phrases containing slashes (e.g., 'AI/GovTech/Ottawa' community tags)
+    """
+    if not org_phrase:
+        return False
+    # Check for newlines or slashes
+    if "\n" in org_phrase or "/" in org_phrase:
+        return True
+    return False
+
+
 def truth_gate_result(
     text: str,
     article_text: str,
@@ -188,6 +203,8 @@ def truth_gate_result(
                 for _org in _spacy_orgs:
                     if _is_project_like_org_mention(sentence, _org):
                         continue
+                    if _is_likely_false_positive_org(_org):
+                        continue
                     _org_lower = _org.lower()
                     # Skip if the ORG phrase is a full name or substring of a known project
                     if any(_org_lower in proj_name for proj_name in known_project_names):
@@ -200,6 +217,8 @@ def truth_gate_result(
             else:
                 for m in _ORG_NAME_RE.finditer(sentence):
                     if _is_project_like_org_mention(sentence, m.group(1)):
+                        continue
+                    if _is_likely_false_positive_org(m.group(1)):
                         continue
                     org_phrase = m.group(1).lower()
                     # Skip if the ORG phrase is a full name or substring of a known project

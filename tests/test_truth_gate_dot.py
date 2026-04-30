@@ -416,6 +416,78 @@ class TestPerSentenceDoTScoring:
         assert meta.removed_count == 0
         assert "Regulatory Intelligence Assistant" in filtered
 
+    def test_org_with_newline_not_flagged_scale_if(self) -> None:
+        """Regression: 'Scale\nIf' (text wrapping artifact) must not be flagged.
+
+        spaCy may tag 'Scale\\nIf' as ORG due to capitalization, but the newline
+        indicates this is a formatting artifact from text wrapping, not a real org name.
+        """
+        fact = make_fact(
+            project="Data Pipeline Scaling",
+            details="Built systems that handle diverse storage formats at scale",
+        )
+        text = (
+            "Building Agentic AI Capabilities at Scale\n\nIf you're building data "
+            "analytics pipelines that scale beyond manual curation, you already know "
+            "that dealing with diverse storage formats and querying paradigms can be "
+            "a significant challenge."
+        )
+
+        with (
+            patch(
+                "services.console_grounding._truth_gate._extract_spacy_orgs",
+                return_value=["Scale\n\nIf"],
+            ),
+            patch("services.console_grounding._truth_gate._score_sentence_bm25", return_value=10.0),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_project_names_from_avatar_state", return_value=set()),
+            patch("services.console_grounding._truth_gate.get_all_persona_facts_from_avatar_state", return_value=[]),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="Building scalable data analytics systems",
+                facts=[fact],
+                interactive=False,
+            )
+
+        assert meta.removed_count == 0
+        assert "Building Agentic AI Capabilities at Scale" in filtered
+
+    def test_org_with_slashes_not_flagged_community_tag(self) -> None:
+        """Regression: 'AI/GovTech/Ottawa' (slash-separated tag) must not be flagged.
+
+        spaCy may tag community tags like 'AI/GovTech/Ottawa' as ORG, but slashes
+        indicate a multi-part identifier/tag, not an organization name.
+        """
+        fact = make_fact(
+            project="GovTech AI Community",
+            details="Tagged communities like AI/GovTech/Ottawa provide valuable production insights",
+        )
+        text = (
+            "Tagged communities like AI/GovTech/Ottawa can provide valuable insights "
+            "into strategies that have been tested in production environments."
+        )
+
+        with (
+            patch(
+                "services.console_grounding._truth_gate._extract_spacy_orgs",
+                return_value=["AI/GovTech/Ottawa"],
+            ),
+            patch("services.console_grounding._truth_gate._score_sentence_bm25", return_value=10.0),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_project_names_from_avatar_state", return_value=set()),
+            patch("services.console_grounding._truth_gate.get_all_persona_facts_from_avatar_state", return_value=[]),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="Community-driven govtech strategies",
+                facts=[fact],
+                interactive=False,
+            )
+
+        assert meta.removed_count == 0
+        assert "AI/GovTech/Ottawa" in filtered
+
 
 # ---------------------------------------------------------------------------
 # Part C — spaCy similarity floor (truth_gate_result integration)
