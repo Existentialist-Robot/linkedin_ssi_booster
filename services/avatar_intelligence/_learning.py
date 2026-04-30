@@ -181,13 +181,22 @@ def build_explain_output(
 
 
 def format_explain_output(explain: ExplainOutput) -> str:
-    """Format an ExplainOutput as a human-readable, colorized block."""
+    """Format an ExplainOutput as a human-readable, colorized block.
+
+    Color/icon scheme mirrors the Derivative of Truth report:
+      👤 Magenta  — avatar persona facts
+      📚 Blue     — domain knowledge facts
+      🗂️  Cyan     — extracted knowledge facts
+      🔗 White    — article / external evidence
+    """
     from colorama import Fore, Style
 
     C = str(Fore.CYAN)
     Y = str(Fore.YELLOW)
     G = str(Fore.GREEN)
     W = str(Fore.WHITE)
+    M = str(Fore.MAGENTA)
+    B = str(Fore.BLUE)
     DIM = str(Style.DIM)
     R = str(Style.RESET_ALL)
 
@@ -199,14 +208,17 @@ def format_explain_output(explain: ExplainOutput) -> str:
     }
     ssi_col = ssi_colours.get(explain.ssi_component, W)
 
-    divider = f"{C}{'─' * 60}{R}"
+    divider = f"  {C}{'─' * 64}{R}"
 
     def _id_pill(eid: str) -> str:
         if eid.startswith("E"):
-            return f"{G}{eid}{R}"
+            return f"{M}{eid}{R}"        # avatar → magenta (matches 👤 in DoT)
         elif eid.startswith("D"):
-            return f"{str(Fore.BLUE)}{eid}{R}"
+            return f"{B}{eid}{R}"        # domain → blue   (matches 📚 in DoT)
+        elif eid.startswith("X"):
+            return f"{C}{eid}{R}"        # extracted → cyan (matches 🗂️ in DoT)
         return f"{W}{eid}{R}"
+
     id_pills = (
         "  ".join(_id_pill(eid) for eid in explain.evidence_ids)
         if explain.evidence_ids
@@ -224,18 +236,23 @@ def format_explain_output(explain: ExplainOutput) -> str:
         "",
     ]
 
+    def _render_fact_line(eid: str, rest: str, icon: str, col: str) -> str:
+        if len(rest) > 120:
+            rest = rest[:117] + "…"
+        return f"    {icon} {col}[{eid}]{R} {rest}"
+
     if explain.evidence_summaries:
-        lines.append(f"  {Y}Evidence details:{R}")
+        lines.append(f"  {C}Evidence Paths:{R}")
         for summary in explain.evidence_summaries:
             if summary.startswith("["):
                 bracket_end = summary.find("]")
                 if bracket_end != -1:
                     eid = summary[1:bracket_end]
                     rest = summary[bracket_end + 1:].strip()
-                    id_col = G if eid.startswith("E") else str(Fore.BLUE)
-                    if len(rest) > 120:
-                        rest = rest[:117] + "…"
-                    lines.append(f"  {DIM}▸{R} {id_col}[{eid}]{R} {rest}")
+                    if eid.startswith("E"):
+                        lines.append(_render_fact_line(eid, rest, "👤", M))
+                    else:
+                        lines.append(_render_fact_line(eid, rest, "📚", B))
                 else:
                     lines.append(f"    {summary}")
             else:
@@ -248,17 +265,14 @@ def format_explain_output(explain: ExplainOutput) -> str:
     # Extracted knowledge section
     if explain.extracted_summaries:
         lines.append("")
-        M = str(Fore.MAGENTA)
-        lines.append(f"  {Y}Extracted knowledge used as evidence:{R}")
+        lines.append(f"  {C}Extracted Knowledge:{R}")
         for summary in explain.extracted_summaries:
             if summary.startswith("["):
                 bracket_end = summary.find("]")
                 if bracket_end != -1:
                     eid = summary[1:bracket_end]
                     rest = summary[bracket_end + 1:].strip()
-                    if len(rest) > 120:
-                        rest = rest[:117] + "…"
-                    lines.append(f"  {DIM}▸{R} {M}[{eid}]{R} {rest}")
+                    lines.append(_render_fact_line(eid, rest, "🗂️ ", C))
                 else:
                     lines.append(f"    {summary}")
             else:
@@ -267,37 +281,41 @@ def format_explain_output(explain: ExplainOutput) -> str:
     # Article external evidence section
     if explain.article_evidence:
         lines.append("")
-        lines.append(f"  {Y}Article (external evidence):{R}")
-        lines.append(f"  {DIM}▸{R} {W}{explain.article_evidence}{R}")
+        lines.append(f"  {C}Article (External Evidence):{R}")
+        lines.append(f"    🔗 {W}{explain.article_evidence}{R}")
 
     if explain.dot_per_sentence_scores:
         lines.append("")
-        lines.append(f"  {Y}Truth gate — per-sentence DoT gradient:{R}")
+        lines.append(f"  {C}Truth Gate — Per-Sentence DoT Gradient:{R}")
         for i, score in enumerate(explain.dot_per_sentence_scores, 1):
-            if score >= 0.6:
+            if score >= 0.70:
                 bar_col = G
-            elif score >= 0.35:
+            elif score >= 0.50:
                 bar_col = Y
             else:
                 bar_col = str(Fore.RED)
             bar_width = max(1, round(score * 20))
-            bar = "█" * bar_width
-            lines.append(f"  {DIM}▸{R} sentence {i:>2}  {bar_col}{bar:<20}{R}  {score:.3f}")
+            filled = "█" * bar_width
+            empty = "░" * (20 - bar_width)
+            lines.append(
+                f"    {DIM}▸{R} sentence {i:>2}  "
+                f"{bar_col}{filled}{W}{empty}{R}  {W}{score:.4f}{R}"
+            )
 
     if explain.spacy_sim_scores:
         lines.append("")
         lines.append(
-            f"  {Y}Truth gate — spaCy semantic similarity (specific-claim sentences):{R}"
+            f"  {C}Truth Gate — spaCy Semantic Similarity:{R}"
         )
         for sentence, sim in explain.spacy_sim_scores.items():
             short = sentence[:70] + "…" if len(sentence) > 70 else sentence
-            if sim >= 0.5:
+            if sim >= 0.50:
                 sim_col = G
             elif sim >= 0.25:
                 sim_col = Y
             else:
                 sim_col = str(Fore.RED)
-            lines.append(f"  {DIM}▸{R} {sim_col}{sim:.3f}{R}  {DIM}{short}{R}")
+            lines.append(f"    {DIM}▸{R} {sim_col}{sim:.3f}{R}  {DIM}{short}{R}")
 
     lines.append(divider)
     return "\n".join(lines)
