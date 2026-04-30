@@ -695,13 +695,26 @@ def _extract_spacy_orgs(sentence: str, spacy_nlp: object) -> list[str]:
     Part D implementation: returns a list of org-name strings (original case).
     Returns an empty list when spaCy is unavailable or the model has no NER.
     Callers fall back to the ``_ORG_NAME_RE`` regex when this returns [].
+
+    Known AI/tech concept abbreviations (AGI, LLM, NLP, etc.) are excluded even
+    when spaCy mistakenly tags them as ORG entities.
     """
+    # Abbreviations that are concepts/fields, not company names.
+    _CONCEPT_ABBREVS: frozenset[str] = frozenset({
+        "AGI", "AI", "ML", "DL", "NLP", "LLM", "LLMs", "RAG", "RL", "RLHF",
+        "API", "APIs", "SDK", "CLI", "UI", "UX", "DB", "SQL", "NoSQL",
+        "CI", "CD", "DevOps", "SRE", "SLA", "SLO",
+        "IoT", "AR", "VR", "XR",
+    })
     try:
         nlp = spacy_nlp._ensure_model()  # type: ignore[union-attr]
         if nlp is None:
             return []
         doc = nlp(sentence)
-        return [ent.text for ent in doc.ents if ent.label_ == "ORG"]
+        return [
+            ent.text for ent in doc.ents
+            if ent.label_ == "ORG" and ent.text not in _CONCEPT_ABBREVS
+        ]
     except Exception as exc:
         _truth_logger.debug("spaCy org extraction failed: %s", exc)
         return []

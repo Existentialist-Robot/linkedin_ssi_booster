@@ -28,6 +28,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - **Extracted knowledge application flow** (prompt grounding injection, extracted evidence scoring paths, and adaptive topic signal)
 - **Truth Gate — DoT + spaCy integration upgrade** (overlap-enriched evidence paths, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check)
 - **`content_curator` package refactor** (`services/content_curator.py` split into a proper Python package with seven focused submodules)
+- **`avatar_intelligence` package refactor** (`services/avatar_intelligence.py` split into a proper Python package with ten focused submodules: `_paths`, `_models`, `_loaders`, `_normalizers`, `_retrieval`, `_grounding`, `_learning`, `_confidence`, `_narrative`, `_extraction`)
 - Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
 
 **Derivative of Truth status:**
@@ -81,8 +82,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                                                                                  |
 | `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based). Default model is `en_core_web_md` (configurable via `SPACY_MODEL`).                 |
 | `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                                                                                              |
-| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, and `TruthGateMeta` field coverage. |
-
+| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, and `TruthGateMeta` field coverage. || `tests/test_continual_learning.py`         | Extracted knowledge schemas, normalization, deduplication, and `extract_and_append_knowledge` integration (now in `avatar_intelligence._extraction`).  |
 ## Repository structure
 
 yt-vid-data/ # YouTube video text and media
@@ -105,7 +105,18 @@ Project file tree (top-level):
 │   │   ├── _evidence_paths.py    # EvidencePath builders
 │   │   ├── _ssi_picker.py        # topic signal + SSI component selection
 │   │   └── _grounding.py        # grounding keyword/tag loaders
-│   ├── avatar_intelligence.py
+│   ├── avatar_intelligence/      # refactored package (was avatar_intelligence.py)
+│   │   ├── __init__.py           # public API re-exports + load_avatar_state wrapper
+│   │   ├── _paths.py             # path constants (PERSONA_GRAPH_PATH, etc.)
+│   │   ├── _models.py            # all dataclasses (AvatarState, EvidenceFact, etc.)
+│   │   ├── _loaders.py           # schema validators + file loaders
+│   │   ├── _normalizers.py       # evidence/domain/extracted fact normalization
+│   │   ├── _retrieval.py         # BM25 + fallback evidence retrieval
+│   │   ├── _grounding.py         # grounding context builders
+│   │   ├── _learning.py          # moderation event capture + learning report
+│   │   ├── _confidence.py        # confidence scoring + publish-mode routing
+│   │   ├── _narrative.py         # narrative memory update + continuity context
+│   │   └── _extraction.py        # spaCy fact extraction + save helpers
 │   ├── buffer_service.py
 │   ├── ...
 ├── data/
