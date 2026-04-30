@@ -37,19 +37,24 @@ logger = logging.getLogger(__name__)
 
 
 def _is_project_like_org_mention(sentence: str, org_phrase: str) -> bool:
-    """Return True when an ORG-like phrase is used as a project reference.
+    """Return True when an ORG-like phrase is used as a project or event reference.
 
-    This prevents false positives like "G7 RIA project" where spaCy may label
-    the phrase as ORG even though the sentence is explicitly discussing a
-    project, not introducing an unsupported organization claim.
+    This prevents false positives like "G7 RIA project" or "G7 GovAI Grand Challenge"
+    where spaCy may label the phrase as ORG even though the sentence is explicitly
+    discussing a project/event/challenge, not introducing an unsupported organization.
     """
     sent_lower = sentence.lower()
     org_lower = org_phrase.lower().strip()
     if not org_lower:
         return False
-    if "project" not in sent_lower:
-        return False
-    return re.search(rf"\b{re.escape(org_lower)}\s+project\b", sent_lower) is not None
+    # Detect explicit "project" keyword after the org phrase
+    if "project" in sent_lower and re.search(rf"\b{re.escape(org_lower)}\s+project\b", sent_lower):
+        return True
+    # Detect event/competition keywords anywhere in the sentence
+    _EVENT_KEYWORDS = {"challenge", "summit", "conference", "forum", "hackathon", "competition", "congress", "symposium"}
+    if any(kw in sent_lower for kw in _EVENT_KEYWORDS):
+        return True
+    return False
 
 
 def _is_likely_false_positive_org(org_phrase: str) -> bool:
@@ -206,8 +211,12 @@ def truth_gate_result(
                     if _is_likely_false_positive_org(_org):
                         continue
                     _org_lower = _org.lower()
+                    # Strip leading articles before project name matching
+                    _org_normalised = re.sub(r"^(the|a|an)\s+", "", _org_lower)
                     # Skip if the ORG phrase is a full name or substring of a known project
                     if any(_org_lower in proj_name for proj_name in known_project_names):
+                        continue
+                    if any(_org_normalised in proj_name for proj_name in known_project_names):
                         continue
                     if _org_lower not in allowed:
                         _org_words = [w for w in re.findall(r"\w+", _org_lower) if len(w) > 1]
@@ -221,8 +230,12 @@ def truth_gate_result(
                     if _is_likely_false_positive_org(m.group(1)):
                         continue
                     org_phrase = m.group(1).lower()
+                    # Strip leading articles before project name matching
+                    org_normalised = re.sub(r"^(the|a|an)\s+", "", org_phrase)
                     # Skip if the ORG phrase is a full name or substring of a known project
                     if any(org_phrase in proj_name for proj_name in known_project_names):
+                        continue
+                    if any(org_normalised in proj_name for proj_name in known_project_names):
                         continue
                     if org_phrase not in allowed:
                         org_words = [w for w in re.findall(r"\w+", org_phrase) if len(w) > 1]

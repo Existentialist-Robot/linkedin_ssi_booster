@@ -416,6 +416,47 @@ class TestPerSentenceDoTScoring:
         assert meta.removed_count == 0
         assert "Regulatory Intelligence Assistant" in filtered
 
+    def test_g7_govai_grand_challenge_with_leading_the_not_flagged(self) -> None:
+        """Regression: 'the G7 GovAI Grand Challenge' must not be flagged.
+
+        spaCy captures the leading article 'the', so the normalised phrase
+        'g7 govai grand challenge' must still match the known project name
+        'g7 govai grand challenge ria' via substring check after article-stripping.
+        Also, 'Challenge' is an event keyword so _is_project_like_org_mention
+        should fire as a second line of defence.
+        """
+        fact = make_fact(
+            project="G7 GovAI Grand Challenge RIA",
+            details="Regulatory search for G7 GovAI Grand Challenge — bilingual NLP over Canadian law",
+        )
+        text = (
+            "Building the regulatory search for the G7 GovAI Grand Challenge "
+            "taught me that complexity is the enemy of latency."
+        )
+
+        with (
+            patch(
+                "services.console_grounding._truth_gate._extract_spacy_orgs",
+                return_value=["the G7 GovAI Grand Challenge"],
+            ),
+            patch("services.console_grounding._truth_gate._score_sentence_bm25", return_value=10.0),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+            patch(
+                "services.console_grounding._truth_gate.get_project_names_from_avatar_state",
+                return_value={"g7 govai grand challenge ria", "g7 ria"},
+            ),
+            patch("services.console_grounding._truth_gate.get_all_persona_facts_from_avatar_state", return_value=[]),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="G7 GovAI regulatory AI challenge",
+                facts=[fact],
+                interactive=False,
+            )
+
+        assert meta.removed_count == 0
+        assert "G7 GovAI Grand Challenge" in filtered
+
     def test_org_with_newline_not_flagged_scale_if(self) -> None:
         """Regression: 'Scale\nIf' (text wrapping artifact) must not be flagged.
 
