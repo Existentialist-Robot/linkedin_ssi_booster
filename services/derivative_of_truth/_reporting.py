@@ -155,6 +155,12 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
         )
     lines.append(footer_note)
     lines.append(divider)
+    lines.append(
+        f"  {Fore.WHITE}Legend  "
+        f"cred: {Fore.GREEN}≥0.80 high{Fore.WHITE} · {Fore.YELLOW}≥0.55 mod{Fore.WHITE} · {Fore.RED}<0.55 low{Fore.WHITE}   "
+        f"unc: {Fore.GREEN}≤0.19 low{Fore.WHITE} · {Fore.YELLOW}0.20–0.34 mod{Fore.WHITE} · {Fore.RED}≥0.35 high{Fore.WHITE}   "
+        f"gradient: {Fore.GREEN}≥0.70 strong{Fore.WHITE} · {Fore.YELLOW}0.50–0.69 moderate{Fore.WHITE} · {Fore.RED}<0.50 weak{r}"
+    )
     return "\n".join(lines)
 
 
