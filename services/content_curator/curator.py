@@ -137,7 +137,9 @@ class ContentCurator:
             if self._hybrid_retriever is not None:
                 all_candidates = list(self._avatar_facts) + list(self._domain_facts) + list(self._extracted_facts)
                 total = n_persona + n_domain + n_extracted
-                ranked = self._hybrid_retriever.find_facts(query, all_candidates, limit=total)
+                # Use 3x buffer so each type has enough headroom to meet its quota even
+                # when facts from other types rank higher in the joint pool.
+                ranked = self._hybrid_retriever.find_facts(query, all_candidates, limit=total * 3)
                 persona_hits_typed: list[EvidenceFact] = [f for f in ranked if isinstance(f, EvidenceFact)][:n_persona]
                 domain_hits_typed: list[DomainEvidenceFact] = [f for f in ranked if isinstance(f, DomainEvidenceFact)][:n_domain]
                 extracted_hits_typed: list[ExtractedEvidenceFact] = [f for f in ranked if isinstance(f, ExtractedEvidenceFact)][:n_extracted]
@@ -270,7 +272,16 @@ class ContentCurator:
         ssi_component: str,
         extracted_facts: list[Any] | None = None,
     ) -> None:
-        """Print the avatar explain block (evidence IDs + DoT/spaCy scores)."""
+        """Print the avatar explain block (evidence IDs + DoT/spaCy scores).
+        
+        ⚠️  Avatar Explain retrieves evidence independently from console grounding,
+        so it may show facts that are filtered out by truth-gate before DoT reporting.
+        
+        This is by design: Avatar Explain displays the *candidate* facts that were considered,
+        while DoT Report shows only the facts that passed filtering (grounding_facts).
+        To align them fully, Avatar Explain would need to apply truth-gate filtering to its
+        independently retrieved facts, which would require a deeper refactor.
+        """
         try:
             from services.avatar_intelligence import (
                 retrieve_evidence,
@@ -283,6 +294,7 @@ class ContentCurator:
             _exp_limit = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3")) + int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
             _relevant = retrieve_evidence(grounding_query, self._avatar_facts + self._domain_facts, limit=_exp_limit)
             _, _gate_meta = _tgr_exp(post_text, article["summary"], grounding_facts)
+            _extracted = extracted_facts or []
             _explain = build_explain_output(
                 evidence_facts=_relevant,
                 article_ref=article.get("title", ""),
@@ -290,7 +302,7 @@ class ContentCurator:
                 ssi_component=ssi_component,
                 dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
                 spacy_sim_scores=_gate_meta.spacy_sim_scores,
-                extracted_facts=extracted_facts or [],
+                extracted_facts=_extracted,  # type: ignore[arg-type]
                 article_title=article.get("title", ""),
                 article_url=article.get("link", ""),
             )
@@ -348,7 +360,7 @@ class ContentCurator:
         avatar_explain: bool = False,
         dot_report: bool = False,
         learn: bool = False,
-    ) -> list:
+    ) -> list | None:
         """Fetch articles, generate posts, apply routing, push to Buffer.
 
         message_type='idea'  — creates Buffer Ideas for manual review.
@@ -366,7 +378,7 @@ class ContentCurator:
             random.shuffle(articles)
 
         published = set() if dry_run else self._load_published_titles()
-        created_ideas: list = []
+        created_ideas: list | None = []
 
         for article in articles:
             if len(created_ideas) >= max_ideas:

@@ -470,7 +470,7 @@ def main():
                 )
                 continue
             noun = "posts" if args.type == "post" else "ideas"
-            print(str(Fore.GREEN) + f"\n✅  Created {len(ideas)} {noun} in Buffer ({ch})" + str(Style.RESET_ALL))
+            print(str(Fore.GREEN) + f"\n✅  Created {len(ideas or [])} {noun} in Buffer ({ch})" + str(Style.RESET_ALL))
         return
 
 
