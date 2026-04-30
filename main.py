@@ -176,7 +176,7 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         _domain_facts = normalize_domain_facts(_avatar_state)
         _domain_facts = domain_facts_to_project_facts(_domain_facts)
     except Exception as exc:
-        print(f"[INFO] Domain knowledge not loaded for console mode: {exc}")
+        logger.warning("Domain knowledge not loaded for console mode: %s", exc)
 
 
     _profile_facts = evidence_facts_to_project_facts(_avatar_facts) + _domain_facts
@@ -432,7 +432,6 @@ def main():
         model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
-    print(f"[INFO] Using Ollama model: {ai.model}")
 
     if args.console:
         run_console(ai=ai, github_context=_github_context)
@@ -446,7 +445,7 @@ def main():
         curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context)
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         for ch in curate_channels:
-            print(f"[INFO] 🔍 Curating AI news sources (channel: {ch}, type: {args.type})...")
+            logger.info("🔍 Curating AI news sources (channel: %s, type: %s)...", ch, args.type)
             try:
                 ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report)
             except BufferQueueFullError as e:
@@ -476,14 +475,14 @@ def main():
     if args.schedule:
         week_topics = CONTENT_CALENDAR.get(f"week_{args.week}", [])
         if not week_topics:
-            print(f"[ERROR] No content found for week {args.week}")
+            logger.error("No content found for week %d", args.week)
             return
 
         target_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
 
 
         for channel in target_channels:
-            print(f"[INFO] 📝 Generating {len(week_topics)} posts for week {args.week} (channel: {channel})...")
+            logger.info("📝 Generating %d posts for week %d (channel: %s)...", len(week_topics), args.week, channel)
             posts = []
             from services.avatar_intelligence import (
                 load_avatar_state as _lav_gen,
@@ -502,7 +501,7 @@ def main():
                 from services.avatar_intelligence import build_explain_output, format_explain_output
 
             for topic in week_topics:
-                print(f"[INFO]   Generating: {topic['title']}")
+                logger.info("  Generating: %s", topic['title'])
                 grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
                 # Combine both fact types
                 _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)

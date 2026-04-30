@@ -566,26 +566,97 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
     str
         Multi-line formatted output suitable for console display.
     """
-    flag_indicator = "⚠️  FLAGGED" if report.get("flagged") else "✅ OK"
+    from colorama import Fore, Style  # lazy import — keeps module dependency soft
+
+    tg: float = report["truth_gradient"]
+    unc: float = report["uncertainty"]
+    cp: float = report["confidence_penalty"]
+    flagged: bool = report.get("flagged", False)
+
+    # --- gradient bar (20 chars) ---
+    bar_width = 20
+    filled = round(tg * bar_width)
+    if tg >= 0.70:
+        bar_colour = Fore.GREEN
+    elif tg >= 0.50:
+        bar_colour = Fore.YELLOW
+    else:
+        bar_colour = Fore.RED
+    gradient_bar = (
+        str(bar_colour) + "█" * filled
+        + str(Fore.WHITE) + "░" * (bar_width - filled)
+        + str(Style.RESET_ALL)
+    )
+
+    status = (
+        f"{Fore.RED}⚠️  FLAGGED{Style.RESET_ALL}"
+        if flagged
+        else f"{Fore.GREEN}✅ OK{Style.RESET_ALL}"
+    )
+    divider = f"  {Fore.CYAN}{'─' * 64}{Style.RESET_ALL}"
+    C = Fore.CYAN  # label colour shorthand
+    R = Style.RESET_ALL
+
     lines = [
-        f"  {flag_indicator} | Truth Gradient: {report['truth_gradient']:.4f}  "
-        f"Uncertainty: {report['uncertainty']:.4f}  "
-        f"Confidence Penalty: {report['confidence_penalty']:.4f}",
-        f"  Claim: {report['claim_snippet']}",
+        divider,
+        f"  {status}  {gradient_bar}  {Fore.WHITE}{tg:.4f}{R}",
+        (
+            f"  {C}Uncertainty:{R} {_unc_colour(unc)}{unc:.4f}{R}   "
+            f"{C}Confidence Penalty:{R} {cp:.4f}"
+        ),
+        f"  {C}Claim:{R} {report['claim_snippet']}",
     ]
+
     if report.get("uncertainty_sources"):
-        lines.append(f"  Uncertainty Sources: {', '.join(report['uncertainty_sources'])}")
+        src_list = ", ".join(
+            f"{Fore.YELLOW}{s}{R}" for s in report["uncertainty_sources"]
+        )
+        lines.append(f"  {C}Uncertainty Sources:{R} {src_list}")
+
     if report.get("explanation"):
-        lines.append(f"  Explanation: {report['explanation']}")
+        lines.append(f"  {C}Explanation:{R} {report['explanation']}")
+
     if "evidence_paths" in report:
-        lines.append("  Evidence Paths:")
+        lines.append(f"  {C}Evidence Paths:{R}")
         for ep in report["evidence_paths"]:
+            source: str = ep["source"]
+            cred: float = ep["credibility"]
+            unc_ep: float = ep["uncertainty"]
+            chain: int = ep["chain_length"]
+            ev_type: str = ep["evidence_type"]
+            re_type: str = ep["reasoning_type"]
+
+            if source.startswith("avatar:"):
+                icon, src_colour = "👤", Fore.MAGENTA
+            elif source.startswith("domain:"):
+                icon, src_colour = "📚", Fore.BLUE
+            else:
+                icon, src_colour = "🔗", Fore.WHITE
+
+            cred_col = Fore.GREEN if cred >= 0.80 else (Fore.YELLOW if cred >= 0.55 else Fore.RED)
+            unc_col = Fore.RED if unc_ep >= 0.35 else (Fore.YELLOW if unc_ep >= 0.20 else Fore.GREEN)
+
             lines.append(
-                f"    [{ep['evidence_type']} / {ep['reasoning_type']}] "
-                f"cred={ep['credibility']:.2f} unc={ep['uncertainty']:.2f} "
-                f"chain={ep['chain_length']} source={ep['source']}"
+                f"    {icon} {src_colour}{source}{R}  "
+                f"[{ev_type} / {re_type}]  "
+                f"cred={cred_col}{cred:.2f}{R}  "
+                f"unc={unc_col}{unc_ep:.2f}{R}  "
+                f"chain={chain}"
             )
+            lines.append(_explain_evidence_path_line(ep))
+
+    lines.append(divider)
     return "\n".join(lines)
+
+
+def _unc_colour(value: float) -> str:
+    """Return a colorama colour code based on uncertainty magnitude."""
+    from colorama import Fore
+    if value >= 0.35:
+        return str(Fore.RED)
+    if value >= 0.20:
+        return str(Fore.YELLOW)
+    return str(Fore.GREEN)
 
 
 def apply_truth_gradient_to_kg_node(
@@ -628,6 +699,62 @@ def apply_truth_gradient_to_kg_node(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _explain_evidence_path_line(ep: dict[str, Any]) -> str:
+    """Generate a one-sentence explanation for a single evidence path entry."""
+    source: str = ep.get("source", "")
+    ev_type: str = ep.get("evidence_type", "")
+    re_type: str = ep.get("reasoning_type", "")
+    cred: float = ep.get("credibility", 0.5)
+    unc: float = ep.get("uncertainty", 0.2)
+    chain: int = ep.get("chain_length", 1)
+
+    if source.startswith("avatar:"):
+        node = source.split(":", 1)[1]
+        source_desc = f"first-hand persona fact from your avatar graph ('{node}')"
+    elif source.startswith("domain:"):
+        node = source.split(":", 1)[1]
+        source_desc = f"domain knowledge fact ('{node}')"
+    else:
+        source_desc = f"knowledge source ('{source}')"
+
+    ev_desc = {
+        "primary":   "Direct",
+        "secondary": "Corroborating",
+        "derived":   "Inferred",
+        "pattern":   "Pattern-based",
+    }.get(ev_type, "Evidence from")
+
+    re_desc = {
+        "logical":     "logically reasoned",
+        "statistical": "statistically supported",
+        "analogy":     "reasoned by analogy",
+        "pattern":     "pattern-matched",
+    }.get(re_type, "reasoned")
+
+    if cred >= 0.80:
+        cred_qual = "high credibility"
+    elif cred >= 0.60:
+        cred_qual = "moderate-high credibility"
+    elif cred >= 0.40:
+        cred_qual = "moderate credibility"
+    else:
+        cred_qual = "lower credibility"
+
+    if unc >= 0.35:
+        unc_qual = "high uncertainty — treat with caution"
+    elif unc >= 0.20:
+        unc_qual = "moderate uncertainty from source variability"
+    else:
+        unc_qual = "low uncertainty"
+
+    chain_note = "" if chain <= 1 else f" ({chain} inference hops to reach this fact)"
+
+    return (
+        f"      → {ev_desc} {source_desc}{chain_note}, {re_desc}. "
+        f"{cred_qual.capitalize()} ({cred:.2f}), {unc_qual} ({unc:.2f})."
+    )
+
 
 def _build_explanation(
     claim: str,

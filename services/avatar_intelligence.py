@@ -1171,21 +1171,71 @@ def build_explain_output(
 
 
 def format_explain_output(explain: ExplainOutput) -> str:
-    """Format an ExplainOutput as a human-readable plain-text block."""
+    """Format an ExplainOutput as a human-readable, colorized block."""
+    from colorama import Fore, Style
+
+    C = str(Fore.CYAN)
+    Y = str(Fore.YELLOW)
+    G = str(Fore.GREEN)
+    M = str(Fore.MAGENTA)
+    W = str(Fore.WHITE)
+    DIM = str(Style.DIM)
+    R = str(Style.RESET_ALL)
+
+    # SSI component colour map
+    ssi_colours = {
+        "establish_brand":      str(Fore.GREEN),
+        "find_right_people":    str(Fore.BLUE),
+        "engage_with_insights": str(Fore.YELLOW),
+        "build_relationships":  str(Fore.MAGENTA),
+    }
+    ssi_col = ssi_colours.get(explain.ssi_component, W)
+
+    divider = f"{C}{'─' * 60}{R}"
+
+    # Evidence id pills: E-nodes in green, D-nodes in blue
+    def _id_pill(eid: str) -> str:
+        if eid.startswith("E"):
+            return f"{G}{eid}{R}"
+        elif eid.startswith("D"):
+            return f"{str(Fore.BLUE)}{eid}{R}"
+        return f"{W}{eid}{R}"
+
+    id_pills = "  ".join(_id_pill(eid) for eid in explain.evidence_ids) if explain.evidence_ids else f"{DIM}none{R}"
+
     lines = [
-        "── Avatar Explain ──────────────────────────────────────",
-        f"Article  : {explain.article_ref}",
-        f"Channel  : {explain.channel}",
-        f"SSI      : {explain.ssi_component}",
-        f"Evidence : {', '.join(explain.evidence_ids) if explain.evidence_ids else 'none (empty persona graph)'}",
+        divider,
+        f"  {Y}🧠 Avatar Explain{R}",
+        divider,
+        f"  {C}Article  :{R} {W}{explain.article_ref}{R}",
+        f"  {C}Channel  :{R} {W}{explain.channel}{R}",
+        f"  {C}SSI      :{R} {ssi_col}{explain.ssi_component}{R}",
+        f"  {C}Evidence :{R} {id_pills}",
         "",
     ]
+
     if explain.evidence_summaries:
-        lines.append("Evidence details:")
-        lines.extend(f"  {s}" for s in explain.evidence_summaries)
+        lines.append(f"  {Y}Evidence details:{R}")
+        for summary in explain.evidence_summaries:
+            # Split off the [ID] prefix for colouring
+            if summary.startswith("["):
+                bracket_end = summary.find("]")
+                if bracket_end != -1:
+                    eid = summary[1:bracket_end]
+                    rest = summary[bracket_end + 1:].strip()
+                    id_col = G if eid.startswith("E") else str(Fore.BLUE)
+                    # Truncate long summaries at 120 chars
+                    if len(rest) > 120:
+                        rest = rest[:117] + "…"
+                    lines.append(f"  {DIM}▸{R} {id_col}[{eid}]{R} {rest}")
+                else:
+                    lines.append(f"    {summary}")
+            else:
+                lines.append(f"    {summary}")
     else:
-        lines.append("  No persona graph facts were used (graph is empty or not loaded).")
-    lines.append("────────────────────────────────────────────────────────")
+        lines.append(f"  {DIM}No persona graph facts were used (graph is empty or not loaded).{R}")
+
+    lines.append(divider)
     return "\n".join(lines)
 
 
