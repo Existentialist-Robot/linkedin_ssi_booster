@@ -288,6 +288,7 @@ def format_explain_output(explain: ExplainOutput) -> str:
     if explain.dot_per_sentence_scores:
         lines.append("")
         lines.append(f"  {C}Truth Gate — Per-Sentence DoT Gradient:{R}")
+        lines.append(f"  {DIM}How well each sentence is supported by available evidence — higher is better. Does not penalize for off-topic grounding.{R}")
         for i, score in enumerate(explain.dot_per_sentence_scores, 1):
             if score >= 0.70:
                 bar_col = G
