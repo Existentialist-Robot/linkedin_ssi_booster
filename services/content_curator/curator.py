@@ -345,6 +345,19 @@ class ContentCurator:
         print(str(Fore.CYAN) + f"📡 CHANNEL: {channel}" + str(Style.RESET_ALL))
         print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {ssi_component}" + str(Style.RESET_ALL))
         print(str(Fore.YELLOW) + f"🔒 CONFIDENCE ROUTE: {conf_route} — {conf_reason}" + str(Style.RESET_ALL))
+        print(
+            str(Fore.WHITE)
+            + str(Style.DIM)
+            + "   confidence score = publish safety (truth gate + grounding + repetition), not DoT evidence quality"
+            + str(Style.RESET_ALL)
+        )
+        if "(1.00)" in conf_reason:
+            print(
+                str(Fore.WHITE)
+                + str(Style.DIM)
+                + "   1.00 means no confidence penalties fired for this generated post"
+                + str(Style.RESET_ALL)
+            )
 
     # ------------------------------------------------------------------
     # Main entry point
