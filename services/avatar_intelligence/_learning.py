@@ -15,6 +15,7 @@ from typing import Any, Sequence, Union
 from services.avatar_intelligence._models import (
     DomainEvidenceFact,
     EvidenceFact,
+    ExtractedEvidenceFact,
     ExplainOutput,
     LearningRecommendation,
     LearningReport,
@@ -108,16 +109,22 @@ def build_explain_output(
     ssi_component: str,
     dot_per_sentence_scores: list[float] | None = None,
     spacy_sim_scores: dict[str, float] | None = None,
+    extracted_facts: "Sequence[ExtractedEvidenceFact] | None" = None,
+    article_title: str = "",
+    article_url: str = "",
 ) -> ExplainOutput:
     """Build an ExplainOutput summary from the evidence facts used in a generation.
 
     Args:
-        evidence_facts:           Facts retrieved for grounding.
+        evidence_facts:           Persona + domain facts retrieved for grounding.
         article_ref:              Article title or URL for display.
         channel:                  Target channel (linkedin, x, bluesky, etc.).
         ssi_component:            SSI component the post targets.
         dot_per_sentence_scores:  Per-sentence DoT gradient from TruthGateMeta.
         spacy_sim_scores:         Per-sentence spaCy similarity from TruthGateMeta.
+        extracted_facts:          NLP-extracted knowledge facts used as evidence.
+        article_title:            Title of the article used as external evidence.
+        article_url:              URL of the article used as external evidence.
     """
     ids = [f.evidence_id for f in evidence_facts]
     summaries = []
@@ -142,6 +149,24 @@ def build_explain_output(
             summaries.append(
                 f"[{getattr(f, 'evidence_id', '?')}] Unknown evidence type: {attrs}"
             )
+
+    # Build extracted knowledge summaries
+    ext_summaries: list[str] = []
+    for xf in (extracted_facts or []):
+        tag_str = f" (Tags: {', '.join(xf.tags)})" if xf.tags else ""
+        source_str = f" \u2190 {xf.source_title[:60]}" if xf.source_title else ""
+        ext_summaries.append(
+            f"[{xf.evidence_id}] {xf.statement[:80]}{'...' if len(xf.statement) > 80 else ''}"
+            f"{tag_str}{source_str}"
+        )
+
+    # Build article evidence one-liner
+    art_evidence = ""
+    if article_title or article_url:
+        _title = (article_title or article_ref)[:80]
+        _url = article_url[:100] if article_url else ""
+        art_evidence = _title + (f" | {_url}" if _url else "")
+
     return ExplainOutput(
         evidence_ids=ids,
         evidence_summaries=summaries,
@@ -150,6 +175,8 @@ def build_explain_output(
         ssi_component=ssi_component,
         dot_per_sentence_scores=dot_per_sentence_scores or [],
         spacy_sim_scores=spacy_sim_scores or {},
+        extracted_summaries=ext_summaries,
+        article_evidence=art_evidence,
     )
 
 
@@ -180,7 +207,6 @@ def format_explain_output(explain: ExplainOutput) -> str:
         elif eid.startswith("D"):
             return f"{str(Fore.BLUE)}{eid}{R}"
         return f"{W}{eid}{R}"
-
     id_pills = (
         "  ".join(_id_pill(eid) for eid in explain.evidence_ids)
         if explain.evidence_ids
@@ -218,6 +244,31 @@ def format_explain_output(explain: ExplainOutput) -> str:
         lines.append(
             f"  {DIM}No persona graph facts were used (graph is empty or not loaded).{R}"
         )
+
+    # Extracted knowledge section
+    if explain.extracted_summaries:
+        lines.append("")
+        M = str(Fore.MAGENTA)
+        lines.append(f"  {Y}Extracted knowledge used as evidence:{R}")
+        for summary in explain.extracted_summaries:
+            if summary.startswith("["):
+                bracket_end = summary.find("]")
+                if bracket_end != -1:
+                    eid = summary[1:bracket_end]
+                    rest = summary[bracket_end + 1:].strip()
+                    if len(rest) > 120:
+                        rest = rest[:117] + "…"
+                    lines.append(f"  {DIM}▸{R} {M}[{eid}]{R} {rest}")
+                else:
+                    lines.append(f"    {summary}")
+            else:
+                lines.append(f"    {summary}")
+
+    # Article external evidence section
+    if explain.article_evidence:
+        lines.append("")
+        lines.append(f"  {Y}Article (external evidence):{R}")
+        lines.append(f"  {DIM}▸{R} {W}{explain.article_evidence}{R}")
 
     if explain.dot_per_sentence_scores:
         lines.append("")

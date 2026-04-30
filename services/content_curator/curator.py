@@ -268,6 +268,7 @@ class ContentCurator:
         grounding_facts: list[ProjectFact],
         channel: str,
         ssi_component: str,
+        extracted_facts: list[Any] | None = None,
     ) -> None:
         """Print the avatar explain block (evidence IDs + DoT/spaCy scores)."""
         try:
@@ -289,6 +290,9 @@ class ContentCurator:
                 ssi_component=ssi_component,
                 dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
                 spacy_sim_scores=_gate_meta.spacy_sim_scores,
+                extracted_facts=extracted_facts or [],
+                article_title=article.get("title", ""),
+                article_url=article.get("link", ""),
             )
             print(format_explain_output(_explain))
         except Exception as _exp_exc:
@@ -551,7 +555,7 @@ class ContentCurator:
             print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}\n")
 
         if avatar_explain:
-            self._print_avatar_explain(li_text, article, grounding_facts, "all", ssi_component)
+            self._print_avatar_explain(li_text, article, grounding_facts, "all", ssi_component, extracted_facts=extracted_facts)
         if dot_report:
             self._print_dot_report(li_text, article, grounding_facts, extracted_facts)
 
@@ -724,7 +728,7 @@ class ContentCurator:
         print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
 
         if avatar_explain:
-            self._print_avatar_explain(post_text, article, grounding_facts, effective_channel, ssi_component)
+            self._print_avatar_explain(post_text, article, grounding_facts, effective_channel, ssi_component, extracted_facts=extracted_facts)
         if dot_report:
             self._print_dot_report(post_text, article, grounding_facts, extracted_facts)
 

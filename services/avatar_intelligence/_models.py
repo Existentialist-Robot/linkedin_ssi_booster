@@ -247,13 +247,17 @@ class ExplainOutput:
     """Explain-mode summary of evidence used and confidence for one generation."""
 
     evidence_ids: list[str]
-    evidence_summaries: list[str]   # one human-readable line per fact
+    evidence_summaries: list[str]   # one human-readable line per fact (persona + domain)
     article_ref: str
     channel: str
     ssi_component: str
     # Truth-gate internals — populated when gate_meta is passed to build_explain_output
     dot_per_sentence_scores: list[float] = field(default_factory=list)
     spacy_sim_scores: dict[str, float] = field(default_factory=dict)
+    # Extracted knowledge facts used as evidence (NLP-extracted from past articles)
+    extracted_summaries: list[str] = field(default_factory=list)
+    # Article used as external evidence — "title | url" or empty
+    article_evidence: str = ""
 
 
 @dataclass
