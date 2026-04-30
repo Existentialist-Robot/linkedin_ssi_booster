@@ -123,6 +123,7 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
 
     lines.append(divider)
 
+    dim = str(Style.DIM)
     evidence_paths = report.get("evidence_paths", []) if isinstance(report, dict) else []
     overlaps = [float(ep.get("overlap", 0.0)) for ep in evidence_paths if float(ep.get("overlap", 0.0)) > 0.0]
     avg_overlap = (sum(overlaps) / len(overlaps)) if overlaps else None
@@ -137,28 +138,28 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
     )
     unc_foot_col = Fore.GREEN if unc_level == "low" else (Fore.YELLOW if unc_level == "moderate" else Fore.RED)
 
-    support_note = f"support {spct_col}{support_pct}/100{r}"
+    support_note = f"support {spct_col}{support_pct}/100{r}{dim}"
     alignment_note = (
-        f"avg claim-evidence alignment {aln_col}{avg_overlap:.2f}{r}"
+        f"avg claim-evidence alignment {aln_col}{avg_overlap:.2f}{r}{dim}"
         if avg_overlap is not None
         else "alignment unavailable (no overlap-bearing paths)"
     )
-    unc_note = f"uncertainty {unc_foot_col}{unc_level} ({unc:.2f}){r}"
+    unc_note = f"uncertainty {unc_foot_col}{unc_level} ({unc:.2f}){r}{dim}"
 
     if flagged:
         footer_note = (
-            f"  ⚠  Weak support ({support_note}): {alignment_note}; {unc_note}. "
-            f"Review carefully before publishing and tighten claim-to-evidence grounding."
+            f"  {dim}⚠  Weak support ({support_note}): {alignment_note}; {unc_note}. "
+            f"Review carefully before publishing and tighten claim-to-evidence grounding.{r}"
         )
     elif tg >= 0.70 and (avg_overlap is None or avg_overlap >= 0.45):
         footer_note = (
-            f"  ℹ  Strong support ({support_note}): {alignment_note}; {unc_note}. "
-            f"Output is well-backed by the supplied evidence."
+            f"  {dim}ℹ  Strong support ({support_note}): {alignment_note}; {unc_note}. "
+            f"Output is well-backed by the supplied evidence.{r}"
         )
     else:
         footer_note = (
-            f"  ℹ  Moderate support ({support_note}): {alignment_note}; {unc_note}. "
-            f"Improve by making claims more explicit and evidence-linked."
+            f"  {dim}ℹ  Moderate support ({support_note}): {alignment_note}; {unc_note}. "
+            f"Improve by making claims more explicit and evidence-linked.{r}"
         )
     lines.append(footer_note)
     lines.append(divider)
