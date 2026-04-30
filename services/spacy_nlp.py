@@ -18,6 +18,7 @@ The design ensures:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -421,8 +422,14 @@ _default_instance: SpacyNLP | None = None
 
 
 def get_spacy_nlp() -> SpacyNLP:
-    """Return the default singleton SpacyNLP instance."""
+    """Return the default singleton SpacyNLP instance.
+
+    The model is selected via the ``SPACY_MODEL`` env var
+    (default: ``en_core_web_md``).  Use ``en_core_web_sm`` for a smaller
+    footprint when word vectors are not required.
+    """
     global _default_instance
     if _default_instance is None:
-        _default_instance = SpacyNLP()
+        model_name = os.getenv("SPACY_MODEL", "en_core_web_md")
+        _default_instance = SpacyNLP(model_name=model_name)
     return _default_instance

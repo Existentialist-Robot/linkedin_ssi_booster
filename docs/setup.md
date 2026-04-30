@@ -10,8 +10,11 @@ The setup flow uses a Python virtual environment, package installation from `req
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_md  # recommended: includes word vectors
 ```
+
+If disk space is constrained, `en_core_web_sm` also works but produces lower-quality
+semantic similarity scores. Override the model at runtime with the `SPACY_MODEL` env var.
 
 ## Environment file
 

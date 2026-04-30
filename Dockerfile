@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Download spaCy English model (used by spacy_nlp.py)
-RUN python -m spacy download en_core_web_sm
+RUN python -m spacy download en_core_web_md
 
 # Copy application source
 COPY . .

@@ -6,7 +6,7 @@
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm  # Required for NLP features
+python -m spacy download en_core_web_md  # Recommended: includes word vectors
 cp .env.example .env
 # Fill in PERSONA_SYSTEM_PROMPT, BUFFER_API_KEY, OLLAMA_BASE_URL, OLLAMA_MODEL, etc.
 cp data/avatar/persona_graph.example.json data/avatar/persona_graph.json

@@ -459,6 +459,28 @@ def get_domain_facts_from_avatar_state() -> list[ProjectFact]:
         return []
 
 
+def get_all_persona_facts_from_avatar_state() -> list[ProjectFact]:
+    """Load *all* persona/evidence facts from avatar state for token allowlisting.
+
+    Used exclusively by ``_build_allowed_tokens`` so that numeric claims established
+    anywhere in the persona (e.g. "sub-500ms") are never blocked by the truth gate,
+    regardless of which facts were retrieved as top-N grounding for the current article.
+    Returns an empty list if avatar state is unavailable.
+    """
+    try:
+        from services.avatar_intelligence import (
+            load_avatar_state,
+            normalize_evidence_facts,
+            evidence_facts_to_project_facts,
+        )
+        state = load_avatar_state()
+        evidence_facts = normalize_evidence_facts(state)
+        return evidence_facts_to_project_facts(evidence_facts)
+    except Exception as exc:
+        _truth_logger.debug("Failed to load all persona facts for allowlist: %s", exc)
+        return []
+
+
 def _build_allowed_tokens(article_text: str, facts: list[ProjectFact]) -> set[str]:
     """Build a set of lowercased tokens that are considered 'allowed' evidence.
 
@@ -715,8 +737,12 @@ def truth_gate_result(
     domain_facts = get_domain_facts_from_avatar_state()
     all_facts = facts + domain_facts
     _truth_logger.debug("Truth gate using %d project facts + %d domain facts", len(facts), len(domain_facts))
-    
-    allowed = _build_allowed_tokens(article_text, all_facts)
+
+    # Build the allowed-token set from ALL persona facts (not just the top-N
+    # retrieved for this article).  This prevents false-positive numeric removals
+    # for claims the persona has genuinely established (e.g. "sub-500ms").
+    all_persona_facts = get_all_persona_facts_from_avatar_state()
+    allowed = _build_allowed_tokens(article_text, all_facts + all_persona_facts)
     tech_keywords = get_console_grounding_keywords()
     project_map = _build_project_tech_map(all_facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)

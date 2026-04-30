@@ -27,6 +27,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - **Derivative of Truth framework** (truth gradient scoring, evidence/reasoning annotation, uncertainty logic)
 - **Extracted knowledge application flow** (prompt grounding injection, extracted evidence scoring paths, and adaptive topic signal)
 - **Truth Gate — DoT + spaCy integration upgrade** (overlap-enriched evidence paths, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check)
+- **`content_curator` package refactor** (`services/content_curator.py` split into a proper Python package with seven focused submodules)
 - Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
 
 **Derivative of Truth status:**
@@ -41,16 +42,24 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - spaCy `compute_similarity` floor check (`TRUTH_GATE_SPACY_SIM_FLOOR`, default `0.10`) flags numeric/org sentences with low semantic support.
 - spaCy NER `ORG` extraction replaces `_ORG_NAME_RE` regex (regex fallback preserved when spaCy unavailable).
 - `TruthGateMeta` gains `dot_per_sentence_scores: list[float]` and `spacy_sim_scores: dict[str, float]`.
+- Default spaCy model upgraded to `en_core_web_md` (word vectors loaded via `SPACY_MODEL` env var) — eliminates the W007 no-word-vectors warning.
+- Default spaCy model upgraded to `en_core_web_md` (word vectors loaded via `SPACY_MODEL` env var) — eliminates the W007 no-word-vectors warning.
 - See [idea.md](features/truth-gate-dot/idea.md) for full design rationale.
 
-**Active production modules (as of April 29, 2026):**
+**Active production modules (as of April 30, 2026):**
 
-| Module                         | Status    | Integration point                                                                                        |
-| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
-| `services/github_service.py`   | ✅ Active | `main.py` startup; context passed to `run_console()` and `ContentCurator` system prompt                  |
-| `services/hybrid_retriever.py` | ✅ Active | `ContentCurator.__init__` bootstraps KG + `HybridRetriever`; used in `_grounding_facts_for_article()`    |
-| `services/ollama_service.py`   | ✅ Active | `summarise_for_curation()` injects extracted grounding context (via `build_extracted_grounding_context`) |
-| `services/content_curator.py`  | ✅ Active | Loads/uses extracted facts for prompt grounding, DoT evidence paths, and adaptive SSI component tilt     |
+| Module                                   | Status    | Integration point                                                                                        |
+| ---------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| `services/github_service.py`             | ✅ Active | `main.py` startup; context passed to `run_console()` and `ContentCurator` system prompt                  |
+| `services/hybrid_retriever.py`           | ✅ Active | `ContentCurator.__init__` bootstraps KG + `HybridRetriever`; used in `_grounding_facts_for_article()`    |
+| `services/ollama_service.py`             | ✅ Active | `summarise_for_curation()` injects extracted grounding context (via `build_extracted_grounding_context`) |
+| `services/content_curator/curator.py`    | ✅ Active | `ContentCurator` class — orchestrates article fetching, AI generation, confidence routing, Buffer push    |
+| `services/content_curator/_config.py`    | ✅ Active | RSS feeds, keywords, SSI weights/hints, env constants                                                    |
+| `services/content_curator/_rss_fetcher.py` | ✅ Active | `fetch_relevant_articles()`, `fetch_article_text()`                                                    |
+| `services/content_curator/_ssi_picker.py` | ✅ Active | `build_topic_signal()`, `pick_ssi_component()` — adaptive SSI component tilt from extracted facts        |
+| `services/content_curator/_evidence_paths.py` | ✅ Active | Converts persona/domain/extracted facts into `EvidencePath` objects for DoT scoring                 |
+| `services/content_curator/_text_utils.py` | ✅ Active | `truncate_at_sentence()`, `extract_hashtags()`, `append_url_and_hashtags()`                             |
+| `services/content_curator/_grounding.py` | ✅ Active | `load_curation_grounding_keywords()`, `load_curation_grounding_tag_expansions()`                         |
 
 ---
 
@@ -61,7 +70,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `tests/test_avatar_state_loader.py`        | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.                                                                           |
 | `tests/test_buffer_service.py`             | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                                                                                         |
 | `tests/test_confidence_scoring.py`         | Signal extraction, score thresholds, and policy routing.                                                                                                               |
-| `tests/test_content_curator.py`            | RSS curation pipeline, keyword filtering, and article processing.                                                                                                      |
+| `tests/test_content_curator.py`            | RSS curation pipeline, keyword filtering, article processing, topic signal, SSI component tilt, and `EvidencePath` construction — updated to reference new submodule paths. |
 | `tests/test_continual_learning.py`         | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration.                                                                   |
 | `tests/test_derivative_of_truth.py`        | Truth gradient scoring, evidence/reasoning annotation, and uncertainty logic.                                                                                          |
 | `tests/test_evidence_mapping.py`           | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.                                                                                 |
@@ -70,7 +79,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `tests/test_learning_report.py`            | JSONL moderation capture, heuristics, aggregation, and report formatting.                                                                                              |
 | `tests/test_persona_graph_retrieval.py`    | Real persona graph loading, retrieval spot checks, and fallback logic.                                                                                                 |
 | `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                                                                                  |
-| `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                                                                                     |
+| `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based). Default model is `en_core_web_md` (configurable via `SPACY_MODEL`).                 |
 | `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                                                                                              |
 | `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, and `TruthGateMeta` field coverage. |
 
@@ -87,6 +96,15 @@ Project file tree (top-level):
 ├── requirements.txt
 ├── README.md
 ├── services/
+│   ├── content_curator/          # refactored package (was content_curator.py)
+│   │   ├── __init__.py           # public API re-exports
+│   │   ├── curator.py            # ContentCurator class
+│   │   ├── _config.py            # RSS feeds, keywords, SSI weights
+│   │   ├── _rss_fetcher.py       # article fetching
+│   │   ├── _text_utils.py        # string helpers
+│   │   ├── _evidence_paths.py    # EvidencePath builders
+│   │   ├── _ssi_picker.py        # topic signal + SSI component selection
+│   │   └── _grounding.py        # grounding keyword/tag loaders
 │   ├── avatar_intelligence.py
 │   ├── buffer_service.py
 │   ├── ...

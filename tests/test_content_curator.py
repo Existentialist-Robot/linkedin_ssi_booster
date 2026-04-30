@@ -1,5 +1,10 @@
 import pytest
 from services import content_curator
+import services.content_curator._ssi_picker as _ssi_picker_mod
+import services.content_curator.curator as _curator_mod
+from services.content_curator._config import _SSI_WEIGHTS
+from services.content_curator._ssi_picker import build_topic_signal, pick_ssi_component
+from services.content_curator._evidence_paths import extracted_fact_to_evidence_path
 from services.selection_learning import compute_acceptance_priors, rank_articles
 from services.avatar_intelligence import ExtractedEvidenceFact
 
@@ -23,7 +28,7 @@ def test_curate_and_create_ideas_adaptive(monkeypatch, sample_articles):
     class DummyAI(OllamaService):
         pass
     curator = content_curator.ContentCurator(DummyAI())
-    monkeypatch.setattr(content_curator, "fetch_relevant_articles", lambda *a, **kw: sample_articles)
+    monkeypatch.setattr(_curator_mod, "fetch_relevant_articles", lambda *a, **kw: sample_articles)
     monkeypatch.setattr(curator, "_load_published_titles", lambda: set())
     monkeypatch.setattr(curator, "_save_published_title", lambda t: None)
     ideas = curator.curate_and_create_ideas(dry_run=True, max_ideas=2)
@@ -55,7 +60,7 @@ def test_build_topic_signal_counts_tags_and_entities():
         ),
     ]
 
-    signal = content_curator._build_topic_signal(facts, window=50)
+    signal = build_topic_signal(facts, window=50)
     assert signal["anthropic"] == 2
     assert signal["aiops"] == 1
     assert signal["persistent memory"] == 1
@@ -69,14 +74,14 @@ def test_pick_ssi_component_applies_topic_tilt(monkeypatch):
         captured["weights"] = weights
         return [components[0]]
 
-    monkeypatch.setattr(content_curator.random, "choices", _fake_choices)
+    monkeypatch.setattr(_ssi_picker_mod.random, "choices", _fake_choices)
 
     topic_signal = {"anthropic": 3, "aiops": 2, "llm": 1}
-    content_curator._pick_ssi_component(topic_signal)
+    pick_ssi_component(topic_signal)
 
     idx = captured["components"].index("engage_with_insights")
     weighted = captured["weights"][idx]
-    assert weighted > content_curator._SSI_WEIGHTS["engage_with_insights"]
+    assert weighted > _SSI_WEIGHTS["engage_with_insights"]
 
 
 def test_extracted_fact_to_evidence_path_sets_overlap_and_credibility():
@@ -91,7 +96,7 @@ def test_extracted_fact_to_evidence_path_sets_overlap_and_credibility():
         source_fact_id="ext-3",
     )
 
-    path = content_curator._extracted_fact_to_evidence_path(
+    path = extracted_fact_to_evidence_path(
         fact,
         "Claude managed agents now include persistent memory for workflows",
     )
