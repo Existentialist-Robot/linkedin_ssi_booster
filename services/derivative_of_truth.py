@@ -110,12 +110,19 @@ class EvidencePath:
     uncertainty: float = 0.0
     chain_length: int = 1
     conflicts_with: list[str] = field(default_factory=list)
+    overlap: float = 0.0
+    """Token overlap ∈ [0,1] between the generated claim text and this evidence
+    source's content.  0.0 means 'not computed' (e.g. KG-built paths).
+    When > 0 it is included in the base_gradient formula as a direct measure
+    of how much the LLM output is actually supported by the evidence text.
+    """
 
     def __post_init__(self) -> None:
         # Clamp to valid ranges
         self.credibility = max(0.0, min(1.0, self.credibility))
         self.uncertainty = max(0.0, min(1.0, self.uncertainty))
         self.chain_length = max(1, self.chain_length)
+        self.overlap = max(0.0, min(1.0, self.overlap))
 
 
 @dataclass
@@ -184,10 +191,18 @@ class AnnotatedFact:
 # Claims with truth_gradient below this threshold are flagged as weak
 TRUTH_GRADIENT_FLAG_THRESHOLD: float = 0.35
 
-# Weights for the composite truth gradient formula
-_W_EVIDENCE = 0.40
-_W_REASONING = 0.35
-_W_CREDIBILITY = 0.25
+# Weights for the composite truth gradient formula.
+# When claim-evidence token overlap is available (overlap > 0), the 4-term
+# formula is used and weights are rebalanced to give 25% to overlap —
+# making the score a direct measure of LLM output support by evidence.
+_W_EVIDENCE = 0.40       # fallback (no overlap)
+_W_REASONING = 0.35      # fallback (no overlap)
+_W_CREDIBILITY = 0.25    # fallback (no overlap)
+# With overlap: 0.30*ev + 0.25*reasoning + 0.20*cred + 0.25*overlap
+_W_EVIDENCE_OL = 0.30
+_W_REASONING_OL = 0.25
+_W_CREDIBILITY_OL = 0.20
+_W_OVERLAP = 0.25
 
 # Uncertainty penalty caps
 _MAX_UNCERTAINTY_PENALTY = 0.5   # never discount gradient more than 50%
@@ -267,11 +282,21 @@ def score_claim_with_truth_gradient(
     for path in evidence_paths:
         ev_weight = EVIDENCE_WEIGHTS.get(path.evidence_type, 0.25)
         re_weight = REASONING_WEIGHTS.get(path.reasoning_type, 0.35)
-        path_score = (
-            _W_EVIDENCE * ev_weight
-            + _W_REASONING * re_weight
-            + _W_CREDIBILITY * path.credibility
-        )
+        if path.overlap > 0.0:
+            # 4-term formula: includes direct claim-evidence token alignment
+            path_score = (
+                _W_EVIDENCE_OL * ev_weight
+                + _W_REASONING_OL * re_weight
+                + _W_CREDIBILITY_OL * path.credibility
+                + _W_OVERLAP * path.overlap
+            )
+        else:
+            # 3-term fallback: overlap not computed (e.g. KG-built paths)
+            path_score = (
+                _W_EVIDENCE * ev_weight
+                + _W_REASONING * re_weight
+                + _W_CREDIBILITY * path.credibility
+            )
         path_scores.append(path_score)
 
     base_gradient = sum(path_scores) / len(path_scores)
@@ -545,6 +570,7 @@ def report_truth_gradient(
                 "reasoning_type": p.reasoning_type,
                 "credibility": round(p.credibility, 3),
                 "uncertainty": round(p.uncertainty, 3),
+                "overlap": round(p.overlap, 3),
                 "chain_length": p.chain_length,
                 "conflicts_with": p.conflicts_with,
             }
@@ -651,18 +677,18 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
     DIM = str(Style.DIM)
     if flagged:
         footer_note = (
-            f"  {DIM}⚠  The evidence feeding this generation was weak. "
-            f"Review the post carefully before publishing.{R}"
+            f"  {DIM}⚠  Weak support: the LLM output has low alignment with its evidence. "
+            f"Review carefully — claims may not be supported by the facts that were fed in.{R}"
         )
     elif tg >= 0.70:
         footer_note = (
-            f"  {DIM}ℹ  Strong grounding: the evidence fed to the model was high quality. "
-            f"This scores your inputs, not factual accuracy of the output.{R}"
+            f"  {DIM}ℹ  Strong support: the generated text is well-aligned with high-quality evidence. "
+            f"Scores output trustworthiness vs. the evidence — not absolute factual accuracy.{R}"
         )
     else:
         footer_note = (
-            f"  {DIM}ℹ  Moderate grounding: scores how trustworthy the evidence fed to the "
-            f"model was — not whether the output is factually accurate.{R}"
+            f"  {DIM}ℹ  Moderate support: partial alignment between generated text and evidence. "
+            f"Scores how well the LLM output is backed by its grounding facts.{R}"
         )
     lines.append(footer_note)
     lines.append(divider)
@@ -770,9 +796,19 @@ def _explain_evidence_path_line(ep: dict[str, Any]) -> str:
 
     chain_note = "" if chain <= 1 else f" ({chain} inference hops to reach this fact)"
 
+    overlap: float = ep.get("overlap", 0.0)
+    if overlap >= 0.60:
+        overlap_note = f", strong claim alignment ({overlap:.2f})"
+    elif overlap >= 0.30:
+        overlap_note = f", moderate claim alignment ({overlap:.2f})"
+    elif overlap > 0.0:
+        overlap_note = f", weak claim alignment ({overlap:.2f}) — output may diverge from evidence"
+    else:
+        overlap_note = ""
+
     return (
         f"      → {ev_desc} {source_desc}{chain_note}, {re_desc}. "
-        f"{cred_qual.capitalize()} ({cred:.2f}), {unc_qual} ({unc:.2f})."
+        f"{cred_qual.capitalize()} ({cred:.2f}), {unc_qual} ({unc:.2f}){overlap_note}."
     )
 
 
@@ -793,11 +829,22 @@ def _build_explanation(
         sum(p.credibility for p in evidence_paths) / n_paths if n_paths else 0.0
     )
 
+    overlap_paths = [p for p in evidence_paths if p.overlap > 0.0]
+    avg_overlap = (
+        sum(p.overlap for p in overlap_paths) / len(overlap_paths)
+        if overlap_paths else None
+    )
+
+    overlap_note = (
+        f"; avg claim-evidence alignment: {avg_overlap:.2f}"
+        if avg_overlap is not None
+        else "; claim-evidence alignment: not computed"
+    )
     parts = [
         f"Base gradient {base_gradient:.3f} from {n_paths} evidence path(s) "
         f"[types: {', '.join(sorted(ev_types))}; "
         f"reasoning: {', '.join(sorted(re_types))}; "
-        f"avg credibility: {avg_cred:.2f}].",
+        f"avg credibility: {avg_cred:.2f}{overlap_note}].",
     ]
     if clamped_penalty > 0:
         parts.append(

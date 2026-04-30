@@ -332,6 +332,7 @@ def _fact_to_evidence_path(fact: Any, claim_text: str) -> Any:
         credibility=credibility,
         uncertainty=uncertainty,
         chain_length=1,
+        overlap=round(min(overlap * 3, 1.0), 3) if claim_tokens else 0.0,
     )
 
 
@@ -388,6 +389,7 @@ def _article_to_evidence_path(article: dict[str, Any], claim_text: str) -> Any:
         credibility=credibility,
         uncertainty=uncertainty,
         chain_length=1,
+        overlap=round(min(overlap * 2, 1.0), 3) if (claim_tokens and art_tokens) else 0.0,
     )
 
 
