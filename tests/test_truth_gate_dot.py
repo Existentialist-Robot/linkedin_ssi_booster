@@ -376,6 +376,46 @@ class TestPerSentenceDoTScoring:
         assert meta.removed_count == 0
         assert "G7 GovTech AI project" in filtered
 
+    def test_project_name_substring_not_flagged_regulatory_intelligence(self) -> None:
+        """Regression: 'Regulatory Intelligence' (partial project name) must not be flagged.
+
+        spaCy may tag 'Regulatory Intelligence' as ORG even when the full project
+        name 'Regulatory Intelligence Assistant' is a known alias in the persona graph.
+        The truth gate should recognise it as a substring of a known project and skip.
+        """
+        fact = make_fact(
+            project="G7 GovAI Grand Challenge RIA",
+            details="Bilingual NLP hybrid search over 397k Canadian federal law docs",
+        )
+        text = (
+            "But I'd argue that what really sets apart successful projects like "
+            "S1GNAL.ZERO or Regulatory Intelligence Assistant is not just the tech "
+            "stack, but the way they're used to drive business value."
+        )
+
+        with (
+            patch(
+                "services.console_grounding._truth_gate._extract_spacy_orgs",
+                return_value=["Regulatory Intelligence"],
+            ),
+            patch("services.console_grounding._truth_gate._score_sentence_bm25", return_value=10.0),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+            patch(
+                "services.console_grounding._truth_gate.get_project_names_from_avatar_state",
+                return_value={"regulatory intelligence assistant", "regulatory intelligence", "g7 ria"},
+            ),
+            patch("services.console_grounding._truth_gate.get_all_persona_facts_from_avatar_state", return_value=[]),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="Project showcases value of regulatory AI tooling",
+                facts=[fact],
+                interactive=False,
+            )
+
+        assert meta.removed_count == 0
+        assert "Regulatory Intelligence Assistant" in filtered
+
 
 # ---------------------------------------------------------------------------
 # Part C — spaCy similarity floor (truth_gate_result integration)

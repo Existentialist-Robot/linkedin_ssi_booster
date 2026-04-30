@@ -29,6 +29,7 @@ from services.console_grounding._gate_helpers import (
     _score_sentence_bm25,
     get_all_persona_facts_from_avatar_state,
     get_domain_facts_from_avatar_state,
+    get_project_names_from_avatar_state,
 )
 from services.console_grounding._models import ProjectFact, TruthGateMeta
 
@@ -85,6 +86,7 @@ def truth_gate_result(
 
     all_persona_facts = get_all_persona_facts_from_avatar_state()
     allowed = _build_allowed_tokens(article_text, all_facts + all_persona_facts)
+    known_project_names = get_project_names_from_avatar_state()
     tech_keywords = get_console_grounding_keywords()
     project_map = _build_project_tech_map(all_facts, article_text)
     sentences = _SENTENCE_SPLIT_RE.split(text)
@@ -187,6 +189,9 @@ def truth_gate_result(
                     if _is_project_like_org_mention(sentence, _org):
                         continue
                     _org_lower = _org.lower()
+                    # Skip if the ORG phrase is a full name or substring of a known project
+                    if any(_org_lower in proj_name for proj_name in known_project_names):
+                        continue
                     if _org_lower not in allowed:
                         _org_words = [w for w in re.findall(r"\w+", _org_lower) if len(w) > 1]
                         if not all(word in allowed for word in _org_words):
@@ -197,6 +202,9 @@ def truth_gate_result(
                     if _is_project_like_org_mention(sentence, m.group(1)):
                         continue
                     org_phrase = m.group(1).lower()
+                    # Skip if the ORG phrase is a full name or substring of a known project
+                    if any(org_phrase in proj_name for proj_name in known_project_names):
+                        continue
                     if org_phrase not in allowed:
                         org_words = [w for w in re.findall(r"\w+", org_phrase) if len(w) > 1]
                         if not all(word in allowed for word in org_words):

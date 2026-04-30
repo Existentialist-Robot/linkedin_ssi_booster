@@ -82,6 +82,32 @@ def get_all_persona_facts_from_avatar_state() -> list[ProjectFact]:
         logger.debug("Failed to load all persona facts for allowlist: %s", exc)
         return []
 
+
+def get_project_names_from_avatar_state() -> set[str]:
+    """Return all lowercased project names and aliases from the persona graph.
+
+    Used by the truth gate so spaCy ORG entities that are substrings of a
+    known project name (or alias) are never flagged as unsupported_org.
+    """
+    try:
+        from services.avatar_intelligence import load_avatar_state
+
+        state = load_avatar_state()
+        names: set[str] = set()
+        if not state.persona_graph:
+            return names
+        for proj in getattr(state.persona_graph, "projects", []):
+            raw_name = getattr(proj, "name", None)
+            if raw_name:
+                names.add(raw_name.lower())
+            for alias in getattr(proj, "aliases", []):
+                if alias:
+                    names.add(alias.lower())
+        return names
+    except Exception as exc:
+        logger.debug("Failed to load project names from avatar state: %s", exc)
+        return set()
+
 # ---------------------------------------------------------------------------
 # Token helpers
 # ---------------------------------------------------------------------------
