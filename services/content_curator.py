@@ -756,14 +756,14 @@ class ContentCurator:
                         _topic_window = int(os.getenv("TOPIC_SIGNAL_WINDOW", "50"))
                         self._topic_signal = _build_topic_signal(self._extracted_facts, window=_topic_window)
                         logger.info(
-                            "🧠 Knowledge extraction: ✨ +%d fact(s) from '%s' (📚 pool=%d)",
+                            "🧠 Knowledge extraction: ✨ +%d fact(s) from '%s' (🗂️ pool=%d)",
                             len(_new_facts),
                             article["title"][:60],
                             len(self._extracted_facts),
                         )
                     else:
                         logger.info(
-                            "🧠 Knowledge extraction: ➕ 0 new facts from '%s' (📚 pool=%d)",
+                            "🧠 Knowledge extraction: ➕ 0 new facts from '%s' (🗂️ pool=%d)",
                             article["title"][:60],
                             len(self._extracted_facts),
                         )

@@ -656,6 +656,8 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
                 icon, src_colour = "👤", Fore.MAGENTA
             elif source.startswith("domain:"):
                 icon, src_colour = "📚", Fore.BLUE
+            elif source.startswith("extracted_knowledge:"):
+                icon, src_colour = "🗂️", Fore.CYAN
             else:
                 icon, src_colour = "🔗", Fore.WHITE
 

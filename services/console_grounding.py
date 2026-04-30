@@ -80,6 +80,30 @@ def get_truth_gate_bm25_threshold() -> float:
         return 1.0
 
 
+def get_truth_gate_spacy_sim_floor() -> float:
+    """Return the minimum spaCy cosine similarity floor for numeric/org sentence validation.
+
+    Env format:
+      TRUTH_GATE_SPACY_SIM_FLOOR=0.10 (float, defaults to 0.10)
+
+    When a sentence contains a numeric claim, year, dollar amount, or org name,
+    and its spaCy cosine similarity to the article text is below this floor (and
+    non-zero — zero means vectors unavailable), it is flagged as
+    ``low_semantic_similarity``.  Default is very permissive (0.10) to avoid
+    false positives; raise to 0.25–0.40 for stricter enforcement.
+    """
+    raw = os.getenv("TRUTH_GATE_SPACY_SIM_FLOOR", "").strip()
+    if not raw:
+        return 0.10
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except ValueError:
+        _truth_logger.warning(
+            "Invalid TRUTH_GATE_SPACY_SIM_FLOOR value: %r, using default 0.10", raw
+        )
+        return 0.10
+
+
 def get_whitelisted_phrases() -> set[str]:
     """Return a set of whitelisted phrases (case-insensitive, stripped) from env.
     
@@ -169,6 +193,8 @@ class TruthGateMeta:
     - dot_uncertainty: aggregate uncertainty penalty from DoT scoring
     - dot_flagged: True if truth_gradient is below the flag threshold
     - dot_uncertainty_sources: list of uncertainty reason codes
+    - dot_per_sentence_scores: DoT gradient per kept/checked sentence (Part B)
+    - spacy_sim_scores: spaCy similarity scores per sentence (Part C)
     """
 
     removed_count: int
@@ -178,6 +204,8 @@ class TruthGateMeta:
     dot_uncertainty: float = 0.0
     dot_flagged: bool = False
     dot_uncertainty_sources: list[str] = field(default_factory=list)
+    dot_per_sentence_scores: list[float] = field(default_factory=list)
+    spacy_sim_scores: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -559,6 +587,104 @@ def _score_sentence_bm25(
         return 0.0
 
 
+def _compute_fact_overlap(sentence_tokens: set[str], fact_tokens: set[str]) -> float:
+    """Compute Jaccard token overlap between sentence and fact token sets.
+
+    Returns a value in [0, 1].  Returns 0.0 when either set is empty, which is
+    also the sentinel value used when overlap is not computed (overlap=0.0 on
+    EvidencePath triggers the 3-term DoT fallback formula instead of the richer
+    4-term formula).
+    """
+    if not sentence_tokens or not fact_tokens:
+        return 0.0
+    intersection = len(sentence_tokens & fact_tokens)
+    union = len(sentence_tokens | fact_tokens)
+    return intersection / union if union > 0 else 0.0
+
+
+def _build_evidence_paths_for_sentence(
+    sentence: str,
+    all_facts: list[ProjectFact],
+) -> list["EvidencePath"]:  # type: ignore[name-defined]
+    """Build EvidencePath objects for a sentence with proper source annotation and overlap.
+
+    Part A implementation: computes Jaccard token overlap between the sentence
+    and each fact's text, and infers evidence_type / credibility from the fact's
+    source prefix so the 4-term DoT formula activates when overlap > 0.
+
+    Returns an empty list when DoT is not importable or no facts are provided.
+    """
+    if not all_facts:
+        return []
+    try:
+        from services.derivative_of_truth import (
+            EvidencePath,
+            EVIDENCE_TYPE_PRIMARY,
+            EVIDENCE_TYPE_SECONDARY,
+            REASONING_TYPE_LOGICAL,
+            REASONING_TYPE_STATISTICAL,
+        )
+    except ImportError:
+        return []
+
+    sent_tokens = set(_tokenize_for_bm25(sentence))
+    paths: list[EvidencePath] = []
+
+    for fact in all_facts:
+        fact_text = f"{fact.project} {fact.details}"
+        fact_tokens = set(_tokenize_for_bm25(fact_text))
+        overlap = _compute_fact_overlap(sent_tokens, fact_tokens)
+
+        # Infer evidence type and credibility from the fact source prefix.
+        src_lower = fact.source.lower()
+        if src_lower.startswith("profile_context") or src_lower.startswith("avatar:"):
+            evidence_type = EVIDENCE_TYPE_PRIMARY
+            credibility = 0.90
+        elif src_lower.startswith("domain:"):
+            evidence_type = EVIDENCE_TYPE_SECONDARY
+            credibility = 0.70
+        else:
+            evidence_type = EVIDENCE_TYPE_SECONDARY
+            credibility = 0.60
+
+        # Infer reasoning type from tags.
+        tag_set = {t.lower() for t in fact.tags}
+        if any(t in tag_set for t in ("statistics", "benchmark", "performance", "measured", "data")):
+            reasoning_type = REASONING_TYPE_STATISTICAL
+        else:
+            reasoning_type = REASONING_TYPE_LOGICAL
+
+        paths.append(
+            EvidencePath(
+                source=fact.source,
+                evidence_type=evidence_type,
+                reasoning_type=reasoning_type,
+                credibility=credibility,
+                overlap=overlap,
+            )
+        )
+
+    return paths
+
+
+def _extract_spacy_orgs(sentence: str, spacy_nlp: object) -> list[str]:
+    """Extract ORG named entities from a sentence using spaCy NER.
+
+    Part D implementation: returns a list of org-name strings (original case).
+    Returns an empty list when spaCy is unavailable or the model has no NER.
+    Callers fall back to the ``_ORG_NAME_RE`` regex when this returns [].
+    """
+    try:
+        nlp = spacy_nlp._ensure_model()  # type: ignore[union-attr]
+        if nlp is None:
+            return []
+        doc = nlp(sentence)
+        return [ent.text for ent in doc.ents if ent.label_ == "ORG"]
+    except Exception as exc:
+        _truth_logger.debug("spaCy org extraction failed: %s", exc)
+        return []
+
+
 def truth_gate_result(
     text: str,
     article_text: str,
@@ -596,19 +722,34 @@ def truth_gate_result(
     sentences = _SENTENCE_SPLIT_RE.split(text)
     kept: list[str] = []
     removed: list[tuple[str, str]] = []  # (full_sentence, reason)
-    
-    # Lazy import spaCy NLP for fact suggestion
+
+    # Load spaCy NLP — used for org NER (Part D), semantic similarity (Part C),
+    # and interactive fact suggestions.  Loaded unconditionally so Parts C and D
+    # always get the chance to run regardless of the suggest_facts flag.
     spacy_nlp = None
-    if suggest_facts and facts:
-        try:
-            from services.spacy_nlp import get_spacy_nlp
-            spacy_nlp = get_spacy_nlp()
-        except Exception as _nlp_exc:
-            _truth_logger.debug("spaCy NLP unavailable for fact suggestion: %s", _nlp_exc)
+    try:
+        from services.spacy_nlp import get_spacy_nlp
+        spacy_nlp = get_spacy_nlp()
+    except Exception as _nlp_exc:
+        _truth_logger.debug("spaCy NLP unavailable: %s", _nlp_exc)
 
     # Get BM25 threshold for weak evidence detection
     bm25_threshold = get_truth_gate_bm25_threshold()
-    
+    # spaCy similarity floor for numeric/org sentence semantic check (Part C)
+    spacy_sim_floor = get_truth_gate_spacy_sim_floor()
+
+    # Per-sentence DoT state (Parts A + B)
+    dot_per_sentence_scores: list[float] = []
+    spacy_sim_scores: dict[str, float] = {}
+
+    # Pre-import DoT scoring function once for reuse in the sentence loop (Part B)
+    # and the full-post post-hoc scoring block (Part A).
+    _dot_score_fn = None
+    try:
+        from services.derivative_of_truth import score_claim_with_truth_gradient as _dot_score_fn
+    except ImportError:
+        _truth_logger.debug("DoT unavailable — per-sentence and full-post scoring skipped")
+
     whitelisted_phrases = get_whitelisted_phrases()
     for sentence in sentences:
         # Always keep sentences that are only hashtags, only URLs, empty/whitespace, questions, or whitelisted phrases
@@ -646,7 +787,23 @@ def truth_gate_result(
             bm25_score = _score_sentence_bm25(sentence, article_text, all_facts)
             if bm25_score < bm25_threshold:
                 reason = f"weak_evidence_bm25: score={bm25_score:.2f} < threshold={bm25_threshold}"
-        
+
+        # Part C: spaCy semantic similarity floor.
+        # Only fires for sentences containing numeric/org-like claims (reduces false positives).
+        # sim==0.0 means spaCy vectors are unavailable — skip the check in that case.
+        if not reason and spacy_nlp and article_text:
+            _has_specific_claim = (
+                _NUMERIC_CLAIM_RE.search(stripped)
+                or _YEAR_RE.search(stripped)
+                or _DOLLAR_RE.search(stripped)
+                or _ORG_NAME_RE.search(stripped)
+            )
+            if _has_specific_claim:
+                _sim = spacy_nlp.compute_similarity(sentence, article_text)
+                spacy_sim_scores[sentence] = _sim
+                if 0.0 < _sim < spacy_sim_floor:
+                    reason = f"low_semantic_similarity: sim={_sim:.3f} < floor={spacy_sim_floor:.2f}"
+
         # Strict token-matching checks for specific claim types
         # These complement BM25 by catching exact numeric/org mismatches
         if not reason:
@@ -672,17 +829,52 @@ def truth_gate_result(
                     break
 
         if not reason:
-            for m in _ORG_NAME_RE.finditer(sentence):
-                org_phrase = m.group(1).lower()
-                if org_phrase not in allowed:
-                    # Allow if all words in org name are present in allowed evidence
-                    org_words = [w for w in re.findall(r"\w+", org_phrase) if len(w) > 1]
-                    if not all(word in allowed for word in org_words):
-                        reason = f"unsupported_org: '{m.group(1)}'"
-                        break
+            # Part D: spaCy NER org-name check (falls back to _ORG_NAME_RE regex).
+            # spaCy NER has higher recall for single-word brands, all-caps names,
+            # and abbreviations that the regex misses.
+            _spacy_orgs = _extract_spacy_orgs(sentence, spacy_nlp) if spacy_nlp else []
+            if _spacy_orgs:
+                for _org in _spacy_orgs:
+                    _org_lower = _org.lower()
+                    if _org_lower not in allowed:
+                        _org_words = [w for w in re.findall(r"\w+", _org_lower) if len(w) > 1]
+                        if not all(word in allowed for word in _org_words):
+                            reason = f"unsupported_org: '{_org}'"
+                            break
+            else:
+                # Fallback: regex when spaCy unavailable or finds no ORG entities
+                for m in _ORG_NAME_RE.finditer(sentence):
+                    org_phrase = m.group(1).lower()
+                    if org_phrase not in allowed:
+                        # Allow if all words in org name are present in allowed evidence
+                        org_words = [w for w in re.findall(r"\w+", org_phrase) if len(w) > 1]
+                        if not all(word in allowed for word in org_words):
+                            reason = f"unsupported_org: '{m.group(1)}'"
+                            break
 
         if not reason:
             reason = _check_project_claim(sentence, project_map, tech_keywords)
+
+        # Part B: per-sentence DoT scoring — active filter for weakly-supported claims.
+        # Runs only when a sentence would otherwise be kept; flags it with
+        # 'weak_dot_gradient' when the truth gradient falls below the threshold.
+        if not reason and all_facts and _dot_score_fn is not None:
+            try:
+                _sent_paths = _build_evidence_paths_for_sentence(sentence, all_facts)
+                if _sent_paths:
+                    _sent_dot = _dot_score_fn(sentence, _sent_paths)
+                    dot_per_sentence_scores.append(_sent_dot.truth_gradient)
+                    if _sent_dot.flagged:
+                        reason = (
+                            f"weak_dot_gradient: gradient={_sent_dot.truth_gradient:.3f}"
+                        )
+                        _truth_logger.debug(
+                            "DoT per-sentence flagged: gradient=%.3f sentence='%s...'",
+                            _sent_dot.truth_gradient,
+                            sentence[:60],
+                        )
+            except Exception as _dot_sent_exc:
+                _truth_logger.debug("Per-sentence DoT failed: %s", _dot_sent_exc)
 
         if reason:
             if interactive:
@@ -691,7 +883,7 @@ def truth_gate_result(
                 print(f"    Sentence: {sentence}")
                 
                 # Suggest matching facts using spaCy if enabled
-                if spacy_nlp and all_facts:
+                if suggest_facts and spacy_nlp and all_facts:
                     try:
                         fact_texts = [f"{f.project} | {f.details}" for f in all_facts]
                         suggestions = spacy_nlp.suggest_matching_facts(
@@ -762,27 +954,19 @@ def truth_gate_result(
         removed_count=len(removed),
         total_sentences=len(sentences),
         reason_codes=[r.split(":")[0] for _, r in removed],
+        dot_per_sentence_scores=dot_per_sentence_scores,
+        spacy_sim_scores=spacy_sim_scores,
     )
 
-    # --- Derivative of Truth scoring on the kept post text ---
+    # --- Derivative of Truth scoring on the kept post text (Part A) ---
+    # Uses _build_evidence_paths_for_sentence so that EvidencePath.overlap is
+    # populated, activating the 4-term DoT formula instead of the 3-term fallback.
     try:
-        from services.derivative_of_truth import (
-            EvidencePath,
-            EVIDENCE_TYPE_SECONDARY,
-            REASONING_TYPE_LOGICAL,
-            score_claim_with_truth_gradient,
-        )
+        if _dot_score_fn is None:
+            raise ImportError("DoT not imported")
         kept_text = " ".join(kept).strip()
-        ev_paths = [
-            EvidencePath(
-                source=f.source,
-                evidence_type=EVIDENCE_TYPE_SECONDARY,
-                reasoning_type=REASONING_TYPE_LOGICAL,
-                credibility=0.7,
-            )
-            for f in all_facts
-        ] if all_facts else []
-        _dot = score_claim_with_truth_gradient(kept_text, ev_paths)
+        ev_paths = _build_evidence_paths_for_sentence(kept_text, all_facts) if all_facts else []
+        _dot = _dot_score_fn(kept_text, ev_paths)
         meta.truth_gradient = _dot.truth_gradient
         meta.dot_uncertainty = _dot.uncertainty
         meta.dot_flagged = _dot.flagged

@@ -2124,7 +2124,7 @@ def extract_and_append_knowledge(
             facts=updated_facts,
         )
         save_extracted_knowledge(updated_graph, path=target)
-        logger.info(
+        logger.debug(
             "extract_and_append_knowledge: appended %d new fact(s) to %s (total: %d)",
             len(new_facts),
             target,

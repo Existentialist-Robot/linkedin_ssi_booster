@@ -17,21 +17,31 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 295         | 295    | 0      |
+| 325         | 325    | 0      |
 
-All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
+All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
 - Knowledge Graph subsystem (NetworkX)
 - Hybrid BM25+graph retrieval and persona-aware reranking (now active in production via `ContentCurator`)
 - GitHub repo context enrichment (`github_service.py` now wired into `main.py`, console mode, and curation)
 - **Derivative of Truth framework** (truth gradient scoring, evidence/reasoning annotation, uncertainty logic)
 - **Extracted knowledge application flow** (prompt grounding injection, extracted evidence scoring paths, and adaptive topic signal)
+- **Truth Gate — DoT + spaCy integration upgrade** (overlap-enriched evidence paths, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check)
 - Avatar intelligence, curation, continual learning (NLP-extracted knowledge), learning, spaCy NLP, and all core automation features
 
 **Derivative of Truth status:**
 
 - All annotation logic, uncertainty calculation, and scoring tests pass (see `tests/test_derivative_of_truth.py`).
 - Implementation is aligned with [design.md](features/derivative-of-truth/design.md) and [plan.md](features/derivative-of-truth/plan.md).
+
+**Truth Gate — DoT + spaCy upgrade status (April 30, 2026):**
+
+- `EvidencePath.overlap` is now computed (Jaccard token overlap per sentence↔fact) — 4-term DoT formula is active.
+- Per-sentence DoT scoring runs before the keep/remove decision; `weak_dot_gradient` is a first-class removal reason.
+- spaCy `compute_similarity` floor check (`TRUTH_GATE_SPACY_SIM_FLOOR`, default `0.10`) flags numeric/org sentences with low semantic support.
+- spaCy NER `ORG` extraction replaces `_ORG_NAME_RE` regex (regex fallback preserved when spaCy unavailable).
+- `TruthGateMeta` gains `dot_per_sentence_scores: list[float]` and `spacy_sim_scores: dict[str, float]`.
+- See [idea.md](features/truth-gate-dot/idea.md) for full design rationale.
 
 **Active production modules (as of April 29, 2026):**
 
@@ -46,22 +56,23 @@ All tests pass as of April 29, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 
 #### Test coverage by file
 
-| Test file                                  | What it covers                                                                                       |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `tests/test_avatar_state_loader.py`        | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.         |
-| `tests/test_buffer_service.py`             | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                       |
-| `tests/test_confidence_scoring.py`         | Signal extraction, score thresholds, and policy routing.                                             |
-| `tests/test_content_curator.py`            | RSS curation pipeline, keyword filtering, and article processing.                                    |
-| `tests/test_continual_learning.py`         | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration. |
-| `tests/test_derivative_of_truth.py`        | Truth gradient scoring, evidence/reasoning annotation, and uncertainty logic.                        |
-| `tests/test_evidence_mapping.py`           | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.               |
-| `tests/test_integration_flags.py`          | CLI flag registration and invalid-value handling.                                                    |
-| `tests/test_knowledge_graph.py`            | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries. |
-| `tests/test_learning_report.py`            | JSONL moderation capture, heuristics, aggregation, and report formatting.                            |
-| `tests/test_persona_graph_retrieval.py`    | Real persona graph loading, retrieval spot checks, and fallback logic.                               |
-| `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                |
-| `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                   |
-| `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                            |
+| Test file                                  | What it covers                                                                                                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_avatar_state_loader.py`        | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.                                                                           |
+| `tests/test_buffer_service.py`             | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                                                                                         |
+| `tests/test_confidence_scoring.py`         | Signal extraction, score thresholds, and policy routing.                                                                                                               |
+| `tests/test_content_curator.py`            | RSS curation pipeline, keyword filtering, and article processing.                                                                                                      |
+| `tests/test_continual_learning.py`         | ExtractedFact/ExtractedKnowledgeGraph schema, loader, normalization, deduplication, and integration.                                                                   |
+| `tests/test_derivative_of_truth.py`        | Truth gradient scoring, evidence/reasoning annotation, and uncertainty logic.                                                                                          |
+| `tests/test_evidence_mapping.py`           | Evidence ID stability, normalization, retrieval scoring, fallback, and explain output.                                                                                 |
+| `tests/test_integration_flags.py`          | CLI flag registration and invalid-value handling.                                                                                                                      |
+| `tests/test_knowledge_graph.py`            | KnowledgeGraphManager, node/link schema, graph proximity, claim support, serialization, and queries.                                                                   |
+| `tests/test_learning_report.py`            | JSONL moderation capture, heuristics, aggregation, and report formatting.                                                                                              |
+| `tests/test_persona_graph_retrieval.py`    | Real persona graph loading, retrieval spot checks, and fallback logic.                                                                                                 |
+| `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                                                                                  |
+| `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based).                                                                                     |
+| `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                                                                                              |
+| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, and `TruthGateMeta` field coverage. |
 
 ## Repository structure
 
