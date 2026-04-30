@@ -488,6 +488,21 @@ class TestPerSentenceDoTScoring:
         assert meta.removed_count == 0
         assert "AI/GovTech/Ottawa" in filtered
 
+    def test_aiops_concept_not_flagged_as_org(self) -> None:
+        """Regression: 'AIOps' is a methodology term (like DevOps), not an org name.
+
+        spaCy may tag 'AIOps' as ORG but it should be filtered by _CONCEPT_ABBREVS.
+        """
+        from services.console_grounding._gate_helpers import _extract_spacy_orgs
+
+        result = _extract_spacy_orgs.__module__  # just ensures import works
+        # Verify AIOps is in _CONCEPT_ABBREVS
+        from services.console_grounding._gate_helpers import _CONCEPT_ABBREVS
+        assert "AIOps" in _CONCEPT_ABBREVS
+        assert "MLOps" in _CONCEPT_ABBREVS
+        assert "DataOps" in _CONCEPT_ABBREVS
+        assert "FinOps" in _CONCEPT_ABBREVS
+
 
 # ---------------------------------------------------------------------------
 # Part C — spaCy similarity floor (truth_gate_result integration)

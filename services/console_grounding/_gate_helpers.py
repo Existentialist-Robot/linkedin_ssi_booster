@@ -272,7 +272,7 @@ _CONCEPT_ABBREVS: frozenset[str] = frozenset({
     # AI / ML concepts
     "AGI", "AI", "ML", "DL", "NLP", "LLM", "LLMs", "RAG", "RL", "RLHF",
     "API", "APIs", "SDK", "CLI", "UI", "UX", "DB", "SQL", "NoSQL",
-    "CI", "CD", "DevOps", "SRE", "SLA", "SLO",
+    "CI", "CD", "DevOps", "AIOps", "MLOps", "DataOps", "FinOps", "SRE", "SLA", "SLO",
     "IoT", "AR", "VR", "XR",
     # AWS services
     "S3", "EC2", "RDS", "ECS", "EKS", "IAM", "VPC", "SNS", "SQS",
