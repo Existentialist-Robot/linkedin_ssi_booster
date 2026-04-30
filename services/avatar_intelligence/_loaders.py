@@ -298,13 +298,41 @@ def load_avatar_state(
     all_errors.extend(memory_errors)
 
     # Domain knowledge is optional - log as info if missing, not an error
-    knowledge, knowledge_errors = _load_domain_knowledge(
-        domain_knowledge_path or _paths.DOMAIN_KNOWLEDGE_PATH
-    )
+    _dk_path = domain_knowledge_path or _paths.DOMAIN_KNOWLEDGE_PATH
+    knowledge, knowledge_errors = _load_domain_knowledge(_dk_path)
     if knowledge_errors and "not found" not in knowledge_errors[0]:
         all_errors.extend(knowledge_errors)
     elif knowledge_errors:
         logger.info("Domain knowledge not found (optional): %s", knowledge_errors[0])
+
+    # Auto-discover and merge domain_knowledge_*.json siblings in the same dir
+    # (e.g. domain_knowledge_java.json, domain_knowledge_python.json).
+    for extra_path in sorted(_dk_path.parent.glob("domain_knowledge_*.json")):
+        extra_dk, extra_errors = _load_domain_knowledge(extra_path)
+        if extra_errors:
+            if "not found" not in extra_errors[0]:
+                logger.warning(
+                    "Extra domain knowledge load error (%s): %s",
+                    extra_path.name,
+                    extra_errors[0],
+                )
+            continue
+        if extra_dk is None:
+            continue
+        if knowledge is None:
+            knowledge = extra_dk
+        else:
+            knowledge = DomainKnowledge(
+                schema_version=knowledge.schema_version,
+                domains=knowledge.domains + extra_dk.domains,
+                facts=knowledge.facts + extra_dk.facts,
+                relationships=knowledge.relationships + extra_dk.relationships,
+            )
+        logger.debug(
+            "Merged domain knowledge from %s (%d facts)",
+            extra_path.name,
+            len(extra_dk.facts),
+        )
 
     # Extracted knowledge is optional — log as info if missing, not an error
     extracted, extracted_errors = _load_extracted_knowledge(

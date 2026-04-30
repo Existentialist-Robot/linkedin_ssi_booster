@@ -17,7 +17,7 @@ For tests that depend on environment variables such as `BUFFER_API_KEY`, the REA
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 325         | 325    | 0      |
+| 330         | 330    | 0      |
 
 All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
@@ -27,6 +27,8 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - **Derivative of Truth framework** (truth gradient scoring, evidence/reasoning annotation, uncertainty logic)
 - **Extracted knowledge application flow** (prompt grounding injection, extracted evidence scoring paths, and adaptive topic signal)
 - **Truth Gate — DoT + spaCy integration upgrade** (overlap-enriched evidence paths, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check)
+- **Truth Gate false-positive hardening** (filters concept/service ORG false positives like `S3`, `Java 21`, and `AI Q&A`)
+- **Multi-file domain knowledge loading** (`load_avatar_state()` now auto-merges `domain_knowledge_*.json` files such as Java/Python packs)
 - **`content_curator` package refactor** (`services/content_curator.py` split into a proper Python package with seven focused submodules)
 - **`avatar_intelligence` package refactor** (`services/avatar_intelligence.py` split into a proper Python package with ten focused submodules: `_paths`, `_models`, `_loaders`, `_normalizers`, `_retrieval`, `_grounding`, `_learning`, `_confidence`, `_narrative`, `_extraction`)
 - **`console_grounding` package refactor** (`services/console_grounding.py` split into a proper Python package with focused submodules: `_config`, `_models`, `_profile_parser`, `_retrieval`, `_gate_helpers`, `_truth_gate`)
@@ -43,8 +45,11 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - Per-sentence DoT scoring runs before the keep/remove decision; `weak_dot_gradient` is a first-class removal reason.
 - spaCy `compute_similarity` floor check (`TRUTH_GATE_SPACY_SIM_FLOOR`, default `0.10`) flags numeric/org sentences with low semantic support.
 - spaCy NER `ORG` extraction replaces `_ORG_NAME_RE` regex (regex fallback preserved when spaCy unavailable).
+- ORG false-positive filters now skip known concept/service tokens (e.g., `S3`) and tech-version entities (e.g., `Java 21`).
+- Compound tech phrases containing concept tokens (e.g., `AI Q&A`) are no longer treated as unsupported organizations.
 - `TruthGateMeta` gains `dot_per_sentence_scores: list[float]` and `spacy_sim_scores: dict[str, float]`.
 - Default spaCy model upgraded to `en_core_web_md` (word vectors loaded via `SPACY_MODEL` env var) — eliminates the W007 no-word-vectors warning.
+- Avatar state loading now merges sibling `domain_knowledge_*.json` files (for example `domain_knowledge_java.json` and `domain_knowledge_python.json`) into one domain knowledge graph.
 - See [idea.md](features/truth-gate-dot/idea.md) for full design rationale.
 
 **Active production modules (as of April 30, 2026):**
@@ -70,7 +75,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 
 | Test file                                  | What it covers                                                                                                                                                         |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/test_avatar_state_loader.py`        | Persona graph and narrative memory loading, schema validation, and malformed-input fallback.                                                                           |
+| `tests/test_avatar_state_loader.py`        | Persona graph and narrative memory loading, schema validation, malformed-input fallback, and automatic merge of `domain_knowledge_*.json` sources.                   |
 | `tests/test_buffer_service.py`             | Buffer GraphQL API wrapper, queue fetching, and idea creation.                                                                                                         |
 | `tests/test_confidence_scoring.py`         | Signal extraction, score thresholds, and policy routing.                                                                                                               |
 | `tests/test_content_curator.py`            | RSS curation pipeline, keyword filtering, article processing, topic signal, SSI component tilt, and `EvidencePath` construction — updated to reference new submodule paths. |
@@ -84,7 +89,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 | `tests/test_selection_learning.py`         | Candidate logs, reconcile labeling, prior math, and ranking behavior.                                                                                                  |
 | `tests/test_spacy_nlp.py`                  | Theme extraction, semantic similarity, and sentiment analysis (spaCy, rule-based). Default model is `en_core_web_md` (configurable via `SPACY_MODEL`).                 |
 | `tests/test_ollama_extracted_grounding.py` | Prompt injection of extracted knowledge context into curation generation.                                                                                              |
-| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, and `TruthGateMeta` field coverage. |
+| `tests/test_truth_gate_dot.py`             | Truth Gate — DoT + spaCy upgrade: overlap computation, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check, concept/service false-positive filters (`S3`, `Java 21`, `AI Q&A`), and `TruthGateMeta` field coverage. |
 ## Repository structure
 
 yt-vid-data/ # YouTube video text and media

@@ -19,6 +19,8 @@
   - **Derivative of Truth per-sentence scoring** — every sentence receives a composite truth gradient (evidence type × reasoning quality × source credibility × token overlap). Sentences that pass BM25 but score below `TRUTH_GRADIENT_FLAG_THRESHOLD` (0.35) are flagged `weak_dot_gradient` and auto-removed. The 4-term DoT formula is active — token overlap between the sentence and each evidence fact is computed (Jaccard) and included as a 25%-weight component.
   - **spaCy semantic similarity floor** — for sentences containing numeric claims, years, dollar amounts, or org names, `compute_similarity()` checks the sentence against the source article. Similarity below `TRUTH_GATE_SPACY_SIM_FLOOR` (default `0.10`, configurable) flags the sentence as `low_semantic_similarity`, catching paraphrased hallucinations BM25 misses.
   - **spaCy NER org-name validation** — org/company names are extracted via spaCy named entity recognition (`ORG` entities) and verified against the allowed evidence set. Falls back to the legacy regex when spaCy is unavailable.
+  - **False-positive hardening for tech terms** — concept/service tokens and tech-version entities (for example `S3`, `AI Q&A`, `Java 21`) are filtered before ORG enforcement so technical references are not incorrectly blocked as `unsupported_org`.
+  - **Expanded domain evidence via multi-file loading** — avatar state now auto-merges sibling `domain_knowledge_*.json` files (for example Java and Python packs), which broadens allowed evidence tokens and improves support checks.
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
@@ -94,7 +96,7 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 - **Fact retrieval:** For every post or answer, the system retrieves relevant facts from your persona graph (projects, skills, outcomes) using BM25Okapi — a production-grade IR algorithm. This ensures rare, high-signal skills and projects are prioritized.
 - **Prompt balance rules:** Prompts require every factual claim to be grounded in either the article or your persona facts. Personal references are capped, and invented stats/dates/companies are forbidden.
-- **Truth gate:** After generation, a four-layer deterministic filter removes any sentence with unsupported numbers, dates, company names, or project-tech mismatches unless the claim is found in evidence. The layers are: BM25 evidence scoring → per-sentence Derivative of Truth gradient (4-term formula with token overlap) → spaCy semantic similarity floor for specific-claim sentences → spaCy NER org-name validation. Each removed sentence is logged with a reason code (`weak_evidence_bm25`, `weak_dot_gradient`, `low_semantic_similarity`, `unsupported_org`, etc.) that feeds the confidence scoring pipeline.
+- **Truth gate:** After generation, a four-layer deterministic filter removes any sentence with unsupported numbers, dates, company names, or project-tech mismatches unless the claim is found in evidence. The layers are: BM25 evidence scoring → per-sentence Derivative of Truth gradient (4-term formula with token overlap) → spaCy semantic similarity floor for specific-claim sentences → spaCy NER org-name validation. ORG validation includes hardening against common technical false positives (for example `S3`, `AI Q&A`, `Java 21`) and is backed by an expanded evidence set from auto-merged `domain_knowledge_*.json` files. Each removed sentence is logged with a reason code (`weak_evidence_bm25`, `weak_dot_gradient`, `low_semantic_similarity`, `unsupported_org`, etc.) that feeds the confidence scoring pipeline.
 
 ---
 
@@ -331,7 +333,7 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Usage guide](docs/usage-schedule-curate-console.md) — scheduling, curation, console mode, channels, and CLI examples.
 - [SSI strategy](docs/ssi-and-strategy.md) — SSI model, content mapping, scheduler behavior, and reporting.
 - [AI backend](docs/ai-backend-and-models.md) — Ollama setup and model recommendations.
-- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (325/325)
+- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (330/330)
 - [Selection learning](docs/selection-learning.md) — candidate logging, reconciliation, and acceptance priors.
 
 ## 🐳 Docker Compose (Recommended)
@@ -358,6 +360,10 @@ cp data/avatar/persona_graph.example.json   data/avatar/persona_graph.json
 cp data/avatar/domain_knowledge.example.json data/avatar/domain_knowledge.json
 cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
 cp content_calendar.example.py               content_calendar.py
+
+# Optional extra packs: auto-discovered and merged when named domain_knowledge_*.json
+cp data/avatar/domain_knowledge_java.json    data/avatar/domain_knowledge_java.json
+cp data/avatar/domain_knowledge_python.json  data/avatar/domain_knowledge_python.json
 ```
 
 Edit `data/avatar/persona_graph.json` with your real career facts before running.
@@ -411,11 +417,15 @@ docker compose run --rm app python main.py --save-ssi 10.49 9.69 11.0 12.15
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_md
 cp .env.example .env
 cp data/avatar/persona_graph.example.json data/avatar/persona_graph.json
 cp data/avatar/domain_knowledge.example.json data/avatar/domain_knowledge.json
 cp data/avatar/narrative_memory.example.json data/avatar/narrative_memory.json
+
+# Optional extra packs: auto-discovered and merged when named domain_knowledge_*.json
+cp data/avatar/domain_knowledge_java.json data/avatar/domain_knowledge_java.json
+cp data/avatar/domain_knowledge_python.json data/avatar/domain_knowledge_python.json
 cp content_calendar.example.py content_calendar.py
 python main.py --schedule --week 1 --dry-run
 ```

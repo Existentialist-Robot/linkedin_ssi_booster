@@ -217,6 +217,51 @@ class TestExtractSpacyOrgs:
         result = _extract_spacy_orgs("Some sentence.", mock_nlp)
         assert result == []
 
+    def _make_org_mock(self, org_text: str) -> MagicMock:
+        """Helper: build a mock spaCy nlp that returns a single ORG entity."""
+        mock_ent = MagicMock()
+        mock_ent.text = org_text
+        mock_ent.label_ = "ORG"
+        mock_doc = MagicMock()
+        mock_doc.ents = [mock_ent]
+        mock_model = MagicMock()
+        mock_model.return_value = mock_doc
+        mock_nlp = MagicMock()
+        mock_nlp._ensure_model.return_value = mock_model
+        return mock_nlp
+
+    def test_skips_aws_service_abbreviation(self) -> None:
+        """S3 tagged as ORG should be filtered (it's an AWS service, not an org)."""
+        result = _extract_spacy_orgs(
+            "integrating Amazon SageMaker with S3 to unleash serverless SQL.",
+            self._make_org_mock("S3"),
+        )
+        assert result == []
+
+    def test_skips_tech_version_entity(self) -> None:
+        """'Java 21' tagged as ORG should be filtered (tech version, not org)."""
+        result = _extract_spacy_orgs(
+            "multi-source discovery pipelines using Java 21 and Spring Batch.",
+            self._make_org_mock("Java 21"),
+        )
+        assert result == []
+
+    def test_skips_compound_ai_phrase(self) -> None:
+        """'AI Q&A' tagged as ORG should be filtered (contains concept token 'AI')."""
+        result = _extract_spacy_orgs(
+            "semantic search, AI Q&A, compliance checking.",
+            self._make_org_mock("AI Q&A"),
+        )
+        assert result == []
+
+    def test_real_org_still_extracted(self) -> None:
+        """A real org name (e.g. 'Accenture') should still be returned."""
+        result = _extract_spacy_orgs(
+            "I consulted at Accenture for two years.",
+            self._make_org_mock("Accenture"),
+        )
+        assert result == ["Accenture"]
+
 
 # ---------------------------------------------------------------------------
 # Part B — per-sentence DoT scoring (truth_gate_result integration)

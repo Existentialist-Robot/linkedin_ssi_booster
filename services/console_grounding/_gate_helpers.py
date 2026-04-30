@@ -240,13 +240,41 @@ def _build_evidence_paths_for_sentence(
 # spaCy ORG extraction
 # ---------------------------------------------------------------------------
 
-# Abbreviations that are concepts/fields, not company names.
+# Abbreviations / short tokens that are concepts, services, or protocols —
+# never company names — even when spaCy's NER tags them as ORG.
 _CONCEPT_ABBREVS: frozenset[str] = frozenset({
+    # AI / ML concepts
     "AGI", "AI", "ML", "DL", "NLP", "LLM", "LLMs", "RAG", "RL", "RLHF",
     "API", "APIs", "SDK", "CLI", "UI", "UX", "DB", "SQL", "NoSQL",
     "CI", "CD", "DevOps", "SRE", "SLA", "SLO",
     "IoT", "AR", "VR", "XR",
+    # AWS services
+    "S3", "EC2", "RDS", "ECS", "EKS", "IAM", "VPC", "SNS", "SQS",
+    "SageMaker", "Lambda", "CloudFront", "DynamoDB", "EMR", "ECR",
+    # GCP services
+    "GCS", "BigQuery", "Dataflow", "GKE",
+    # Azure services
+    "AKS",
+    # Protocols / web standards
+    "REST", "gRPC", "OAuth", "JWT", "HTTPS", "HTTP",
+    "GraphQL", "OpenAPI", "Swagger", "YAML", "JSON", "XML", "CSV",
+    # Compound tech qualifiers (appear as part of multi-word ORG entities)
+    "Q&A",
 })
+
+# Programming-language / platform names that, when followed by a version number,
+# should never be treated as an organisation (e.g. "Java 21", "Python 3.12").
+_TECH_VERSION_PREFIXES: frozenset[str] = frozenset({
+    "Java", "Python", "Kotlin", "Scala", "Go", "Rust", "Node",
+    "TypeScript", "JavaScript", "Swift", "Ruby", "PHP", "Perl",
+    "Spring", "Django", "FastAPI", "Flask", "Rails",
+    "Docker", "Kubernetes", "Terraform",
+    "Ubuntu", "Debian", "CentOS", "Alpine",
+    "Android", "iOS",
+})
+
+# Matches "<word> <digit...>" — used to detect tech-version entities.
+_TECH_VERSION_RE = re.compile(r"^\S+\s+\d")
 
 
 def _extract_spacy_orgs(sentence: str, spacy_nlp: object) -> list[str]:
@@ -256,18 +284,34 @@ def _extract_spacy_orgs(sentence: str, spacy_nlp: object) -> list[str]:
     Returns an empty list when spaCy is unavailable or the model has no NER.
     Callers fall back to ``_ORG_NAME_RE`` regex when this returns [].
 
-    Known AI/tech concept abbreviations (AGI, LLM, NLP, etc.) are excluded even
-    when spaCy mistakenly tags them as ORG entities.
+    Filters out:
+    - Known AI/tech concept abbreviations (AGI, LLM, S3, etc.)
+    - Multi-word ORG entities that contain a concept token (e.g. "AI Q&A")
+    - Tech-name + version-number entities (e.g. "Java 21", "Python 3.12")
     """
     try:
         nlp = spacy_nlp._ensure_model()  # type: ignore[union-attr]
         if nlp is None:
             return []
         doc = nlp(sentence)
-        return [
-            ent.text for ent in doc.ents
-            if ent.label_ == "ORG" and ent.text not in _CONCEPT_ABBREVS
-        ]
+        result = []
+        for ent in doc.ents:
+            if ent.label_ != "ORG":
+                continue
+            # Exact match against known concepts/services
+            if ent.text in _CONCEPT_ABBREVS:
+                continue
+            # Multi-word entity that contains a concept token (e.g. "AI Q&A")
+            if any(tok in _CONCEPT_ABBREVS for tok in ent.text.split()):
+                continue
+            # Tech name + version number (e.g. "Java 21", "Python 3.12")
+            if (
+                _TECH_VERSION_RE.match(ent.text)
+                and ent.text.split()[0] in _TECH_VERSION_PREFIXES
+            ):
+                continue
+            result.append(ent.text)
+        return result
     except Exception as exc:
         logger.debug("spaCy org extraction failed: %s", exc)
         return []

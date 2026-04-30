@@ -202,3 +202,49 @@ def test_load_avatar_state_malformed_json(tmp_path: Path, monkeypatch: pytest.Mo
     state = load_avatar_state()
     assert state.is_loaded is False
     assert state.load_errors
+
+
+_MINIMAL_DOMAIN_KNOWLEDGE = {
+    "schemaVersion": "1.0",
+    "domains": [{"id": "d1", "name": "Domain A", "description": "Desc"}],
+    "facts": [{"id": "f1", "domainId": "d1", "statement": "Fact one.", "tags": ["tag1"]}],
+    "relationships": [],
+}
+
+_EXTRA_DOMAIN_KNOWLEDGE = {
+    "schemaVersion": "1.0",
+    "domains": [{"id": "d2", "name": "Domain B", "description": "Desc B"}],
+    "facts": [
+        {"id": "f2", "domainId": "d2", "statement": "Java is statically typed.", "tags": ["java"]},
+        {"id": "f3", "domainId": "d2", "statement": "S3 is an AWS storage service.", "tags": ["s3", "aws"]},
+    ],
+    "relationships": [],
+}
+
+
+def test_load_avatar_state_merges_extra_domain_knowledge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Extra domain_knowledge_*.json files in the same dir are merged automatically."""
+    pg = tmp_path / "persona_graph.json"
+    nm = tmp_path / "narrative_memory.json"
+    dk = tmp_path / "domain_knowledge.json"
+    dk_extra = tmp_path / "domain_knowledge_extra.json"
+
+    pg.write_text(json.dumps(MINIMAL_PERSONA_GRAPH), encoding="utf-8")
+    nm.write_text(json.dumps(MINIMAL_NARRATIVE_MEMORY), encoding="utf-8")
+    dk.write_text(json.dumps(_MINIMAL_DOMAIN_KNOWLEDGE), encoding="utf-8")
+    dk_extra.write_text(json.dumps(_EXTRA_DOMAIN_KNOWLEDGE), encoding="utf-8")
+
+    monkeypatch.setattr(ai, "PERSONA_GRAPH_PATH", pg)
+    monkeypatch.setattr(ai, "NARRATIVE_MEMORY_PATH", nm)
+    monkeypatch.setattr(ai, "DOMAIN_KNOWLEDGE_PATH", dk)
+
+    state = load_avatar_state()
+    assert state.is_loaded is True
+    assert state.domain_knowledge is not None
+    # Primary (1 fact) + extra (2 facts) = 3 total
+    assert len(state.domain_knowledge.facts) == 3
+    all_statements = {f.statement for f in state.domain_knowledge.facts}
+    assert "Java is statically typed." in all_statements
+    assert "S3 is an AWS storage service." in all_statements
