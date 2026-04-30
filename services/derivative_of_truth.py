@@ -675,20 +675,35 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
 
     # --- Footer: what this report means ---
     DIM = str(Style.DIM)
+    evidence_paths = report.get("evidence_paths", []) if isinstance(report, dict) else []
+    overlaps = [float(ep.get("overlap", 0.0)) for ep in evidence_paths if float(ep.get("overlap", 0.0)) > 0.0]
+    avg_overlap = (sum(overlaps) / len(overlaps)) if overlaps else None
+    unc_level = "high" if unc >= 0.35 else ("moderate" if unc >= 0.20 else "low")
+    support_pct = int(round(tg * 100))
+
+    alignment_note = (
+        f"avg claim-evidence alignment {avg_overlap:.2f}"
+        if avg_overlap is not None
+        else "alignment unavailable (no overlap-bearing paths)"
+    )
+
+    # Dynamic support meter (same signal as the bar, expressed in plain text too)
+    support_note = f"support {support_pct}/100"
+
     if flagged:
         footer_note = (
-            f"  {DIM}⚠  Weak support: the LLM output has low alignment with its evidence. "
-            f"Review carefully — claims may not be supported by the facts that were fed in.{R}"
+            f"  {DIM}⚠  Weak support ({support_note}): {alignment_note}; uncertainty {unc_level} ({unc:.2f}). "
+            f"Review carefully before publishing and tighten claim-to-evidence grounding.{R}"
         )
-    elif tg >= 0.70:
+    elif tg >= 0.70 and (avg_overlap is None or avg_overlap >= 0.45):
         footer_note = (
-            f"  {DIM}ℹ  Strong support: the generated text is well-aligned with high-quality evidence. "
-            f"Scores output trustworthiness vs. the evidence — not absolute factual accuracy.{R}"
+            f"  {DIM}ℹ  Strong support ({support_note}): {alignment_note}; uncertainty {unc_level} ({unc:.2f}). "
+            f"Output is well-backed by the supplied evidence.{R}"
         )
     else:
         footer_note = (
-            f"  {DIM}ℹ  Moderate support: partial alignment between generated text and evidence. "
-            f"Scores how well the LLM output is backed by its grounding facts.{R}"
+            f"  {DIM}ℹ  Moderate support ({support_note}): {alignment_note}; uncertainty {unc_level} ({unc:.2f}). "
+            f"Improve by making claims more explicit and evidence-linked.{R}"
         )
     lines.append(footer_note)
     lines.append(divider)
