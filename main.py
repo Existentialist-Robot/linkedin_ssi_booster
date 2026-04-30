@@ -594,11 +594,8 @@ def main():
                         _dot_result = score_claim_with_truth_gradient(post, _dot_paths)
                         _dot_report_dict = report_truth_gradient(post, _dot_result, verbose=True)
                         _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
-                        print(_dot_colour + "\n🔬 Derivative of Truth Report:" + str(Style.RESET_ALL))
-                        print(str(Style.DIM) + "   Scores two things per evidence path: (1) credibility — how trustworthy is the source?" + str(Style.RESET_ALL))
-                        print(str(Style.DIM) + "   (2) relevance — does the evidence actually talk about the same thing as the claim?" + str(Style.RESET_ALL))
-                        print(str(Style.DIM) + "   Final gradient = base_credibility × (1 − uncertainty_penalty)." + str(Style.RESET_ALL))
-                        print(str(Style.DIM) + "   High cred + low overlap = credible but off-topic → penalty drags score down." + str(Style.RESET_ALL))
+                        from services.derivative_of_truth._reporting import format_dot_report_header
+                        print(format_dot_report_header())
                         print(format_truth_gradient_report(_dot_report_dict))
                         print()
                     except Exception as _dot_err:

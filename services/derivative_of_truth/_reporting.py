@@ -39,6 +39,24 @@ def report_truth_gradient(
     return report
 
 
+def format_dot_report_header(label: str = "Derivative of Truth Report") -> str:
+    """Return a formatted multi-line header string for the DoT report."""
+    from colorama import Fore, Style
+    c = str(Fore.CYAN)
+    dim = str(Style.DIM)
+    r = str(Style.RESET_ALL)
+    w = str(Fore.WHITE)
+    lines = [
+        f"\n{c}🔬 {label}{r}",
+        f"  {dim}╔═ Per evidence path scores two dimensions:{r}",
+        f"  {dim}║  {w}cred {dim}— how trustworthy is the source?  (👤 persona ≥0.80 · 📚 domain ≥0.76 · 🗂️ extracted ~0.65 · 🔗 article ~0.55){r}",
+        f"  {dim}║  {w}unc  {dim}— how relevant is it to this claim? (token overlap; low unc = high relevance){r}",
+        f"  {dim}╠═ Final gradient = base_cred × (1 − uncertainty_penalty){r}",
+        f"  {dim}╚═ High cred + low overlap → credible but off-topic → penalty drags score yellow/red{r}",
+    ]
+    return "\n".join(lines)
+
+
 def format_truth_gradient_report(report: dict[str, Any]) -> str:
     """Format a truth gradient report dict as a human-readable CLI string."""
     from colorama import Fore, Style
