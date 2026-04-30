@@ -137,13 +137,13 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
     )
     unc_foot_col = Fore.GREEN if unc_level == "low" else (Fore.YELLOW if unc_level == "moderate" else Fore.RED)
 
-    support_note = f"support {spct_col}{support_pct}/100{r}{dim}"
+    support_note = f"support {spct_col}{support_pct}/100{r}"
     alignment_note = (
-        f"avg claim-evidence alignment {aln_col}{avg_overlap:.2f}{r}{dim}"
+        f"avg claim-evidence alignment {aln_col}{avg_overlap:.2f}{r}"
         if avg_overlap is not None
         else "alignment unavailable (no overlap-bearing paths)"
     )
-    unc_note = f"uncertainty {unc_foot_col}{unc_level} ({unc:.2f}){r}{dim}"
+    unc_note = f"uncertainty {unc_foot_col}{unc_level} ({unc:.2f}){r}"
 
     if flagged:
         footer_note = (
