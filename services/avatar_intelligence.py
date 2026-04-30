@@ -2016,6 +2016,20 @@ def extract_and_append_knowledge(
 
     existing_ids: set[str] = {f.id for f in existing_graph.facts}
 
+    # Strip HTML tags and decode common entities before extracting facts.
+    # RSS <description> fields often contain raw HTML markup which spaCy would
+    # parse as text, polluting entities and tags with CSS property names, href
+    # values, and other non-factual noise.
+    clean_text = re.sub(r"<[^>]+>", " ", article_text)  # remove all HTML tags
+    clean_text = re.sub(r"&[a-zA-Z]+;", " ", clean_text)  # &amp; &nbsp; etc.
+    clean_text = re.sub(r"&#\d+;", " ", clean_text)       # &#8230; etc.
+    clean_text = re.sub(r"\s{2,}", " ", clean_text).strip()
+
+    # Skip extraction if nothing useful remains after stripping
+    if len(clean_text) < 40:
+        logger.debug("extract_and_append_knowledge: no usable text after HTML strip — skipping")
+        return []
+
     # Try to use SpacyNLP for entity/theme extraction
     try:
         from services.spacy_nlp import get_spacy_nlp
@@ -2025,8 +2039,8 @@ def extract_and_append_knowledge(
         nlp_engine = None
         spacy_available = False
 
-    # Split text into candidate sentences
-    sentences = re.split(r"(?<=[.!?])\s+", article_text.strip())
+    # Split clean text into candidate sentences
+    sentences = re.split(r"(?<=[.!?])\s+", clean_text)
 
     new_facts: list[ExtractedFact] = []
     extracted_at = datetime.now(timezone.utc).isoformat()
@@ -2034,6 +2048,12 @@ def extract_and_append_knowledge(
     for sentence in sentences:
         sentence = sentence.strip()
         if len(sentence) < min_sentence_len:
+            continue
+        # Skip sentences that still contain HTML artefacts (residual tags or entities)
+        if re.search(r"[<>]|&[a-zA-Z#]", sentence):
+            continue
+        # Skip rhetorical hooks — they carry no factual content worth storing
+        if re.match(r"^(Have you ever|Did you know|Are you |Do you |What if |Ever wonder)", sentence, re.IGNORECASE):
             continue
         if len(new_facts) >= max_facts_per_article:
             break
