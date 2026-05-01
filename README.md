@@ -23,19 +23,17 @@
   - **Expanded domain evidence via multi-file loading** — avatar state now auto-merges sibling `domain_knowledge_*.json` files (for example Java and Python packs), which broadens allowed evidence tokens and improves support checks.
   - **Fact-pool spaCy similarity (Part E)** — for every sentence that passes BM25, the best spaCy cosine similarity across all persona/domain facts (individually) is computed. Sentences below `TRUTH_GATE_FACT_SIM_FLOOR` (default `0.05`) are flagged `low_fact_similarity`. Unlike the article-sim check, this runs in **all contexts including console mode** because persona/domain facts are always present.
   > **DoT gradient vs. spaCy sim — what's the difference?**
-  > These are complementary, not overlapping:
+  > Three complementary checks, each catching a different failure mode:
   >
-  > | | DoT gradient | spaCy sim |
-  > |---|---|---|
-  > | **What it measures** | Evidence quality + reasoning chain | Semantic meaning alignment |
-  > | **Input** | Generated sentence vs. persona/domain fact pool | Generated sentence vs. source article text |
-  > | **Method** | Weighted formula: `0.30×evidence + 0.25×reasoning + 0.20×credibility + 0.25×token_overlap` | spaCy `en_core_web_md` cosine similarity |
-  > | **Catches** | Sentences that pass BM25 + token checks but have weak overall evidence quality (poor reasoning chain, low credibility, low token overlap with facts) | Paraphrased hallucinations that drift in meaning but share no tokens with the article |
-  > | **Threshold** | `TRUTH_GRADIENT_FLAG_THRESHOLD` = 0.35 | `TRUTH_GATE_SPACY_SIM_FLOOR` = 0.10 |
-  >
-  > A third complementary check — **fact-pool sim (Part E)** — computes the best spaCy similarity of each sentence against individual persona/domain facts (not the article). It uses `TRUTH_GATE_FACT_SIM_FLOOR` (default `0.05`) and works in console mode too since facts are always available.
-  >
-  > DoT asks *"is this claim supported by credible, well-reasoned evidence?"*; spaCy sim asks *"does the generated text still mean the same thing as the source?"*; fact-pool sim asks *"is this sentence at least semantically close to something in the persona/domain knowledge?"* — each catches a different failure mode.
+  > | | DoT gradient | Article spaCy sim (Part C) | Fact-pool spaCy sim (Part E) |
+  > |---|---|---|---|
+  > | **Question asked** | *Is this claim supported by credible, well-reasoned evidence?* | *Does the generated text still mean the same thing as the source?* | *Is this sentence at least semantically close to something I know to be true?* |
+  > | **Input** | Sentence vs. persona/domain fact pool | Sentence vs. source article text | Sentence vs. each persona/domain fact individually |
+  > | **Method** | Weighted formula: `0.30×evidence + 0.25×reasoning + 0.20×credibility + 0.25×token_overlap` | spaCy `en_core_web_md` cosine similarity | spaCy `en_core_web_md` cosine similarity (best match across all facts) |
+  > | **Scope** | All contexts (curation + console) | Curation only (requires non-empty article text) | All contexts including console mode |
+  > | **Catches** | Weak evidence chains — passes BM25 and token checks but has poor reasoning quality, low credibility, or low token overlap with facts | Paraphrased hallucinations that drift in meaning but share no tokens with the article | Sentences with no semantic connection to any known persona or domain fact |
+  > | **Threshold** | `TRUTH_GRADIENT_FLAG_THRESHOLD` = 0.35 | `TRUTH_GATE_SPACY_SIM_FLOOR` = 0.10 | `TRUTH_GATE_FACT_SIM_FLOOR` = 0.05 (permissive — persona facts are short fragments) |
+  > | **Reason code** | `weak_dot_gradient` | `low_semantic_similarity` | `low_fact_similarity` |
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
