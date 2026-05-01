@@ -188,6 +188,53 @@ def extract_and_append_knowledge(
             re.IGNORECASE,
         ):
             continue
+        # Filter boilerplate article openers — "In this post, we..." style
+        if re.match(
+            r"^(In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook),?\s|"
+            r"In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook) we\b)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter disclaimer / AI-generated disclosure sentences
+        if re.search(
+            r"(this article was (created|written|generated|produced) using|"
+            r"disclaimer:?\s|ai-based writing|ai writing companion)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter pure URL sentences (no prose content)
+        if re.match(r"^https?://\S+$", sentence.strip()):
+            continue
+        # Filter sentences that are mostly URLs embedded in prose (URL is > 40% of char length)
+        _urls_in_sent = re.findall(r"https?://\S+", sentence)
+        if _urls_in_sent and sum(len(u) for u in _urls_in_sent) / len(sentence) > 0.40:
+            continue
+        # Filter truncated sentences — end without terminal punctuation and have ellipsis/dash
+        if re.search(r"(…|\.{3}|--)$", sentence.strip()):
+            continue
+        # Filter "we show / we walk through / we introduce / we take a look" preambles
+        if re.match(
+            r"^(In this (post|article|section),? )?(we|you('ll| will))?\s?"
+            r"(show|walk through|walk you through|introduce|take a (deeper )?look|explore|demonstrate|describe)\b",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter weak entity sentences: all multi-word entities are stopword-only phrases
+        # e.g. "this gap", "the model", "the full journey", "the goal"
+        _entity_candidates = re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b|\b[A-Z]{2,}\b", sentence)
+        _meaningful_entities = [
+            e for e in _entity_candidates
+            if not all(w.lower() in _EXTRACTION_STOPWORDS for w in e.split())
+            and len(e) > 3
+        ]
+        # Also check for numeric facts (always useful) or named single-word proper nouns
+        _has_number = bool(re.search(r"\d", sentence))
+        _has_proper_noun = bool(re.search(r"\b[A-Z][a-z]{2,}\b", sentence))
+        if not _meaningful_entities and not _has_number and not _has_proper_noun:
+            continue
         # Filter navigation/listing blobs: sentences of 12+ words where >45% start with uppercase
         # (catches concatenated HuggingFace/GitHub menus, contributor lists, etc.)
         _blob_words = sentence.split()

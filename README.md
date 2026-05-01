@@ -67,7 +67,12 @@ This tool handles the repeatable parts:
 - `--dot-report` — Show a Derivative of Truth (truth gradient, evidence, uncertainty) report for every generated post (with `--schedule`) or curated idea (with `--curate`).
 - `--avatar-explain` — Show evidence IDs and grounding summary after each generation.
 - `--avatar-learn-report` — Print learning report from captured moderation events and exit.
-- `--learn` — Extract and persist knowledge from curated articles into `extracted_knowledge.json`. By default this only runs on live (`--curate`) runs. Pass `--dry-run --learn` together to extract knowledge while still previewing posts without pushing to Buffer. When `--learn` is active, the normal 5-post cap is bypassed — every relevant article found across all feeds is processed, maximising knowledge extraction per run (e.g. `--curate --learn --dry-run` may process 60+ articles in one pass).
+- `--learn` — Extract and persist knowledge from curated articles into `extracted_knowledge.json`. Three modes:
+  - **Fast learn-only** (`--curate --learn`, no `--dry-run`) — fetches all RSS articles and runs knowledge extraction on each one, skipping generation, confidence scoring, and Buffer entirely. No sleep delays between articles. Use this to bulk-load the knowledge base as fast as possible.
+  - **Preview + learn** (`--curate --learn --dry-run`) — extracts knowledge AND generates posts in dry-run mode (nothing pushed to Buffer). Shows what would be generated.
+  - **Live + learn** (`--curate --learn` with an earlier run that already had `--dry-run` removed) — generates and pushes posts to Buffer while also extracting knowledge from each article.
+  
+  When `--learn` is active, the normal 5-post cap is bypassed — every relevant article found across all feeds is processed (e.g. 60+ articles in one pass).
 
 You control whether curated content is reviewed before publishing or scheduled directly. The tool removes the blank-page problem, but you decide what goes live.
 
@@ -191,9 +196,14 @@ The avatar supports fully automatic, incremental continual learning from new con
 | Filter                         | What it catches                                                                                                              |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | First-person narration         | Author asides ("As I write this…", "I sat down with…")                                                                       |
-| Truncated RSS fragments        | Sentences ending in "… Read more"                                                                                            |
+| Truncated RSS fragments        | Sentences ending in "… Read more" or trailing ellipsis/dash                                                                  |
 | Newsletter/podcast preambles   | Openers like "Welcome to…", "For this episode…", "In last week's…"                                                           |
-| Navigation / contributor blobs | Sentences ≥12 words where >45% of tokens start with uppercase (HuggingFace menus, author lists, etc.)                        |
+| Article boilerplate openers    | "In this post, we show…", "In this tutorial, we walk through…" — preamble, not knowledge                                     |
+| Disclaimer / AI-disclosure     | "This article was created using AI-based writing companions" and similar                                                     |
+| Pure or URL-heavy sentences    | Sentences that are just a URL, or where URLs make up >40% of the character length                                            |
+| "We show / we introduce" leads | "we show how", "we walk you through", "we take a deeper look" — structural preamble openers                                  |
+| Weak-entity sentences          | All detected entities resolve to stopwords ("this gap", "the model", "the goal") with no numeric or proper-noun signal       |
+| Navigation / contributor blobs | Sentences ≥12 words where >45% of tokens start with uppercase (HuggingFace menus, author lists, etc.)                       |
 | Zero-signal sentences          | Sentences with no digit, no 2+-char acronym, and no consecutive title-case words (named entity / product name) — pure filler |
 
 These filters run before spaCy NLP and deduplication, so only genuinely informative domain sentences reach the knowledge graph.
