@@ -188,10 +188,13 @@ def extract_and_append_knowledge(
             re.IGNORECASE,
         ):
             continue
-        # Filter boilerplate article openers — "In this post, we..." style
+        # Filter boilerplate article openers — "In this post/article/release, we/you..." style
+        # Also catches "This post demonstrates/covers/explores..." variants
         if re.match(
-            r"^(In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook),?\s|"
-            r"In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook) we\b)",
+            r"^(In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook|session|installment),?\s|"
+            r"In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook|session|installment) we\b|"
+            r"^This (post|article|release|update|guide|tutorial|video) (demonstrates?|covers?|explores?|addresses?|"
+            r"introduces?|examines?|focuses? on|walks? through|provides?|presents?|shows?))",
             sentence,
             re.IGNORECASE,
         ):
@@ -200,6 +203,22 @@ def extract_and_append_knowledge(
         if re.search(
             r"(this article was (created|written|generated|produced) using|"
             r"disclaimer:?\s|ai-based writing|ai writing companion)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter CTA / feedback / community boilerplate
+        if re.match(
+            r"^(Learn more\b|We encourage\b|You can find\b|Many thanks\b|Feedback\b|"
+            r"Try it\b|Get started\b|Sign up\b|Click here\b|Read more\b|"
+            r"Check out\b|Find out\b|Visit\b|Download\b|Subscribe\b)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter "In this installment/episode, I talk/interview/chat/speak" (podcast preambles)
+        if re.match(
+            r"^In (this|our|my) (installment|episode|talk|conversation|discussion|podcast|livestream|interview),?\s",
             sentence,
             re.IGNORECASE,
         ):
@@ -214,6 +233,10 @@ def extract_and_append_knowledge(
         # Filter truncated sentences — end without terminal punctuation and have ellipsis/dash
         if re.search(r"(…|\.{3}|--)$", sentence.strip()):
             continue
+        # Filter sentences dangling on a bare preposition, conjunction, or article at end
+        # e.g. "...all the way back to the foundational techniques of"
+        if re.search(r"\s(of|for|to|in|on|at|by|with|from|and|or|but|the|a|an)$", sentence.strip()):
+            continue
         # Filter "we show / we walk through / we introduce / we take a look" preambles
         if re.match(
             r"^(In this (post|article|section),? )?(we|you('ll| will))?\s?"
@@ -221,6 +244,21 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            continue
+        # Filter HuggingFace/GitHub navigation blobs — long run-on sentences with UI chrome keywords
+        if re.search(
+            r"\b(Log In|Sign Up|Back to Articles|Models\s+Datasets\s+Spaces|Upvote\s+\d+)\b",
+            sentence,
+        ):
+            continue
+        # Filter generic filler takes with no concrete claim (no number, no named entity pair)
+        _generic_filler = bool(re.match(
+            r"^(Countless|Many|Most|Some|Several|Various|A (number|lot|few|wide variety)) "
+            r"(companies|teams|organizations|developers|engineers|users|people)\b",
+            sentence,
+            re.IGNORECASE,
+        ))
+        if _generic_filler and not re.search(r"\d+\s*%|\d+[xX\s]|[€$£¥]\d|\d+\s*(million|billion|thousand)", sentence):
             continue
         # Filter weak entity sentences: all multi-word entities are stopword-only phrases
         # e.g. "this gap", "the model", "the full journey", "the goal"
