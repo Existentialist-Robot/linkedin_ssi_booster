@@ -490,7 +490,10 @@ def main():
         curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context)
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         for ch in curate_channels:
-            logger.info("🔍 Curating AI news sources (channel: %s, type: %s)...", ch, args.type)
+            if args.learn and not args.dry_run:
+                logger.info("🧠 Learn-only mode: fetching articles and extracting knowledge (no posts generated)")
+            else:
+                logger.info("🔍 Curating AI news sources (channel: %s, type: %s)...", ch, args.type)
             try:
                 ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report, learn=args.learn)
             except BufferQueueFullError as e:

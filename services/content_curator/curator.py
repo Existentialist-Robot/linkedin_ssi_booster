@@ -394,12 +394,45 @@ class ContentCurator:
         published = set() if dry_run else self._load_published_titles()
         created_ideas: list | None = []
 
+        learn_only = learn and not dry_run
+        if learn_only:
+            logger.info("🧠 --learn mode (no --dry-run): extracting knowledge only — skipping generation entirely")
+
         for article in articles:
             if not learn and len(created_ideas) >= max_ideas:
                 break
             if article["title"] in published:
                 logger.info("Skipping already-published idea: %s", article["title"][:60])
                 continue
+
+            # Fast-path: --curate --learn without --dry-run → extract only, skip generation
+            if learn_only:
+                try:
+                    from services.avatar_intelligence import extract_and_append_knowledge
+                    _new_facts = extract_and_append_knowledge(
+                        article_text=article["summary"],
+                        source_url=article["link"],
+                        source_title=article["title"],
+                    )
+                    if _new_facts:
+                        from services.avatar_intelligence import load_avatar_state, normalize_extracted_facts
+                        _latest_state = load_avatar_state()
+                        self._extracted_facts = normalize_extracted_facts(_latest_state)
+                        _topic_window = int(os.getenv("TOPIC_SIGNAL_WINDOW", "50"))
+                        self._topic_signal = build_topic_signal(self._extracted_facts, window=_topic_window)
+                        logger.info(
+                            "🧠 ✨ +%d fact(s) from '%s' (🗂️ pool=%d)",
+                            len(_new_facts), article["title"][:60], len(self._extracted_facts),
+                        )
+                    else:
+                        logger.info(
+                            "🧠 0 new facts from '%s' (🗂️ pool=%d)",
+                            article["title"][:60], len(self._extracted_facts),
+                        )
+                except Exception as _exc:
+                    logger.debug("Knowledge extraction skipped (continuing): %s", _exc)
+                continue  # skip generation entirely
+
             if created_ideas:
                 time.sleep(request_delay)
 
