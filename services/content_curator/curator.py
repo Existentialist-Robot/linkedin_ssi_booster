@@ -381,7 +381,7 @@ class ContentCurator:
         message_type='post'  — schedules posts directly to the queue.
         channel='all'        — LinkedIn + X + Bluesky + YouTube per article.
         """
-        articles = fetch_relevant_articles()
+        articles = fetch_relevant_articles(spacy_nlp=self._spacy_nlp)
         try:
             from services.selection_learning import compute_acceptance_priors, rank_articles as _rank_arts
             _priors = compute_acceptance_priors()

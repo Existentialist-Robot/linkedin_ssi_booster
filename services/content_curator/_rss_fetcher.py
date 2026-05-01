@@ -13,9 +13,12 @@ from services.content_curator._config import CURATOR_MAX_PER_FEED, RSS_FEEDS, KE
 logger = logging.getLogger(__name__)
 
 
-def fetch_article_text(url: str, max_chars: int = 3000) -> str:
+def fetch_article_text(url: str, max_chars: int = 3000, spacy_nlp=None) -> str:
     """Fetch a URL and return plain text (script/style stripped).
 
+    When spacy_nlp is provided and the article is long enough, uses extractive
+    summarization (5 sentences) to surface buried key content rather than
+    front-truncating. Falls back to truncation if summarization returns empty.
     Used when RSS has no summary, or as a static fallback.
     """
     try:
@@ -25,13 +28,25 @@ def fetch_article_text(url: str, max_chars: int = 3000) -> str:
         html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
         text = re.sub(r"<[^>]+>", " ", html)
         text = re.sub(r"\s+", " ", text).strip()
+        if spacy_nlp and len(text) > 500:
+            try:
+                summary = spacy_nlp.summarize_article(
+                    article_text=text[:max_chars],
+                    max_sentences=5,
+                    focus_entities=True,
+                )
+                if summary:
+                    logger.debug("spaCy summarized fallback fetch from %d to %d chars", len(text[:max_chars]), len(summary))
+                    return summary
+            except Exception as _exc:
+                logger.debug("spaCy summarization failed in fetch_article_text, using truncation: %s", _exc)
         return text[:max_chars]
     except Exception as exc:
         logger.debug("Could not fetch article text from %s: %s", url, exc)
         return ""
 
 
-def fetch_relevant_articles(max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
+def fetch_relevant_articles(max_per_feed: int = CURATOR_MAX_PER_FEED, spacy_nlp=None) -> list:
     """Fetch recent articles matching our keyword list."""
     articles = []
     for feed_info in RSS_FEEDS:
@@ -46,7 +61,7 @@ def fetch_relevant_articles(max_per_feed: int = CURATOR_MAX_PER_FEED) -> list:
                 if any(kw.lower() in content for kw in KEYWORDS):
                     if len(summary.strip()) < 100 and link:
                         logger.debug("RSS summary empty for '%s' — fetching URL", title[:50])
-                        summary = fetch_article_text(link)
+                        summary = fetch_article_text(link, spacy_nlp=spacy_nlp)
                     articles.append({
                         "source":    feed_info["name"],
                         "title":     title,
