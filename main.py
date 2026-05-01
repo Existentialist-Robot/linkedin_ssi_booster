@@ -153,7 +153,7 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
     print(str(Fore.CYAN) + "  💬 Free-form persona chat (AI-generated, grounded in persona):" + str(Style.RESET_ALL))
     print("    • Any topic not matching a grounded query is handled by the AI model.")
     print()
-    print(str(Fore.WHITE) + "  Commands: /help, /reset, /exit" + str(Style.RESET_ALL))
+    print(str(Fore.WHITE) + "  Commands: /help, /reset, /reload, /exit" + str(Style.RESET_ALL))
     print()
 
 
@@ -171,38 +171,44 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         build_grounding_context,
     )
     from services.console_grounding._models import ProjectFact as _ProjectFact
-    _avatar_state = _lav_console()
-    _avatar_facts = normalize_evidence_facts(_avatar_state)
-    _domain_facts = []
-    try:
-        _domain_facts = normalize_domain_facts(_avatar_state)
-        _domain_facts = domain_facts_to_project_facts(_domain_facts)
-    except Exception as exc:
-        logger.warning("Domain knowledge not loaded for console mode: %s", exc)
 
-    _extracted_pf: list = []
-    try:
-        _extracted_raw = normalize_extracted_facts(_avatar_state)
-        _extracted_pf = [
-            _ProjectFact(
-                project=f.source_title or "Extracted Knowledge",
-                company="",
-                years="",
-                details=f.statement,
-                source=f"extracted_knowledge:{f.evidence_id}",
-                tags=set(f.tags or []),
-            )
-            for f in _extracted_raw
-        ]
-        if _extracted_pf:
-            logger.info("Console mode: loaded %d extracted knowledge facts", len(_extracted_pf))
-    except Exception as exc:
-        logger.warning("Extracted knowledge not loaded for console mode: %s", exc)
+    def _load_knowledge_state() -> tuple[list, str]:
+        """Load (or reload) avatar knowledge state and return (_profile_facts, _grounding_context)."""
+        avatar_state = _lav_console()
+        avatar_facts = normalize_evidence_facts(avatar_state)
+        domain_pf: list = []
+        try:
+            domain_pf = domain_facts_to_project_facts(normalize_domain_facts(avatar_state))
+        except Exception as exc:
+            logger.warning("Domain knowledge not loaded for console mode: %s", exc)
+        extracted_pf: list = []
+        try:
+            extracted_raw = normalize_extracted_facts(avatar_state)
+            extracted_pf = [
+                _ProjectFact(
+                    project=f.source_title or "Extracted Knowledge",
+                    company="",
+                    years="",
+                    details=f.statement,
+                    source=f"extracted_knowledge:{f.evidence_id}",
+                    tags=set(f.tags or []),
+                )
+                for f in extracted_raw
+            ]
+        except Exception as exc:
+            logger.warning("Extracted knowledge not loaded for console mode: %s", exc)
+        profile_facts = evidence_facts_to_project_facts(avatar_facts) + domain_pf + extracted_pf
+        grounding_ctx = build_grounding_context(avatar_facts)
+        if github_context:
+            grounding_ctx = f"{grounding_ctx}\n\n{github_context}" if grounding_ctx else github_context
+        return profile_facts, grounding_ctx
 
-    _profile_facts = evidence_facts_to_project_facts(_avatar_facts) + _domain_facts + _extracted_pf
-    _grounding_context = build_grounding_context(_avatar_facts)
-    if github_context:
-        _grounding_context = f"{_grounding_context}\n\n{github_context}" if _grounding_context else github_context
+    _profile_facts, _grounding_context = _load_knowledge_state()
+    logger.info(
+        "Console mode: loaded %d grounding facts (%d total)",
+        len(_profile_facts),
+        len(_profile_facts),
+    )
 
     while True:
         try:
@@ -219,11 +225,20 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
             print("Exiting console.")
             return
         if cmd == "/help":
-            print("Commands: /help, /reset, /exit")
+            print("Commands: /help, /reset, /reload, /exit")
+            print("  /reload — re-read persona graph, domain packs, and extracted_knowledge.json")
             continue
         if cmd == "/reset":
             history.clear()
             print("Conversation history cleared.")
+            continue
+        if cmd == "/reload":
+            _profile_facts, _grounding_context = _load_knowledge_state()
+            print(
+                str(Fore.CYAN)
+                + f"Knowledge reloaded — {len(_profile_facts)} grounding facts now active."
+                + str(Style.RESET_ALL)
+            )
             continue
 
         lower_input = user_input.lower()
@@ -259,53 +274,6 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         except Exception as e:
             print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
             continue
-        history.append({"role": "assistant", "content": reply})
-        print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
-        if cmd == "/help":
-            print("Commands: /help, /reset, /exit")
-            continue
-        if cmd == "/reset":
-            history.clear()
-            print("Conversation history cleared.")
-            continue
-
-
-        # Route generative/channel/post/reply queries to LLM, not deterministic facts
-        lower_input = user_input.lower()
-        if any(phrase in lower_input for phrase in GENERATIVE_REQUEST_PHRASES):
-            history.append({"role": "user", "content": user_input})
-            if len(history) > max_turns * 2:
-                history = history[-max_turns * 2 :]
-            try:
-                reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
-            except Exception as e:
-                print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
-                continue
-            history.append({"role": "assistant", "content": reply})
-            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
-            continue
-
-        constraints = parse_query_constraints(user_input)
-        if constraints.requires_grounding:
-            facts = retrieve_relevant_facts(_profile_facts, constraints, limit=8)
-            reply = build_deterministic_grounded_reply(user_input, facts, constraints)
-            history.append({"role": "user", "content": user_input})
-            history.append({"role": "assistant", "content": reply})
-            if len(history) > max_turns * 2:
-                history = history[-max_turns * 2 :]
-            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
-            continue
-
-        history.append({"role": "user", "content": user_input})
-        if len(history) > max_turns * 2:
-            history = history[-max_turns * 2 :]
-
-        try:
-            reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
-        except Exception as e:
-            print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
-            continue
-
         history.append({"role": "assistant", "content": reply})
         print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
 
