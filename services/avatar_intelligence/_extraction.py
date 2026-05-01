@@ -284,6 +284,52 @@ def extract_and_append_knowledge(
             re.IGNORECASE,
         ):
             continue
+        # Filter "You'll learn / You will see / You will discover" educational preambles
+        if re.match(
+            r"^You'?(?:ll| will) (learn|see|discover|find out|understand|notice|explore|get)\b",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter "On behalf of...", "Did you see...", "Have you seen..." openers
+        if re.match(
+            r"^(On behalf of\b|Did you (see|hear|notice|watch)\b|Have you (seen|heard|noticed|watched)\b)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter future-tense article preambles — "We'll focus on / We'll look at / We'll dive into"
+        if re.match(
+            r"^We'?(?:ll| will) (focus|look|cover|dive|dig|discuss|walk|explore|go through|talk)\b",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter award/recognition self-promotion sentences
+        if re.match(
+            r"^(This award\b|This recognition\b|This honor\b|This prize\b|We('re| are) (honored|proud|excited|thrilled|delighted))",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter mangled heading+sentence concatenations — internal camelCase word boundary join
+        # e.g. "Why the Future of Macro-Risk is Agentic and InterconnectedThe phone rang"
+        if re.search(r"[a-z][A-Z][a-z]", sentence):
+            # Only discard when the join appears mid-sentence (not at start) and sentence has no strong numeric signal
+            _camel_joins = re.findall(r"[a-z][A-Z][a-z]", sentence)
+            if len(_camel_joins) >= 2 or (
+                len(_camel_joins) == 1
+                and not re.search(r"\d+\s*%|\d+[xX]|\b\d{4}\b", sentence)
+            ):
+                continue
+        # Filter table/architecture blobs: many repeated short tokens, digit-heavy, no prose verb
+        # e.g. "Dense 8B Dense 30B Dense Embedding size 2560 4096 4096 Number of layers 40 40 64..."
+        _words = sentence.split()
+        if len(_words) >= 12:
+            _digit_tokens = sum(1 for w in _words if re.match(r"^\d+$", w))
+            _repeated_words = len(_words) - len(set(w.lower() for w in _words))
+            if _digit_tokens >= 4 and _repeated_words >= 4:
+                continue
         # Filter generic filler takes with no concrete claim (no number, no named entity pair)
         _generic_filler = bool(re.match(
             r"^(Countless|Many|Most|Some|Several|Various|A (number|lot|few|wide variety)) "
