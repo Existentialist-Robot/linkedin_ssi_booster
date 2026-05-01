@@ -29,7 +29,7 @@
   > | **What it measures** | Evidence quality + reasoning chain | Semantic meaning alignment |
   > | **Input** | Generated sentence vs. persona/domain fact pool | Generated sentence vs. source article text |
   > | **Method** | Weighted formula: `0.30×evidence + 0.25×reasoning + 0.20×credibility + 0.25×token_overlap` | spaCy `en_core_web_md` cosine similarity |
-  > | **Catches** | Fabricated numbers, wrong org names, weak evidence chains | Paraphrased hallucinations that drift in meaning but share no tokens |
+  > | **Catches** | Sentences that pass BM25 + token checks but have weak overall evidence quality (poor reasoning chain, low credibility, low token overlap with facts) | Paraphrased hallucinations that drift in meaning but share no tokens with the article |
   > | **Threshold** | `TRUTH_GRADIENT_FLAG_THRESHOLD` = 0.35 | `TRUTH_GATE_SPACY_SIM_FLOOR` = 0.10 |
   >
   > DoT asks *"is this claim supported by credible, well-reasoned evidence?"*; spaCy sim asks *"does the generated text still mean the same thing as the source?"* — each catches a different failure mode.
