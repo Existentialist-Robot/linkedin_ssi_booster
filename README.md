@@ -64,7 +64,7 @@ This tool handles the repeatable parts:
 - `--dot-report` — Show a Derivative of Truth (truth gradient, evidence, uncertainty) report for every generated post (with `--schedule`) or curated idea (with `--curate`).
 - `--avatar-explain` — Show evidence IDs and grounding summary after each generation.
 - `--avatar-learn-report` — Print learning report from captured moderation events and exit.
-- `--learn` — Extract and persist knowledge from curated articles into `extracted_knowledge.json`. By default this only runs on live (`--curate`) runs. Pass `--dry-run --learn` together to extract knowledge while still previewing posts without pushing to Buffer.
+- `--learn` — Extract and persist knowledge from curated articles into `extracted_knowledge.json`. By default this only runs on live (`--curate`) runs. Pass `--dry-run --learn` together to extract knowledge while still previewing posts without pushing to Buffer. When `--learn` is active, the normal 5-post cap is bypassed — every relevant article found across all feeds is processed, maximising knowledge extraction per run (e.g. `--curate --learn --dry-run` may process 60+ articles in one pass).
 
 You control whether curated content is reviewed before publishing or scheduled directly. The tool removes the blank-page problem, but you decide what goes live.
 
