@@ -251,6 +251,39 @@ def extract_and_append_knowledge(
             sentence,
         ):
             continue
+        # Filter pipe-delimited navigation links (e.g. "Home | Source on GitHub | Reference documentation")
+        if re.search(r"\w[^|]+\|[^|]+\|", sentence):
+            continue
+        # Filter "In our/my recent <event>" livestream/podcast preambles not caught by the earlier pattern
+        if re.match(
+            r"^In (our|my) recent\s+(JetBrains|episode|livestream|webinar|meetup|talk|session|interview|podcast)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter colourful/anecdotal scene-setters with no factual claim
+        if re.match(
+            r"^(Somewhere out there|Here's what we|Did you ever|Imagine if|Picture this|"
+            r"Once upon a|It used to be|Not long ago|Back in the day|True story)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter vague rhetorical survey openers ("Here's what we learned from the 2026 survey...")
+        if re.match(
+            r"^Here'?s (what|how|why|where|when|who) (we|you|I|they|it)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter "Starting from square one / First things first / Step X:" heading fragments
+        if re.match(
+            r"^(Starting from square one|First things first|Step \d+[\.:]\s|At its core,?\s|"
+            r"At a high level,?\s|Let's (take|start|begin|look|walk))",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
         # Filter generic filler takes with no concrete claim (no number, no named entity pair)
         _generic_filler = bool(re.match(
             r"^(Countless|Many|Most|Some|Several|Various|A (number|lot|few|wide variety)) "
