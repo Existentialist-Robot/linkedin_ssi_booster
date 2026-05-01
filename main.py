@@ -210,6 +210,35 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         len(_profile_facts),
     )
 
+    from services.console_grounding import truth_gate_result as _tg_result
+
+    def _print_truth_score(reply: str) -> None:
+        """Print a minimal 1-line truthfulness score bar after a generated reply."""
+        try:
+            _, _meta = _tg_result(reply, "", _profile_facts)
+            dot = _meta.truth_gradient
+            sim_vals = list(_meta.spacy_sim_scores.values())
+            sim = sum(sim_vals) / len(sim_vals) if sim_vals else None
+
+            if dot >= 0.75:
+                _dot_col = str(Fore.GREEN)
+                _dot_sym = "●"
+            elif dot >= 0.45:
+                _dot_col = str(Fore.YELLOW)
+                _dot_sym = "◑"
+            else:
+                _dot_col = str(Fore.RED)
+                _dot_sym = "○"
+
+            sim_part = f"  spaCy sim {sim:.2f}" if sim is not None else ""
+            print(
+                str(Style.DIM) + "  "
+                + _dot_col + _dot_sym + str(Style.RESET_ALL)
+                + str(Style.DIM) + f" DoT {dot:.2f}{sim_part}" + str(Style.RESET_ALL)
+            )
+        except Exception:
+            pass  # never interrupt the conversation for a scoring failure
+
     while True:
         try:
             user_input = input("\nYou> ").strip()
@@ -253,6 +282,7 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
                 continue
             history.append({"role": "assistant", "content": reply})
             print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+            _print_truth_score(reply)
             continue
 
         constraints = parse_query_constraints(user_input)
@@ -276,6 +306,7 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
             continue
         history.append({"role": "assistant", "content": reply})
         print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+        _print_truth_score(reply)
 
 
 def main():
