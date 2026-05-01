@@ -166,18 +166,18 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
 
     if flagged:
         footer_note = (
-            f"  {dim}⚠  Weak support ({support_note}): {alignment_note}; {unc_note}. "
-            f"Review carefully before publishing and tighten claim-to-evidence grounding.{r}"
+            f"  {dim}⚠  Weak support ({support_note}): {alignment_note}; {unc_note}.\n"
+            f"     Review carefully before publishing and tighten claim-to-evidence grounding.{r}"
         )
     elif tg >= 0.70 and (avg_overlap is None or avg_overlap >= 0.45):
         footer_note = (
-            f"  {dim}ℹ  Strong support ({support_note}): {alignment_note}; {unc_note}. "
-            f"Output is well-backed by the supplied evidence.{r}"
+            f"  {dim}ℹ  Strong support ({support_note}): {alignment_note}; {unc_note}.\n"
+            f"     Output is well-backed by the supplied evidence.{r}"
         )
     else:
         footer_note = (
-            f"  {dim}ℹ  Moderate support ({support_note}): {alignment_note}; {unc_note}. "
-            f"Improve by making claims more explicit and evidence-linked.{r}"
+            f"  {dim}ℹ  Moderate support ({support_note}): {alignment_note}; {unc_note}.\n"
+            f"     Improve by making claims more explicit and evidence-linked.{r}"
         )
     lines.append(footer_note)
     lines.append(divider)
