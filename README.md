@@ -22,18 +22,8 @@
   - **False-positive hardening for tech terms** — concept/service tokens and tech-version entities (for example `S3`, `AI Q&A`, `Java 21`) are filtered before ORG enforcement so technical references are not incorrectly blocked as `unsupported_org`.
   - **Expanded domain evidence via multi-file loading** — avatar state now auto-merges sibling `domain_knowledge_*.json` files (for example Java and Python packs), which broadens allowed evidence tokens and improves support checks.
   - **Fact-pool spaCy similarity (Part E)** — for every sentence that passes BM25, the best spaCy cosine similarity across all persona/domain facts (individually) is computed. Sentences below `TRUTH_GATE_FACT_SIM_FLOOR` (default `0.05`) are flagged `low_fact_similarity`. Unlike the article-sim check, this runs in **all contexts including console mode** because persona/domain facts are always present.
-  > **DoT gradient vs. spaCy sim — what's the difference?**
-  > Three complementary checks, each catching a different failure mode:
-  >
-  > | | DoT gradient | Article spaCy sim (Part C) | Fact-pool spaCy sim (Part E) |
-  > |---|---|---|---|
-  > | **Question asked** | *Is this claim supported by credible, well-reasoned evidence?* | *Does the generated text still mean the same thing as the source?* | *Is this sentence at least semantically close to something I know to be true?* |
-  > | **Input** | Sentence vs. persona/domain fact pool | Sentence vs. source article text | Sentence vs. each persona/domain fact individually |
-  > | **Method** | Weighted formula: `0.30×evidence + 0.25×reasoning + 0.20×credibility + 0.25×token_overlap` | spaCy `en_core_web_md` cosine similarity | spaCy `en_core_web_md` cosine similarity (best match across all facts) |
-  > | **Scope** | All contexts (curation + console) | Curation only (requires non-empty article text) | All contexts including console mode |
-  > | **Catches** | Weak evidence chains — passes BM25 and token checks but has poor reasoning quality, low credibility, or low token overlap with facts | Paraphrased hallucinations that drift in meaning but share no tokens with the article | Sentences with no semantic connection to any known persona or domain fact |
-  > | **Threshold** | `TRUTH_GRADIENT_FLAG_THRESHOLD` = 0.35 | `TRUTH_GATE_SPACY_SIM_FLOOR` = 0.10 | `TRUTH_GATE_FACT_SIM_FLOOR` = 0.05 (permissive — persona facts are short fragments) |
-  > | **Reason code** | `weak_dot_gradient` | `low_semantic_similarity` | `low_fact_similarity` |
+
+  > See [docs/derivative-of-truth.md](docs/derivative-of-truth.md) for the full layer-by-layer breakdown, the DoT vs spaCy sim comparison table, all env var thresholds, and the mathematical framework.
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
@@ -113,128 +103,11 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 
 ---
 
-## 🧮 Derivative of Truth (DoT) Framework - Next Generation Reasoning Layer
+## 🧮 Derivative of Truth (DoT) Framework
 
-```mermaid
-flowchart TD
-  ClaimQuery(["Claim / Query"]) --> BM25Retriever[BM25 Retriever]
-  ClaimQuery --> KnowledgeGraph[Knowledge Graph]
-  BM25Retriever -- "Top Candidates" --> EvidencePaths((Evidence Paths))
-  KnowledgeGraph -- "Proximity / Support" --> EvidencePaths
-  EvidencePaths --> DoT["Derivative of Truth\n(Reasoning Layer)"]
-  DoT -- "Truth Gradient, Reasoning, Uncertainty" --> Explainability["Explainability & Reporting"]
-  DoT -- "Flag / Score" --> FinalOutput["Final Output\n(Accept / Reject / Flag)"]
-  Explainability --> UserDisplay["User"]
-  FinalOutput --> UserDisplay
-```
+Every generated sentence receives a composite truth gradient score (evidence quality × reasoning strength × source credibility × claim-evidence token overlap). Sentences below `TRUTH_GRADIENT_FLAG_THRESHOLD` (default 0.35) are flagged `weak_dot_gradient` and removed before publication. DoT runs as Part B of the five-layer truth gate, after BM25 and before spaCy semantic checks.
 
-**Explanation:**
-
-- BM25 and the Knowledge Graph retrieve and rerank evidence for each claim.
-- The Derivative of Truth (DoT) layer analyzes the quality of evidence, the type of reasoning, and uncertainty, **and how well the generated text aligns with that evidence**, producing a truth gradient score and a human-readable explanation.
-- The system outputs both a decision (accept/reject/flag) and an explanation, closing the loop with the user.
-
-#### How BM25, the Knowledge Graph, and DoT Work Together
-
-The Derivative of Truth framework is powerful because it combines deterministic evidence retrieval (BM25), explicit knowledge graph reasoning, and a transparent reasoning layer:
-
-- **BM25** is used to find the most relevant evidence for each claim, based on token overlap. This ensures that only facts with strong lexical support (matching numbers, names, technical terms) are considered. BM25’s scores are transparent and auditable.
-- **The Knowledge Graph** encodes relationships between your persona, projects, facts, and evidence. It enables the system to compute proximity, support, and reasoning chains—so you can see exactly why a fact supports a claim, and trace the evidence path.
-- **Hybrid Scoring** combines BM25’s lexical precision with graph-based proximity/support, giving both high recall (BM25 finds candidates) and high precision (the graph reranks by relevance to your persona/context).
-- **The DoT Reasoning Layer** sits on top of retrieval. For each claim, DoT:
-  - Annotates evidence by type (primary, secondary, derived, pattern), reasoning (logical, statistical, analogy, pattern), and credibility.
-  - Computes **claim-evidence token overlap** — how much the generated text's language actually reflects the evidence it was grounded in.
-  - Aggregates evidence quality, reasoning type, credibility, and overlap into a single composite score.
-  - Tracks and penalizes uncertainty (weak evidence, long inference chains, conflicts, sparse support).
-  - Composes a single, interpretable "truth gradient" score, and explains why a claim is strong or weak.
-
-**In effect, DoT turns your system into not just a retriever, but a reasoner—able to justify, explain, and flag claims based on both the quality of their evidence _and_ how faithfully the LLM output reflects that evidence.**
-
-> ### The Derivative of Truth: A New Mathematical Framework for AI Truthfulness
->
-> **The Core Problem:**
-> Current AI systems optimize for next token prediction, which can lead to reward hacking—models sound confident about memorized patterns, not about evidence.
-
-> **Breakthrough Insight:**
-> Truth is subjective and dynamic. Instead of solving for absolute truth T, we optimize for dT/dt—the derivative of truth, representing movement toward more reliable knowledge.
->
-> **Key Mathematical Components:**
->
-> - **Truth-Seeking Loss:**
->   L_current = -log P(next_token | context)
->   L_truth = -log P(truth_direction | evidence, reasoning, uncertainty)
-> - **Derivative of Truth:**
->   dT/dt = ∂(Evidence Quality)/∂t + ∂(Reasoning Strength)/∂t - ∂(Uncertainty)/∂t
-> - **Truth Gradient:**
->   ∇(Evidence × Reasoning × Consistency) - ∇(Uncertainty × Bias)
-> - **Truth Score:**
->   T(statement) = Σ [E_i × R_i × C_i × U_i]
->   Where E_i is evidence strength, R_i is reasoning validity, C_i is source credibility, U_i is uncertainty penalty.
-> - **Implemented base_gradient formula (with claim-evidence overlap O_i):**
->   With overlap: `0.30×E_i + 0.25×R_i + 0.20×C_i + 0.25×O_i`
->   Without overlap (KG-only paths): `0.40×E_i + 0.35×R_i + 0.25×C_i`
->   O_i ∈ [0,1] is the token overlap between the LLM output and the supporting evidence text, scaled to reward alignment.
->
-> **The Key Insight:**
-> Don't solve for truth directly—solve for the trajectory toward truth. This makes the model reward-seeking for reliable knowledge, not just confident pattern matching.
-
-The Derivative of Truth framework augments the existing truth gate and confidence scoring pipeline with a new scoring subsystem that explicitly models evidence strength, reasoning validity, and uncertainty. It introduces a truth gradient metric for every generated claim/post, and integrates with the knowledge graph, hybrid retriever, continual learning, and explainability/reporting subsystems.
-
-### 🚩 Why This Approach Is Revolutionary
-
-Most AI content tools rely on black-box vector search or generic LLM outputs, which are hard to audit, explain, or trust. The LinkedIn SSI Booster’s Derivative of Truth framework is different:
-
-- **Deterministic, auditable, and explainable:** BM25 and token matching provide transparent, reproducible evidence scoring, enabling precise truthfulness and uncertainty annotation.
-- **Fine-grained control:** You can set exact thresholds for what counts as “supported,” especially for numbers, names, and facts—something vector search can’t reliably do.
-- **Actionable feedback:** The system gives clear, actionable explanations for why claims are accepted or rejected, helping users and moderators improve content quality.
-- **Bridges IR and AI:** By combining traditional information retrieval (BM25) with modern AI, the system is both robust and trustworthy—unlike most current AI automation tools.
-- **Sets a new bar for trustworthy AI:** This approach is rare in today’s content automation landscape and is a strong step toward explainable, compliance-ready AI for real-world workflows.
-
-In short, this framework brings a new level of transparency, reliability, and control to automated content generation—making it ideal for professional, compliance-sensitive, and high-stakes environments.
-
-### 🔄 How Learning, Truth Gate, and Scoring Improve Future Generations
-
-The system’s continual learning and truth gate scoring directly shape the quality of future content:
-
-- **Curation Learning Loop:** Every generated post and curated article is logged with its truth gate score, evidence support, and publication outcome. Acceptance rates (priors) for sources, topics, and SSI components are updated based on what gets published or rejected. Over time, the system floats the best-performing patterns and demotes weak ones.
-
-- **Adaptive Retrieval and Grounding:** The retrieval layer learns which facts, themes, and evidence types are most likely to pass the truth gate. Future generations are more likely to ground claims in high-confidence, well-supported facts, making outputs more credible and relevant.
-
-- **Prompt and Policy Adaptation:** The LLM is guided by prompts that require factual grounding. As the system learns which claims are accepted, it adapts prompt constraints and retrieval strategies to favor those patterns. Confidence scoring and policy routing reinforce high-quality output.
-
-- **Feedback to the LLM:** When a post is rejected by the truth gate, the system suggests the closest matching facts or evidence, helping you or the LLM rephrase or better ground the claim. Over time, the LLM “learns” (via prompt engineering, retrieval adaptation, and user feedback) to avoid unsupported patterns and generate more credible content.
-
-- **Continual Learning:** As new facts and evidence are added (from curated articles, RSS feeds, etc.), the knowledge graph grows, providing richer grounding for future generations. Retrieval and scoring adapt to leverage this expanding evidence base.
-
-**Bottom line:**
-The system closes the loop between generation, evidence retrieval, truth gate scoring, and user feedback—so each new generation is smarter, more credible, and better aligned with your SSI goals.
-
-Key benefits:
-
-- **Explicit Truthfulness Scoring:** Every claim/post receives a "truth gradient" score reflecting evidence strength, reasoning validity, credibility, **and how well the LLM output aligns with the evidence it was given** — not just how good the evidence was.
-- **Claim-Evidence Alignment:** Each evidence path now carries a token overlap score (weak / moderate / strong) shown in the CLI report, revealing when the LLM's language drifts from its grounding facts.
-- **Evidence & Reasoning Annotation:** Each fact/claim is annotated with evidence type, reasoning type, and source credibility for transparency and explainability.
-- **Uncertainty Handling:** Tracks and penalizes uncertainty (weak evidence, long chains, conflicts, sparse support), flagging overconfident or unsupported claims.
-- **Improved Explainability:** CLI and reports show why claims are accepted/rejected, what evidence supports them, alignment strength per path, and how uncertainty affects scores.
-- **Better Content Quality:** Filters out weak claims, prioritizes well-grounded ones, and ensures published content is credible and authoritative.
-- **Adaptive Learning:** As more evidence and reasoning paths are accumulated, scoring and explanations improve, making automation smarter over time.
-- **Alignment with Best Practices:** Follows trustworthy AI and explainable AI (XAI) principles for robust, future-proof automation.
-
-#### 🛡️ Truth Gate & Confidence Scoring Pipeline
-
-```mermaid
-flowchart TD
-  Subsystem["Content Generation / Curation"] -->|"Claims, Facts"| TruthGate["Truth Gate & Confidence Scoring"]
-  TruthGate -->|"BM25, Graph, Claim Support"| HybridRetriever["Hybrid Retriever & Reranker"]
-  HybridRetriever -->|"Candidate Claims"| DerivativeTruth["Derivative of Truth Scoring"]
-  DerivativeTruth -->|"Truth Gradient, Evidence Path, Uncertainty"| Explainability["Explainability & Reporting"]
-  DerivativeTruth -->|"Penalty/Flag"| Output["Final Output (Post/Claim)"]
-  ContinualLearning["Continual Learning"] -->|"New Evidence, Reasoning"| KnowledgeGraph["Knowledge Graph"]
-  KnowledgeGraph --> HybridRetriever
-  KnowledgeGraph --> DerivativeTruth
-```
-
-See [docs/features/derivative-of-truth/](docs/features/derivative-of-truth/) for technical details, schema, and scoring examples.
+See [docs/derivative-of-truth.md](docs/derivative-of-truth.md) for the full framework: mathematical model, pipeline diagrams, all five truth gate layers, env var reference, and how DoT improves over time.
 
 ---
 
@@ -365,8 +238,9 @@ The primer covers core NLP concepts, practical communication techniques, technic
 - [Usage guide](docs/usage-schedule-curate-console.md) — scheduling, curation, console mode, channels, and CLI examples.
 - [SSI strategy](docs/ssi-and-strategy.md) — SSI model, content mapping, scheduler behavior, and reporting.
 - [AI backend](docs/ai-backend-and-models.md) — Ollama setup and model recommendations.
-- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (337/337)
+- [Testing and development](docs/testing-and-dev.md) — pytest coverage and project structure. All tests pass (343/343)
 - [Selection learning](docs/selection-learning.md) — candidate logging, reconciliation, and acceptance priors.
+- [Derivative of Truth (DoT) framework](docs/derivative-of-truth.md) — mathematical model, five-layer truth gate pipeline, DoT vs spaCy sim comparison, env var reference, and how scoring improves over time.
 
 ## 🐳 Docker Compose (Recommended)
 
