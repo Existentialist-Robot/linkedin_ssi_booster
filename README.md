@@ -304,12 +304,12 @@ The avatar supports fully automatic, incremental continual learning from new con
 - Deduplication and normalization ensure that only novel, high-quality knowledge is added, and all learning is ongoing as new content is ingested.
 - Modular, file-based design: easy to extend, debug, and test.
 - **Console mode** (`--console`) includes extracted knowledge in the grounding pool alongside persona and domain facts, so the persona can answer questions using anything learned from `--learn` runs. Use `/reload` inside a running console session to re-read `extracted_knowledge.json` (and all other avatar files) without restarting — useful when running a `--learn` job concurrently in a second terminal.
-- **Inline truth score** — after every AI-generated reply, console mode prints a minimal 1-line truthfulness indicator showing the aggregate DoT gradient and average spaCy semantic similarity for that reply. The indicator is dim and non-distracting:
+- **Inline truth score** — after every AI-generated reply, console mode prints a minimal 1-line DoT gradient indicator:
   ```
   Sam> [reply text]
-    ● DoT 0.82  spaCy sim 0.45
+    ● DoT 0.82
   ```
-  The symbol colour reflects the DoT score: `●` green (≥ 0.75 — well-grounded), `◑` yellow (≥ 0.45 — moderate), `○` red (< 0.45 — weakly supported). Only AI-generated replies receive the indicator; deterministic grounded replies do not.
+  The symbol colour reflects the DoT score: `●` green (≥ 0.75 — well-grounded), `◑` yellow (≥ 0.45 — moderate), `○` red (< 0.45 — weakly supported). spaCy sim is excluded because it requires a source article text and is meaningless in a conversation context. Only AI-generated replies receive the indicator; deterministic grounded replies do not.
 
 **Noise filtering pipeline** — before a sentence is stored, a multi-layer quality filter rejects low-signal content that would pollute the knowledge base:
 
