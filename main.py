@@ -165,10 +165,12 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         load_avatar_state as _lav_console,
         normalize_evidence_facts,
         normalize_domain_facts,
+        normalize_extracted_facts,
         evidence_facts_to_project_facts,
         domain_facts_to_project_facts,
         build_grounding_context,
     )
+    from services.console_grounding._models import ProjectFact as _ProjectFact
     _avatar_state = _lav_console()
     _avatar_facts = normalize_evidence_facts(_avatar_state)
     _domain_facts = []
@@ -178,8 +180,26 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
     except Exception as exc:
         logger.warning("Domain knowledge not loaded for console mode: %s", exc)
 
+    _extracted_pf: list = []
+    try:
+        _extracted_raw = normalize_extracted_facts(_avatar_state)
+        _extracted_pf = [
+            _ProjectFact(
+                project=f.source_title or "Extracted Knowledge",
+                company="",
+                years="",
+                details=f.statement,
+                source=f"extracted_knowledge:{f.evidence_id}",
+                tags=set(f.tags or []),
+            )
+            for f in _extracted_raw
+        ]
+        if _extracted_pf:
+            logger.info("Console mode: loaded %d extracted knowledge facts", len(_extracted_pf))
+    except Exception as exc:
+        logger.warning("Extracted knowledge not loaded for console mode: %s", exc)
 
-    _profile_facts = evidence_facts_to_project_facts(_avatar_facts) + _domain_facts
+    _profile_facts = evidence_facts_to_project_facts(_avatar_facts) + _domain_facts + _extracted_pf
     _grounding_context = build_grounding_context(_avatar_facts)
     if github_context:
         _grounding_context = f"{_grounding_context}\n\n{github_context}" if _grounding_context else github_context
