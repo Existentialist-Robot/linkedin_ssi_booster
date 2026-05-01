@@ -223,9 +223,9 @@ def extract_and_append_knowledge(
             re.IGNORECASE,
         ):
             continue
-        # Filter passive advisory sentences — "Users are encouraged/advised/required to..."
+        # Filter passive advisory sentences — "Users are encouraged / Users must migrate..."
         if re.match(
-            r"^(Users|Developers|Teams|Customers|Everyone|You) are (encouraged|advised|asked|required|expected|invited|recommended)\b",
+            r"^(Users|Developers|Teams|Customers|Everyone|You) (are (encouraged|advised|asked|required|expected|invited|recommended)|must|should|need to|have to|will need to)\b",
             sentence,
             re.IGNORECASE,
         ):
@@ -249,11 +249,17 @@ def extract_and_append_knowledge(
             # Only discard if it lacks a numeric claim (might be a genuine heading+stat)
             if not re.search(r"\d+\s*%|\d+[xX]|\$\d|\d+\s*(ms|s|min|hour|sec)", sentence):
                 continue
-        # Filter marketing superlative taglines — "Our most X... / The world's most X..."
+        # Filter marketing superlative taglines — "Our most X" / "Product: Our most X"
         if re.match(
             r"^(Our|The world'?s?|Industry'?s?|Your) (most|best|only|first|largest|fastest|smartest)\b",
             sentence,
             re.IGNORECASE,
+        ):
+            continue
+        # Also catch "ProductName: Our most / The best / Its most..." prefix form
+        if re.match(
+            r"^[A-Z][\w\s\d\.\-]+:\s+(Our|The|Its|A) (most|best|only|first|largest|fastest|smartest)\b",
+            sentence,
         ):
             continue
         # Filter "In this installment/episode, I talk/interview/chat/speak" (podcast preambles)
@@ -408,6 +414,26 @@ def extract_and_append_knowledge(
         )
         if not _has_signal:
             continue
+        # spaCy structural filters — fragment detection + multi-sentence blob detection
+        if spacy_available and nlp_engine is not None:
+            try:
+                _raw_nlp = nlp_engine._ensure_model()
+                if _raw_nlp is not None:
+                    _sdoc = _raw_nlp(sentence)
+                    # Filter name-drop fragments: sentence starts with a PERSON entity and
+                    # has no VERB/AUX in the first 10 tokens (no main predicate).
+                    _first_10 = list(_sdoc)[:10]
+                    _first_has_verb = any(t.pos_ in {"VERB", "AUX"} for t in _first_10)
+                    _starts_propn = bool(_sdoc) and _sdoc[0].pos_ in {"PROPN", "NOUN"}
+                    _has_person_ent = any(ent.label_ == "PERSON" for ent in _sdoc.ents)
+                    if _starts_propn and _has_person_ent and not _first_has_verb:
+                        continue
+                    # Filter concatenated release/changelog blobs: spaCy detects 5+ sentences
+                    # packed into what was split as a single sentence by our regex splitter.
+                    if sum(1 for _ in _sdoc.sents) >= 5:
+                        continue
+            except Exception:
+                pass  # spaCy errors are non-fatal — continue without this filter
         if len(new_facts) >= max_facts_per_article:
             break
 
