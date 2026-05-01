@@ -234,14 +234,32 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
                 _dot_sym = "○"
 
             _fsim_vals = list(_meta.fact_sim_scores.values())
-            _fsim_part = (
-                f"  fact sim {max(_fsim_vals):.2f}" if _fsim_vals else ""
-            )
-            print(
+            _fsim = max(_fsim_vals) if _fsim_vals else None
+
+            def _bar(score: float, width: int = 20) -> str:
+                filled = round(score * width)
+                return "█" * filled + "░" * (width - filled)
+
+            _dot_bar = _bar(dot)
+            _line = (
                 str(Style.DIM) + "  "
                 + _dot_col + _dot_sym + str(Style.RESET_ALL)
-                + str(Style.DIM) + f" DoT {dot:.2f}{_fsim_part}" + str(Style.RESET_ALL)
+                + str(Style.DIM) + f" DoT {dot:.2f}  " + str(Style.RESET_ALL)
+                + _dot_col + _dot_bar + str(Style.RESET_ALL)
             )
+            if _fsim is not None:
+                if _fsim >= 0.75:
+                    _fsim_col = str(Fore.GREEN)
+                elif _fsim >= 0.45:
+                    _fsim_col = str(Fore.YELLOW)
+                else:
+                    _fsim_col = str(Fore.RED)
+                _fsim_bar = _bar(_fsim)
+                _line += (
+                    str(Style.DIM) + f"   fact sim {_fsim:.2f}  " + str(Style.RESET_ALL)
+                    + _fsim_col + _fsim_bar + str(Style.RESET_ALL)
+                )
+            print(_line)
         except Exception:
             pass  # never interrupt the conversation for a scoring failure
 
