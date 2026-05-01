@@ -21,6 +21,18 @@
   - **spaCy NER org-name validation** — org/company names are extracted via spaCy named entity recognition (`ORG` entities) and verified against the allowed evidence set. Falls back to the legacy regex when spaCy is unavailable.
   - **False-positive hardening for tech terms** — concept/service tokens and tech-version entities (for example `S3`, `AI Q&A`, `Java 21`) are filtered before ORG enforcement so technical references are not incorrectly blocked as `unsupported_org`.
   - **Expanded domain evidence via multi-file loading** — avatar state now auto-merges sibling `domain_knowledge_*.json` files (for example Java and Python packs), which broadens allowed evidence tokens and improves support checks.
+  > **DoT gradient vs. spaCy sim — what's the difference?**
+  > These are complementary, not overlapping:
+  >
+  > | | DoT gradient | spaCy sim |
+  > |---|---|---|
+  > | **What it measures** | Evidence quality + reasoning chain | Semantic meaning alignment |
+  > | **Input** | Generated sentence vs. persona/domain fact pool | Generated sentence vs. source article text |
+  > | **Method** | Weighted formula: `0.30×evidence + 0.25×reasoning + 0.20×credibility + 0.25×token_overlap` | spaCy `en_core_web_md` cosine similarity |
+  > | **Catches** | Fabricated numbers, wrong org names, weak evidence chains | Paraphrased hallucinations that drift in meaning but share no tokens |
+  > | **Threshold** | `TRUTH_GRADIENT_FLAG_THRESHOLD` = 0.35 | `TRUTH_GATE_SPACY_SIM_FLOOR` = 0.10 |
+  >
+  > DoT asks *"is this claim supported by credible, well-reasoned evidence?"*; spaCy sim asks *"does the generated text still mean the same thing as the source?"* — each catches a different failure mode.
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
