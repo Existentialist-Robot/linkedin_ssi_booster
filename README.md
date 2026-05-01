@@ -291,6 +291,19 @@ The avatar supports fully automatic, incremental continual learning from new con
 - These new facts are used in both retrieval (BM25 and graph) and grounding, so your system's evidence base grows over time with no manual steps.
 - Deduplication and normalization ensure that only novel, high-quality knowledge is added, and all learning is ongoing as new content is ingested.
 - Modular, file-based design: easy to extend, debug, and test.
+- **Console mode** (`--console`) includes extracted knowledge in the grounding pool alongside persona and domain facts, so the persona can answer questions using anything learned from `--learn` runs.
+
+**Noise filtering pipeline** — before a sentence is stored, a multi-layer quality filter rejects low-signal content that would pollute the knowledge base:
+
+| Filter                         | What it catches                                                                                                              |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| First-person narration         | Author asides ("As I write this…", "I sat down with…")                                                                       |
+| Truncated RSS fragments        | Sentences ending in "… Read more"                                                                                            |
+| Newsletter/podcast preambles   | Openers like "Welcome to…", "For this episode…", "In last week's…"                                                           |
+| Navigation / contributor blobs | Sentences ≥12 words where >45% of tokens start with uppercase (HuggingFace menus, author lists, etc.)                        |
+| Zero-signal sentences          | Sentences with no digit, no 2+-char acronym, and no consecutive title-case words (named entity / product name) — pure filler |
+
+These filters run before spaCy NLP and deduplication, so only genuinely informative domain sentences reach the knowledge graph.
 
 See [docs/features/continual-learning/idea.md](docs/features/continual-learning/idea.md) for technical details and schema.
 

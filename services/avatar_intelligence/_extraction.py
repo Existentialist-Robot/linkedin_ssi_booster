@@ -172,6 +172,38 @@ def extract_and_append_knowledge(
             re.IGNORECASE,
         ):
             continue
+        # Filter first-person author narration (personal commentary, not domain knowledge)
+        if re.match(
+            r"^(I |I'm |I've |I couldn't|I sat |I talked |As I |We've |We've )",
+            sentence,
+        ):
+            continue
+        # Filter "… Read more" truncated fragments from RSS feed previews
+        if re.search(r"[…\.]{1,3}\s*Read more\s*$", sentence, re.IGNORECASE):
+            continue
+        # Filter newsletter/podcast preamble openers (no extractable domain knowledge)
+        if re.match(
+            r"^(Welcome to |For this episode |In last week'?s |This week'?s |Last week'?s )",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter navigation/listing blobs: sentences of 12+ words where >45% start with uppercase
+        # (catches concatenated HuggingFace/GitHub menus, contributor lists, etc.)
+        _blob_words = sentence.split()
+        if len(_blob_words) >= 12:
+            _cap_ratio = sum(1 for w in _blob_words if re.match(r"^[A-Z]", w)) / len(_blob_words)
+            if _cap_ratio > 0.45:
+                continue
+        # Require at least one informative signal: a digit, a 2+ char acronym, or two consecutive
+        # title-case words (named entity / product name). Filters generic filler sentences.
+        _has_signal = (
+            bool(re.search(r"\d", sentence))
+            or bool(re.search(r"\b[A-Z]{2,}\b", sentence))
+            or bool(re.search(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b", sentence))
+        )
+        if not _has_signal:
+            continue
         if len(new_facts) >= max_facts_per_article:
             break
 
