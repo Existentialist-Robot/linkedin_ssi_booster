@@ -213,10 +213,11 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
     from services.console_grounding import truth_gate_result as _tg_result
 
     def _print_truth_score(reply: str) -> None:
-        """Print a minimal 1-line DoT gradient bar after a generated reply.
+        """Print a minimal 1-line DoT + fact-sim bar after a generated reply.
 
-        spaCy sim is intentionally excluded — it requires a source article text
-        and is always empty when article_text="" (console mode has no article).
+        spaCy article sim is intentionally excluded — it requires a source article
+        text and is always empty when article_text="" (console mode has no article).
+        Fact-pool sim (best match across persona/domain facts) works in all contexts.
         """
         try:
             _, _meta = _tg_result(reply, "", _profile_facts)
@@ -232,10 +233,14 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
                 _dot_col = str(Fore.RED)
                 _dot_sym = "○"
 
+            _fsim_vals = list(_meta.fact_sim_scores.values())
+            _fsim_part = (
+                f"  fact sim {max(_fsim_vals):.2f}" if _fsim_vals else ""
+            )
             print(
                 str(Style.DIM) + "  "
                 + _dot_col + _dot_sym + str(Style.RESET_ALL)
-                + str(Style.DIM) + f" DoT {dot:.2f}" + str(Style.RESET_ALL)
+                + str(Style.DIM) + f" DoT {dot:.2f}{_fsim_part}" + str(Style.RESET_ALL)
             )
         except Exception:
             pass  # never interrupt the conversation for a scoring failure

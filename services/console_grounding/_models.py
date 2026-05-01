@@ -25,7 +25,8 @@ class TruthGateMeta:
     - dot_flagged: True if truth_gradient is below the flag threshold
     - dot_uncertainty_sources: list of uncertainty reason codes
     - dot_per_sentence_scores: DoT gradient per kept/checked sentence (Part B)
-    - spacy_sim_scores: spaCy similarity scores per sentence (Part C)
+    - spacy_sim_scores: spaCy similarity scores per sentence vs article (Part C)
+    - fact_sim_scores: best spaCy sim per sentence vs persona/domain fact pool (Part E)
     """
 
     removed_count: int
@@ -37,6 +38,7 @@ class TruthGateMeta:
     dot_uncertainty_sources: list[str] = field(default_factory=list)
     dot_per_sentence_scores: list[float] = field(default_factory=list)
     spacy_sim_scores: dict[str, float] = field(default_factory=dict)
+    fact_sim_scores: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass

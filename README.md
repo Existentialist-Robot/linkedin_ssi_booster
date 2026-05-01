@@ -21,6 +21,7 @@
   - **spaCy NER org-name validation** — org/company names are extracted via spaCy named entity recognition (`ORG` entities) and verified against the allowed evidence set. Falls back to the legacy regex when spaCy is unavailable.
   - **False-positive hardening for tech terms** — concept/service tokens and tech-version entities (for example `S3`, `AI Q&A`, `Java 21`) are filtered before ORG enforcement so technical references are not incorrectly blocked as `unsupported_org`.
   - **Expanded domain evidence via multi-file loading** — avatar state now auto-merges sibling `domain_knowledge_*.json` files (for example Java and Python packs), which broadens allowed evidence tokens and improves support checks.
+  - **Fact-pool spaCy similarity (Part E)** — for every sentence that passes BM25, the best spaCy cosine similarity across all persona/domain facts (individually) is computed. Sentences below `TRUTH_GATE_FACT_SIM_FLOOR` (default `0.05`) are flagged `low_fact_similarity`. Unlike the article-sim check, this runs in **all contexts including console mode** because persona/domain facts are always present.
   > **DoT gradient vs. spaCy sim — what's the difference?**
   > These are complementary, not overlapping:
   >
@@ -32,7 +33,9 @@
   > | **Catches** | Sentences that pass BM25 + token checks but have weak overall evidence quality (poor reasoning chain, low credibility, low token overlap with facts) | Paraphrased hallucinations that drift in meaning but share no tokens with the article |
   > | **Threshold** | `TRUTH_GRADIENT_FLAG_THRESHOLD` = 0.35 | `TRUTH_GATE_SPACY_SIM_FLOOR` = 0.10 |
   >
-  > DoT asks *"is this claim supported by credible, well-reasoned evidence?"*; spaCy sim asks *"does the generated text still mean the same thing as the source?"* — each catches a different failure mode.
+  > A third complementary check — **fact-pool sim (Part E)** — computes the best spaCy similarity of each sentence against individual persona/domain facts (not the article). It uses `TRUTH_GATE_FACT_SIM_FLOOR` (default `0.05`) and works in console mode too since facts are always available.
+  >
+  > DoT asks *"is this claim supported by credible, well-reasoned evidence?"*; spaCy sim asks *"does the generated text still mean the same thing as the source?"*; fact-pool sim asks *"is this sentence at least semantically close to something in the persona/domain knowledge?"* — each catches a different failure mode.
 - **Confidence scoring & policy routing** — Each post is scored for grounding, novelty, and repetition; you control what gets scheduled, sent to Ideas, or blocked entirely.
 - **Memory & repetition penalty** — The system remembers recent themes and claims, penalizing repeated angles so your feed stays fresh.
 - **Explainability & learning reports** — CLI flags let you see exactly which facts grounded each post, trace graph-based support, and generate advisory reports from moderation history.
@@ -304,12 +307,12 @@ The avatar supports fully automatic, incremental continual learning from new con
 - Deduplication and normalization ensure that only novel, high-quality knowledge is added, and all learning is ongoing as new content is ingested.
 - Modular, file-based design: easy to extend, debug, and test.
 - **Console mode** (`--console`) includes extracted knowledge in the grounding pool alongside persona and domain facts, so the persona can answer questions using anything learned from `--learn` runs. Use `/reload` inside a running console session to re-read `extracted_knowledge.json` (and all other avatar files) without restarting — useful when running a `--learn` job concurrently in a second terminal.
-- **Inline truth score** — after every AI-generated reply, console mode prints a minimal 1-line DoT gradient indicator:
+- **Inline truth score** — after every AI-generated reply, console mode prints a minimal 1-line DoT + fact-pool sim indicator:
   ```
   Sam> [reply text]
-    ● DoT 0.82
+    ● DoT 0.82  fact sim 0.71
   ```
-  The symbol colour reflects the DoT score: `●` green (≥ 0.75 — well-grounded), `◑` yellow (≥ 0.45 — moderate), `○` red (< 0.45 — weakly supported). spaCy sim is excluded because it requires a source article text and is meaningless in a conversation context. Only AI-generated replies receive the indicator; deterministic grounded replies do not.
+  The symbol colour reflects the DoT score: `●` green (≥ 0.75 — well-grounded), `◑` yellow (≥ 0.45 — moderate), `○` red (< 0.45 — weakly supported). `fact sim` shows the best spaCy similarity across persona/domain facts for the reply sentences (omitted if no facts matched). Article-based spaCy sim is excluded as there is no article in a conversation. Only AI-generated replies receive the indicator; deterministic grounded replies do not.
 
 **Noise filtering pipeline** — before a sentence is stored, a multi-layer quality filter rejects low-signal content that would pollute the knowledge base:
 
@@ -479,8 +482,8 @@ OLLAMA_BASE_URL=http://localhost:11434
 - `EXTRACTED_EVIDENCE_COUNT` — Max extracted facts considered as evidence per article during grounding/DoT (default: `2`).
 - `TOPIC_SIGNAL_WINDOW` — Number of most-recent extracted facts used to build adaptive topic signal (default: `50`).
 
-The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
+- `TRUTH_GATE_FACT_SIM_FLOOR` — Minimum spaCy cosine similarity for sentence vs best-matching persona/domain fact (Part E, default: `0.05`). Raise to `0.10`–`0.20` for stricter enforcement.
 
-## 📄 License
+The setup flow requires a configured `.env`, a filled-in persona graph, a narrative memory file, and a personalized content calendar before useful scheduling or curation runs begin.
 
 [MIT License](LICENSE) — see LICENSE for details.

@@ -5,6 +5,7 @@ Covers all four parts from docs/features/truth-gate-dot/idea.md:
   Part B — per-sentence DoT scores a weak sentence as weak_dot_gradient
   Part C — spaCy similarity floor flags low-similarity numeric/org sentences
   Part D — spaCy NER org-name check (with regex fallback)
+  Part E — fact-pool spaCy similarity (sentence vs persona/domain fact pool)
 
 Also verifies new TruthGateMeta fields and backward compatibility with existing tests.
 """
@@ -601,6 +602,11 @@ class TestSpacySimilarityFloor:
 
 
 class TestTruthGateMetaBackwardCompatibility:
+    def test_meta_has_fact_sim_scores_field(self) -> None:
+        """TruthGateMeta always has fact_sim_scores dict."""
+        meta = TruthGateMeta(removed_count=0, total_sentences=1)
+        assert isinstance(meta.fact_sim_scores, dict)
+
     def test_meta_default_fields(self) -> None:
         meta = TruthGateMeta(removed_count=0, total_sentences=5)
         assert meta.truth_gradient == 1.0
@@ -610,6 +616,7 @@ class TestTruthGateMetaBackwardCompatibility:
         assert meta.reason_codes == []
         assert meta.dot_per_sentence_scores == []
         assert meta.spacy_sim_scores == {}
+        assert meta.fact_sim_scores == {}
 
     def test_empty_text_returns_empty_meta(self) -> None:
         with patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]):
@@ -650,6 +657,121 @@ class TestTruthGateMetaBackwardCompatibility:
         )
         assert "weak_evidence_bm25" in meta.reason_codes
         assert "unsupported_numeric" in meta.reason_codes
+
+
+# ---------------------------------------------------------------------------
+# Part E — fact-pool spaCy semantic similarity
+# ---------------------------------------------------------------------------
+
+
+class TestPartEFactPoolSpacySim:
+    """Part E: sentence vs persona/domain fact pool spaCy similarity check."""
+
+    _PATCH_NLP = "services.spacy_nlp.get_spacy_nlp"
+
+    def _make_spacy_nlp(self, sim_value: float) -> MagicMock:
+        nlp = MagicMock()
+        nlp.compute_similarity.return_value = sim_value
+        return nlp
+
+    def test_fact_sim_scores_populated_when_facts_present(self) -> None:
+        """fact_sim_scores is populated for sentences when facts are available."""
+        fact = make_fact(details="Built RAG pipeline with BM25 and vector search")
+        text = "We built a retrieval pipeline."
+        mock_nlp = self._make_spacy_nlp(0.72)
+
+        with (
+            patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._score_sentence_bm25", return_value=10.0),
+            patch(self._PATCH_NLP, return_value=mock_nlp),
+        ):
+            _, meta = truth_gate_result(
+                text=text,
+                article_text="",
+                facts=[fact],
+                interactive=False,
+            )
+        assert len(meta.fact_sim_scores) >= 1
+        assert all(isinstance(v, float) for v in meta.fact_sim_scores.values())
+
+    def test_fact_sim_scores_empty_when_no_facts(self) -> None:
+        """fact_sim_scores stays empty when no facts are provided and no domain facts loaded."""
+        text = "This is a general statement."
+
+        with (
+            patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_all_persona_facts_from_avatar_state", return_value=[]),
+        ):
+            _, meta = truth_gate_result(
+                text=text,
+                article_text="",
+                facts=[],
+                interactive=False,
+            )
+        assert meta.fact_sim_scores == {}
+
+    def test_low_fact_sim_flags_sentence(self) -> None:
+        """A sentence with best fact sim below the floor is flagged low_fact_similarity."""
+        fact = make_fact(details="Built RAG pipeline with BM25 and vector search")
+        text = "The weather is nice today."
+        # Return a near-zero but non-zero sim so the floor check triggers
+        mock_nlp = self._make_spacy_nlp(0.01)
+
+        with (
+            patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._score_sentence_bm25", return_value=10.0),
+            patch(self._PATCH_NLP, return_value=mock_nlp),
+            patch.dict("os.environ", {"TRUTH_GATE_FACT_SIM_FLOOR": "0.50"}),
+        ):
+            _, meta = truth_gate_result(
+                text=text,
+                article_text="",
+                facts=[fact],
+                interactive=False,
+            )
+        assert meta.removed_count >= 1
+        assert "low_fact_similarity" in meta.reason_codes
+
+    def test_zero_fact_sim_not_flagged(self) -> None:
+        """A fact sim of exactly 0.0 (vectors unavailable) is not flagged."""
+        fact = make_fact(details="Built RAG pipeline")
+        text = "We built a pipeline."
+        mock_nlp = self._make_spacy_nlp(0.0)
+
+        with (
+            patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._score_sentence_bm25", return_value=10.0),
+            patch(self._PATCH_NLP, return_value=mock_nlp),
+            patch.dict("os.environ", {"TRUTH_GATE_FACT_SIM_FLOOR": "0.50"}),
+        ):
+            _, meta = truth_gate_result(
+                text=text,
+                article_text="",
+                facts=[fact],
+                interactive=False,
+            )
+        assert "low_fact_similarity" not in meta.reason_codes
+
+    def test_high_fact_sim_sentence_not_removed(self) -> None:
+        """A sentence with high fact sim passes Part E and is kept."""
+        fact = make_fact(details="Built RAG pipeline with BM25")
+        text = "We built a RAG pipeline using BM25."
+        mock_nlp = self._make_spacy_nlp(0.88)
+
+        with (
+            patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._score_sentence_bm25", return_value=10.0),
+            patch(self._PATCH_NLP, return_value=mock_nlp),
+        ):
+            filtered, meta = truth_gate_result(
+                text=text,
+                article_text="",
+                facts=[fact],
+                interactive=False,
+            )
+        assert meta.removed_count == 0
+        assert "BM25" in filtered
 
 
 # ---------------------------------------------------------------------------

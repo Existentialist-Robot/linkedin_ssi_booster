@@ -23,7 +23,7 @@ python -m pytest -q tests/ --ignore=tests/test_buffer_service.py
 
 | Total tests | Passed | Failed |
 | ----------- | ------ | ------ |
-| 337         | 337    | 0      |
+| 343         | 343    | 0      |
 
 All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now also covers:
 
@@ -34,6 +34,7 @@ All tests pass as of April 30, 2026 (Python 3.12.2, pytest 9.0.3). The suite now
 - **Continual learning noise filtering pipeline** — five pre-storage sentence quality filters: first-person narration, truncated RSS "Read more" fragments, newsletter/podcast preamble openers, navigation/contributor blobs (>45% capitalized words in 12+ word sentences), and zero-signal sentences (no digit, acronym, or consecutive title-case words). Filters run before spaCy extraction and deduplication.
 - **Console mode `/reload` command** — `_load_knowledge_state()` helper extracted from `run_console()`; `/reload` re-reads persona graph, domain packs, and `extracted_knowledge.json` mid-session without restarting. Duplicate routing block removed.
 - **Truth Gate — DoT + spaCy integration upgrade** (overlap-enriched evidence paths, per-sentence DoT scoring, spaCy similarity floor, spaCy NER org-name check)
+- **Truth Gate Part E — fact-pool spaCy similarity** (`fact_sim_scores` on `TruthGateMeta`; `TRUTH_GATE_FACT_SIM_FLOOR` default `0.05`; runs in all contexts including console mode; `low_fact_similarity` reason code; zero-sim exemption)
 - **Truth Gate false-positive hardening** (filters concept/service ORG false positives like `S3`, `Java 21`, and `AI Q&A`; project names and aliases from `persona_graph.json` are now loaded at gate-time via `get_project_names_from_avatar_state()` — any ORG entity that is a substring of a known project name/alias is automatically skipped, e.g., `Regulatory Intelligence` → `Regulatory Intelligence Assistant`)
 - **Multi-file domain knowledge loading** (`load_avatar_state()` now auto-merges `domain_knowledge_*.json` files such as Java/Python packs)
 - **`content_curator` package refactor** (`services/content_curator.py` split into a proper Python package with seven focused submodules)

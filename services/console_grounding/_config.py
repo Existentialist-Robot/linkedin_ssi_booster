@@ -93,6 +93,30 @@ def get_truth_gate_spacy_sim_floor() -> float:
         return 0.10
 
 
+def get_truth_gate_fact_sim_floor() -> float:
+    """Return the minimum spaCy cosine similarity floor for sentence vs persona/domain facts.
+
+    Env format:
+      TRUTH_GATE_FACT_SIM_FLOOR=0.05 (float, defaults to 0.05)
+
+    For every sentence that passes BM25, the best spaCy cosine similarity across
+    all persona/domain facts is computed. If it falls below this floor (and is
+    non-zero — zero means vectors unavailable), the sentence is flagged as
+    ``low_fact_similarity``. Default is very permissive (0.05) because persona
+    facts are short fragments; raise to 0.10–0.20 for stricter enforcement.
+    """
+    raw = os.getenv("TRUTH_GATE_FACT_SIM_FLOOR", "").strip()
+    if not raw:
+        return 0.05
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except ValueError:
+        _logger.warning(
+            "Invalid TRUTH_GATE_FACT_SIM_FLOOR value: %r, using default 0.05", raw
+        )
+        return 0.05
+
+
 def get_whitelisted_phrases() -> set[str]:
     """Return a set of whitelisted phrases (case-insensitive, stripped) from env.
 
