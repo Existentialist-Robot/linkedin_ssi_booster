@@ -209,9 +209,49 @@ def extract_and_append_knowledge(
             continue
         # Filter CTA / feedback / community boilerplate
         if re.match(
-            r"^(Learn more\b|We encourage\b|You can find\b|Many thanks\b|Feedback\b|"
+            r"^(Learn more\b|Learn [A-Z]|We encourage\b|You can find\b|Many thanks\b|Feedback\b|"
             r"Try it\b|Get started\b|Sign up\b|Click here\b|Read more\b|"
             r"Check out\b|Find out\b|Visit\b|Download\b|Subscribe\b)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter event marketing openers — "This year / Next year / Last year, we're..."
+        if re.match(
+            r"^(This|Next|Last) (year|quarter|month|week),? (we'?re|we are|we'?ve|I'?m|I am)\b",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter passive advisory sentences — "Users are encouraged/advised/required to..."
+        if re.match(
+            r"^(Users|Developers|Teams|Customers|Everyone|You) are (encouraged|advised|asked|required|expected|invited|recommended)\b",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter section header blobs — "Version-Specific Highlights", "Getting Started", etc.
+        if re.match(
+            r"^(Version-Specific\b|Release Notes\b|Key Highlights\b|What'?s New\b|"
+            r"Overview:\s|Summary:\s|Background:\s|Context:\s|Motivation:\s|"
+            r"How It (Started|Works|Began):|Why (Async|Sync|This|It|We)|TL;DR[:\s])",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter narrative heading+body concatenations (uppercase word run followed by prose)
+        # e.g. "How It Started: Hitting the GIL Wall at Scale We ve been running..."
+        # Pattern: word(s) starting with uppercase, colon, then another sentence fragment
+        if re.match(
+            r"^[A-Z][\w\s]+(:\s|:\s*[A-Z])[\w\s,]+(\s[A-Z][a-z]|\sWe |\sI |\sThe |\sThis )",
+            sentence,
+        ):
+            # Only discard if it lacks a numeric claim (might be a genuine heading+stat)
+            if not re.search(r"\d+\s*%|\d+[xX]|\$\d|\d+\s*(ms|s|min|hour|sec)", sentence):
+                continue
+        # Filter marketing superlative taglines — "Our most X... / The world's most X..."
+        if re.match(
+            r"^(Our|The world'?s?|Industry'?s?|Your) (most|best|only|first|largest|fastest|smartest)\b",
             sentence,
             re.IGNORECASE,
         ):
