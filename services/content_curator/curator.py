@@ -395,7 +395,7 @@ class ContentCurator:
         created_ideas: list | None = []
 
         for article in articles:
-            if len(created_ideas) >= max_ideas:
+            if not learn and len(created_ideas) >= max_ideas:
                 break
             if article["title"] in published:
                 logger.info("Skipping already-published idea: %s", article["title"][:60])
