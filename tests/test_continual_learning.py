@@ -561,11 +561,11 @@ def _run_sentence(sentence: str, tmp_path) -> list:
 # --- sentences that MUST be filtered ---
 
 @pytest.mark.parametrize("sentence", [
-    # adversative conjunction opener
-    "But when you are developing components like Vaadin Grid, CSS optimizations can make a real difference.",
+    # adversative conjunction + pronoun/demonstrative opener (context-dependent)
     "However, this also means the build process is now significantly slower on CI.",
-    "Yet, the migration path requires careful planning across all dependent services.",
-    "Nevertheless, teams must evaluate the trade-offs before adopting this approach.",
+    "Yet, that migration path requires careful planning across all dependent services.",
+    "Nevertheless, these trade-offs must be evaluated before adopting this approach.",
+    "But it was designed to handle exactly this kind of workload at enterprise scale.",
     # conditional tutorial/advisory fragment
     "When you are developing components that render thousands of DOM elements, performance tuning matters.",
     "While you are building microservices, it is important to consider service mesh options carefully.",
@@ -705,6 +705,9 @@ def test_noisy_sentences_are_filtered(sentence, tmp_path):
     "Spring Boot 3.4 was released in November 2025 with support for CDS and virtual threads.",
     # adversative opener that is not a conjunction — starts with a named subject
     "Meta has unveiled a new AI-driven capacity efficiency platform using unified AI agents.",
+    # adversative conjunction + named subject (self-contained fact, must NOT be filtered)
+    "However, IBM Bob has now reached 80,000 developers with 45% productivity gains.",
+    "Nevertheless, Spring Boot 3.4 delivers a 30% reduction in AOT compilation time.",
     # version numbers that are all unique (should pass the version-blob guard)
     "Spring Boot 3.2, 3.3, and 3.4 each introduced distinct improvements to the AOT compiler.",
 ])

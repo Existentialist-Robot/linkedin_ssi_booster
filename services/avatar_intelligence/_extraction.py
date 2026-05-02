@@ -210,11 +210,14 @@ def extract_and_append_knowledge(
             sentence,
         ):
             continue
-        # Filter sentences opening with adversative conjunctions — they depend on the prior
-        # sentence for meaning and rarely stand alone as extractable facts.
-        # e.g. "But when you are developing...", "However, this also means..."
+        # Filter adversative conjunction openers followed by a pronoun or demonstrative —
+        # these depend on the prior sentence for meaning (the referent is missing).
+        # e.g. "However, this also means...", "But it was designed to handle..."
+        # Named-subject continuations are NOT filtered:
+        # e.g. "However, IBM Bob has now reached 80,000 developers..." is a valid fact.
         if re.match(
-            r"^(But |However,\s|Yet,\s|Although |Though |Nevertheless,\s|Nonetheless,\s)",
+            r"^(But |However,\s|Yet,\s|Although |Though |Nevertheless,\s|Nonetheless,\s)"
+            r"(it|they|this|that|these|those|he|she|its|their|the same|such)\b",
             sentence,
             re.IGNORECASE,
         ):
