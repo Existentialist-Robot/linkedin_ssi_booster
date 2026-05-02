@@ -409,8 +409,14 @@ class ContentCurator:
             if learn_only:
                 try:
                     from services.avatar_intelligence import extract_and_append_knowledge
+                    _learn_text = article["summary"]
+                    if len(_learn_text.strip()) < 400 and article["link"]:
+                        _fetched = self._fetch_article_text_with_summary(article["link"])
+                        if _fetched:
+                            logger.debug("🧠 fetched full text for '%s' (%d chars)", article["title"][:60], len(_fetched))
+                            _learn_text = _fetched
                     _new_facts = extract_and_append_knowledge(
-                        article_text=article["summary"],
+                        article_text=_learn_text,
                         source_url=article["link"],
                         source_title=article["title"],
                     )
@@ -448,8 +454,14 @@ class ContentCurator:
             if not dry_run or learn:
                 try:
                     from services.avatar_intelligence import extract_and_append_knowledge
+                    _learn_text = article["summary"]
+                    if len(_learn_text.strip()) < 400 and article["link"]:
+                        _fetched = self._fetch_article_text_with_summary(article["link"])
+                        if _fetched:
+                            logger.debug("🧠 fetched full text for '%s' (%d chars)", article["title"][:60], len(_fetched))
+                            _learn_text = _fetched
                     _new_facts = extract_and_append_knowledge(
-                        article_text=article["summary"],
+                        article_text=_learn_text,
                         source_url=article["link"],
                         source_title=article["title"],
                     )
