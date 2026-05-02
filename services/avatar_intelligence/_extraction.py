@@ -162,30 +162,37 @@ def extract_and_append_knowledge(
         sentence = re.sub(r"^Noteworthy:\s*", "", sentence, flags=re.IGNORECASE)
         sentence = sentence.strip()
         if len(sentence) < min_sentence_len:
+            logger.debug("extraction [too-short]: %.100s", sentence)
             continue
         if re.search(r"[<>]|&[a-zA-Z#]", sentence):
+            logger.debug("extraction [html-residue]: %.100s", sentence)
             continue
         if re.search(
             r"appeared first on|^The post\b|^From this\b", sentence, re.IGNORECASE
         ):
+            logger.debug("extraction [rss-boilerplate]: %.100s", sentence)
             continue
         if re.match(r"^[\w\s,\-]+,\s+and\s+more\.?$", sentence, re.IGNORECASE):
+            logger.debug("extraction [and-more-blob]: %.100s", sentence)
             continue
         if re.match(
             r"^(Have you ever|Did you know|Are you |Do you |What if |Ever wonder)",
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [rhetorical-question]: %.100s", sentence)
             continue
         if re.match(
             r"^(It|They|This|That|These|Those)\s+(was|were|is|are|has|have|had|added|changed|became)\b",
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [pronoun-opener]: %.100s", sentence)
             continue
         # Filter heading+pronoun concatenations: "Velero It operates..." / "Redis They support..."
         # Pattern: one or two capitalized words immediately followed by bare pronoun as next word
         if re.match(r"^[A-Z]\w+(\s+[A-Z]\w+)? (It|They|This|He|She)\s+", sentence):
+            logger.debug("extraction [heading-pronoun-concat]: %.100s", sentence)
             continue
         # Filter dangling-pronoun quantity references (require prior context to be meaningful)
         # e.g. "V4-Flash drops these numbers even further: 10%..."
@@ -194,6 +201,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ) and not re.search(r"\b(show|indicate|suggest|reveal|confirm|mean|represent)\b", sentence, re.IGNORECASE):
+            logger.debug("extraction [dangling-quantity-ref]: %.100s", sentence)
             continue
         # Filter generic-dismissal advisory sentences with no concrete claim
         # e.g. "Optimizing CSS is rarely something you need to worry about..."
@@ -201,12 +209,14 @@ def extract_and_append_knowledge(
             r"(?i)\brarely (something|a concern|necessary|needed|required|an issue|worth)\b",
             sentence,
         ):
+            logger.debug("extraction [generic-dismissal]: %.100s", sentence)
             continue
         # Filter first-person author narration (personal commentary, not domain knowledge)
         if re.match(
             r"^(I |I'm |I've |I couldn't|I sat |I talked |As I |We've |We've )",
             sentence,
         ):
+            logger.debug("extraction [first-person-narration]: %.100s", sentence)
             continue
         # Filter adversative conjunction openers followed by a pronoun or demonstrative —
         # these depend on the prior sentence for meaning (the referent is missing).
@@ -219,9 +229,11 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [adversative-pronoun]: %.100s", sentence)
             continue
         # Filter "… Read more" truncated fragments from RSS feed previews
         if re.search(r"[…\.]{1,3}\s*Read more\s*$", sentence, re.IGNORECASE):
+            logger.debug("extraction [read-more-truncated]: %.100s", sentence)
             continue
         # Filter newsletter/podcast preamble openers (no extractable domain knowledge)
         if re.match(
@@ -229,6 +241,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [newsletter-preamble]: %.100s", sentence)
             continue
         # Filter boilerplate article openers — "In this post/article/release, we/you..." style
         # Also catches "This post demonstrates/covers/explores..." variants
@@ -240,6 +253,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [boilerplate-opener]: %.100s", sentence)
             continue
         # Filter disclaimer / AI-generated disclosure sentences
         if re.search(
@@ -248,6 +262,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [ai-disclaimer]: %.100s", sentence)
             continue
         # Filter CTA / feedback / community boilerplate
         if re.match(
@@ -257,16 +272,19 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [cta-boilerplate]: %.100s", sentence)
             continue
         # Filter event marketing announcements — "event for X developers", "conference for Y engineers"
         if re.search(
             r"(?i)\b(?:event|conference|summit|meetup|workshop|hackathon)\s+for\s+\w+\s+(?:developer|engineer|professional|practitioner)s?\b",
             sentence,
         ):
+            logger.debug("extraction [event-marketing]: %.100s", sentence)
             continue
         # Filter concatenated section headers separated by double-dash (ToC / bullet-list blobs)
         # e.g. "Model architecture ... Conv3D temporal compression -- Efficient Video Sampling"
         if " -- " in sentence and len(sentence.split()) >= 15:
+            logger.debug("extraction [double-dash-blob]: %.100s", sentence)
             continue
         # Filter generic marketing/upgrade CTAs and platform-pitch claims
         if re.search(
@@ -277,6 +295,7 @@ def extract_and_append_knowledge(
             r")",
             sentence,
         ):
+            logger.debug("extraction [marketing-cta]: %.100s", sentence)
             continue
         # Filter event marketing openers — "This year / Next year / Last year, we're..."
         if re.match(
@@ -284,6 +303,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [event-year-opener]: %.100s", sentence)
             continue
         # Filter passive advisory sentences — "Users are encouraged / Users must migrate..."
         if re.match(
@@ -291,6 +311,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [passive-advisory]: %.100s", sentence)
             continue
         # Filter section header blobs — "Version-Specific Highlights", "Getting Started", etc.
         if re.match(
@@ -300,6 +321,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [section-header]: %.100s", sentence)
             continue
         # Filter narrative heading+body concatenations (uppercase word run followed by prose)
         # e.g. "How It Started: Hitting the GIL Wall at Scale We ve been running..."
@@ -310,6 +332,7 @@ def extract_and_append_knowledge(
         ):
             # Only discard if it lacks a numeric claim (might be a genuine heading+stat)
             if not re.search(r"\d+\s*%|\d+[xX]|\$\d|\d+\s*(ms|s|min|hour|sec)", sentence):
+                logger.debug("extraction [narrative-heading-concat]: %.100s", sentence)
                 continue
         # Filter marketing superlative taglines — "Our most X" / "Product: Our most X"
         if re.match(
@@ -317,12 +340,14 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [marketing-superlative]: %.100s", sentence)
             continue
         # Also catch "ProductName: Our most / The best / Its most..." prefix form
         if re.match(
             r"^[A-Z][\w\s\d\.\-]+:\s+(Our|The|Its|A) (most|best|only|first|largest|fastest|smartest)\b",
             sentence,
         ):
+            logger.debug("extraction [product-superlative]: %.100s", sentence)
             continue
         # Filter "In this installment/episode, I talk/interview/chat/speak" (podcast preambles)
         if re.match(
@@ -330,20 +355,25 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [podcast-preamble]: %.100s", sentence)
             continue
         # Filter pure URL sentences (no prose content)
         if re.match(r"^https?://\S+$", sentence.strip()):
+            logger.debug("extraction [bare-url]: %.100s", sentence)
             continue
         # Filter sentences that are mostly URLs embedded in prose (URL is > 40% of char length)
         _urls_in_sent = re.findall(r"https?://\S+", sentence)
         if _urls_in_sent and sum(len(u) for u in _urls_in_sent) / len(sentence) > 0.40:
+            logger.debug("extraction [url-heavy]: %.100s", sentence)
             continue
         # Filter truncated sentences — end without terminal punctuation and have ellipsis/dash
         if re.search(r"(…|\.{3}|--)$", sentence.strip()):
+            logger.debug("extraction [truncated-sentence]: %.100s", sentence)
             continue
         # Filter sentences dangling on a bare preposition, conjunction, or article at end
         # e.g. "...all the way back to the foundational techniques of"
         if re.search(r"\s(of|for|to|in|on|at|by|with|from|and|or|but|the|a|an)$", sentence.strip()):
+            logger.debug("extraction [dangling-preposition]: %.100s", sentence)
             continue
         # Filter "we show / we walk through / we introduce / we take a look" preambles
         if re.match(
@@ -352,6 +382,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [we-show-preamble]: %.100s", sentence)
             continue
         # Filter conditional tutorial/advisory fragments — "When you are developing X..."
         # "While you're building...", "Whenever you need to..."
@@ -361,6 +392,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [conditional-tutorial]: %.100s", sentence)
             continue
         # Filter background/setup sentences with colloquial anthropomorphism and no concrete metric
         # e.g. "...overlays that the user never thinks about, but that a printer happily reproduces"
@@ -369,15 +401,22 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ) and not re.search(r"\d+\s*%|\d+[xX]|\$\d|\d+\s*(ms|MB|GB|sec|min)", sentence):
+            logger.debug("extraction [anthropomorphism]: %.100s", sentence)
             continue
         # Filter HuggingFace/GitHub navigation blobs — long run-on sentences with UI chrome keywords
         if re.search(
             r"\b(Log In|Sign Up|Back to Articles|Models\s+Datasets\s+Spaces|Upvote\s+\d+)\b",
             sentence,
         ):
+            logger.debug("extraction [ui-nav-blob]: %.100s", sentence)
             continue
-        # Filter pipe-delimited navigation links (e.g. "Home | Source on GitHub | Reference documentation")
-        if re.search(r"\w[^|]+\|[^|]+\|", sentence):
+        # Filter pipe-delimited navigation links — catches both multi-pipe nav
+        # (e.g. "Home | Source on GitHub | Reference documentation") and single-pipe
+        # page-title chrome (e.g. "Article Title | Site Name")
+        if re.search(r"\w[^|]+\|[^|]+\|", sentence) or re.search(
+            r"\w[^|]{5,}\|\s*[A-Z][\w\s]{2,20}$", sentence
+        ):
+            logger.debug("extraction [pipe-nav]: %.100s", sentence)
             continue
         # Filter "In our/my recent <event>" livestream/podcast preambles not caught by the earlier pattern
         if re.match(
@@ -385,6 +424,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [recent-event-preamble]: %.100s", sentence)
             continue
         # Filter colourful/anecdotal scene-setters with no factual claim
         if re.match(
@@ -393,6 +433,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [scene-setter]: %.100s", sentence)
             continue
         # Filter vague rhetorical survey openers ("Here's what we learned from the 2026 survey...")
         if re.match(
@@ -400,6 +441,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [rhetorical-survey]: %.100s", sentence)
             continue
         # Filter "Starting from square one / First things first / Step X:" heading fragments
         if re.match(
@@ -408,6 +450,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [step-heading]: %.100s", sentence)
             continue
         # Filter "You'll learn / You will see / You will discover" educational preambles
         if re.match(
@@ -415,6 +458,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [educational-preamble]: %.100s", sentence)
             continue
         # Filter "On behalf of...", "Did you see...", "Have you seen..." openers
         if re.match(
@@ -422,6 +466,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [on-behalf-opener]: %.100s", sentence)
             continue
         # Filter future-tense article preambles — "We'll focus on / We'll look at / We'll dive into"
         if re.match(
@@ -429,6 +474,7 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [future-tense-preamble]: %.100s", sentence)
             continue
         # Filter award/recognition self-promotion sentences
         if re.match(
@@ -436,16 +482,19 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            logger.debug("extraction [award-promo]: %.100s", sentence)
             continue
-        # Filter mangled heading+sentence concatenations — internal camelCase word boundary join
-        # e.g. "Why the Future of Macro-Risk is Agentic and InterconnectedThe phone rang"
-        if re.search(r"[a-z][A-Z][a-z]", sentence):
-            # Only discard when the join appears mid-sentence (not at start) and sentence has no strong numeric signal
-            _camel_joins = re.findall(r"[a-z][A-Z][a-z]", sentence)
-            if len(_camel_joins) >= 2 or (
-                len(_camel_joins) == 1
-                and not re.search(r"\d+\s*%|\d+[xX]|\b\d{4}\b", sentence)
-            ):
+        # Filter mangled heading+sentence concatenations — heading word runs directly into
+        # sentence text with no space, e.g. "InterconnectedThe phone rang", "HyperscaleThis works"
+        # Specifically look for 3+ lowercase chars immediately followed by a common sentence-start
+        # word (article, pronoun, preposition) — this avoids matching product names like SageMaker,
+        # QuickSight, GitHub which contain camelCase but NOT sentence-word transitions.
+        if re.search(
+            r"[a-z]{3,}(?:The|This|That|These|Those|Here|Now|With|From|When|Where|Why|How|Who|What|After|Before|During|If|But|And|Or|We|They|You|He|She|It|I )",
+            sentence,
+        ):
+            if not re.search(r"\d+\s*%|\d+[xX]|\b\d{4}\b", sentence):
+                logger.debug("extraction [camelcase-concat]: %.100s", sentence)
                 continue
         # Filter table/architecture blobs: many repeated short tokens, digit-heavy, no prose verb
         # e.g. "Dense 8B Dense 30B Dense Embedding size 2560 4096 4096 Number of layers 40 40 64..."
@@ -454,11 +503,13 @@ def extract_and_append_knowledge(
             _digit_tokens = sum(1 for w in _words if re.match(r"^\d+$", w))
             _repeated_words = len(_words) - len(set(w.lower() for w in _words))
             if _digit_tokens >= 4 and _repeated_words >= 4:
+                logger.debug("extraction [table-blob]: %.100s", sentence)
                 continue
         # Filter release-list blobs and ToC navigation: 3+ version numbers where at least one repeats
         # e.g. Spring Boot/Modulith dump, Granite "4.1 ... 4.1" ToC
         _version_nums = re.findall(r"\d+\.\d+", sentence)
         if len(_version_nums) >= 3 and len(set(_version_nums)) < len(_version_nums):
+            logger.debug("extraction [version-list-blob]: %.100s", sentence)
             continue
         # Filter generic filler takes with no concrete claim (no number, no named entity pair)
         _generic_filler = bool(re.match(
@@ -468,6 +519,7 @@ def extract_and_append_knowledge(
             re.IGNORECASE,
         ))
         if _generic_filler and not re.search(r"\d+\s*%|\d+[xX\s]|[€$£¥]\d|\d+\s*(million|billion|thousand)", sentence):
+            logger.debug("extraction [generic-filler]: %.100s", sentence)
             continue
         # Filter weak entity sentences: all multi-word entities are stopword-only phrases
         # e.g. "this gap", "the model", "the full journey", "the goal"
@@ -481,6 +533,7 @@ def extract_and_append_knowledge(
         _has_number = bool(re.search(r"\d", sentence))
         _has_proper_noun = bool(re.search(r"\b[A-Z][a-z]{2,}\b", sentence))
         if not _meaningful_entities and not _has_number and not _has_proper_noun:
+            logger.debug("extraction [no-entities]: %.100s", sentence)
             continue
         # Filter navigation/listing blobs: sentences of 12+ words where >45% start with uppercase
         # (catches concatenated HuggingFace/GitHub menus, contributor lists, etc.)
@@ -488,12 +541,14 @@ def extract_and_append_knowledge(
         if len(_blob_words) >= 12:
             _cap_ratio = sum(1 for w in _blob_words if re.match(r"^[A-Z]", w)) / len(_blob_words)
             if _cap_ratio > 0.45:
+                logger.debug("extraction [nav-blob-cap-ratio=%.2f]: %.100s", _cap_ratio, sentence)
                 continue
         # Filter bare product availability announcements with no technical substance
         # e.g. "Vaadin 25.1 is now available and makes for a strong upgrade."
         # Exempt if sentence contains a concrete metric or named platform target
         if re.search(r"(?i)\bis (?:now )?available\b", sentence):
             if not re.search(r"\d+\s*%|\d+[xX]|\bon [A-Z][a-z]+|\benabling\b", sentence):
+                logger.debug("extraction [bare-availability]: %.100s", sentence)
                 continue
         # Require at least one informative signal: a digit, a 2+ char acronym, or two consecutive
         # title-case words (named entity / product name). Filters generic filler sentences.
@@ -503,6 +558,7 @@ def extract_and_append_knowledge(
             or bool(re.search(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b", sentence))
         )
         if not _has_signal:
+            logger.debug("extraction [no-informative-signal]: %.100s", sentence)
             continue
         # spaCy structural filters — fragment detection + multi-sentence blob detection
         if spacy_available and nlp_engine is not None:
@@ -517,16 +573,19 @@ def extract_and_append_knowledge(
                     _starts_propn = bool(_sdoc) and _sdoc[0].pos_ in {"PROPN", "NOUN"}
                     _has_person_ent = any(ent.label_ == "PERSON" for ent in _sdoc.ents)
                     if _starts_propn and _has_person_ent and not _first_has_verb:
+                        logger.debug("extraction [spacy-name-drop-fragment]: %.100s", sentence)
                         continue
                     # Filter concatenated release/changelog blobs: spaCy detects 5+ sentences
                     # packed into what was split as a single sentence by our regex splitter.
                     if sum(1 for _ in _sdoc.sents) >= 5:
+                        logger.debug("extraction [spacy-multi-sentence-blob]: %.100s", sentence)
                         continue
                     # Filter verbless noun-phrase blobs: section headers, ToC lists, nav menus
                     # e.g. "General multimodal reasoning Model architecture Conv3D temporal..."
                     if len(_sdoc) >= 10:
                         _has_any_verb = any(t.pos_ == "VERB" for t in _sdoc)
                         if not _has_any_verb:
+                            logger.debug("extraction [spacy-verbless-blob]: %.100s", sentence)
                             continue
             except Exception:
                 pass  # spaCy errors are non-fatal — continue without this filter
