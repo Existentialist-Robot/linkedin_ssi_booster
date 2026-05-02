@@ -139,7 +139,7 @@ The SSI Booster now features a full Probabilistic Logic Networks (PLN) inference
 
 Want to see the math and logic? Check out the new [docs/dot-pln-enhancement.md](docs/dot-pln-enhancement.md) and the PLN diagram in `media/pln-dot.png`.
 
-This upgrade makes the SSI Booster's grounding and explainability pipeline even more robust, transparent, and future-proof. The changes are live on the [main branch](https://github.com/samjd-zz/linkedin_ssi_booster.git).
+This upgrade makes the SSI Booster's grounding and explainability pipeline even more robust, transparent, and future-proof. 
 
 Every generated sentence receives a composite truth gradient score (evidence quality × reasoning strength × source credibility × claim-evidence token overlap). Sentences below `TRUTH_GRADIENT_FLAG_THRESHOLD` (default 0.35) are flagged `weak_dot_gradient` and removed before publication. DoT runs as Part B of the five-layer truth gate, after BM25 and before spaCy semantic checks.
 
