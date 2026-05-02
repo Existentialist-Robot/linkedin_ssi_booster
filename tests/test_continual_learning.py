@@ -452,19 +452,28 @@ def test_extract_and_append_knowledge_deduplication(tmp_path):
     assert len(reloaded["facts"]) == count_after_first
 
 
-def test_extract_and_append_knowledge_max_facts_per_article(tmp_path):
+def test_extract_and_append_knowledge_no_cap_on_facts(tmp_path):
+    """All qualifying sentences are extracted — no per-article cap is enforced."""
     path = tmp_path / "ek.json"
     path.write_text(json.dumps({"schemaVersion": "1.0", "facts": []}), encoding="utf-8")
 
+    multi_fact_article = (
+        "Spring AI 1.0.6 was released on April 30, 2026 with improved model routing. "
+        "IBM Granite 4.1 achieves 40% faster inference compared to its predecessor. "
+        "Elastic 8.15 introduces native ONNX model hosting for semantic search pipelines. "
+        "Meta deployed unified AI agents that cut infrastructure costs by 30% in Q1 2026. "
+        "Broadcom donated Velero to CNCF with full Kubernetes 1.32 compatibility verified. "
+        "OpenAI Codex is now available on AWS Marketplace with pay-per-token billing."
+    )
     result = extract_and_append_knowledge(
-        ARTICLE,
-        source_url="https://example.com/article",
-        source_title="Test Article",
-        max_facts_per_article=1,
+        multi_fact_article,
+        source_url="https://example.com/multi",
+        source_title="Multi Fact Article",
         path=path,
         dry_run=False,
     )
-    assert len(result) <= 1
+    # All qualifying sentences should be extracted, not capped at an arbitrary limit
+    assert len(result) >= 2
 
 
 def test_extract_and_append_knowledge_short_sentences_skipped(tmp_path):

@@ -78,7 +78,6 @@ def extract_and_append_knowledge(
     source_title: str,
     *,
     min_sentence_len: int = 40,
-    max_facts_per_article: int = 5,
     confidence: str = "medium",
     path: Path | None = None,
     dry_run: bool = False,
@@ -96,7 +95,6 @@ def extract_and_append_knowledge(
         source_url:            URL of the originating article.
         source_title:          Title of the originating article.
         min_sentence_len:      Minimum sentence character length to consider.
-        max_facts_per_article: Maximum new facts to extract from one article.
         confidence:            Confidence level to assign: 'high' | 'medium' | 'low'.
         path:                  Override path to extracted_knowledge.json (for testing).
         dry_run:               If True, extract but do not write to disk.
@@ -532,9 +530,6 @@ def extract_and_append_knowledge(
                             continue
             except Exception:
                 pass  # spaCy errors are non-fatal — continue without this filter
-        if len(new_facts) >= max_facts_per_article:
-            break
-
         fact_id = _make_extracted_fact_id(source_url, sentence)
         if fact_id in existing_ids:
             logger.debug(
