@@ -156,6 +156,13 @@ def extract_and_append_knowledge(
             .replace("\u201c", '"').replace("\u201d", '"')
             .replace("\u2013", "-").replace("\u2014", "--")
         )
+        # Strip changelog/announcement preamble prefixes before filtering
+        # e.g. "#5725 The Vertex AI..." → "The Vertex AI..."
+        # e.g. "📢 Noteworthy: The Pixtral..." → "The Pixtral..."
+        sentence = re.sub(r"^#\d+\s+", "", sentence)
+        sentence = re.sub(r"^[\U00010000-\U0010ffff\U00002000-\U00002BFF\U00002600-\U000027BF]+\s*", "", sentence)  # strip leading emoji
+        sentence = re.sub(r"^Noteworthy:\s*", "", sentence, flags=re.IGNORECASE)
+        sentence = sentence.strip()
         if len(sentence) < min_sentence_len:
             continue
         if re.search(r"[<>]|&[a-zA-Z#]", sentence):
@@ -176,6 +183,25 @@ def extract_and_append_knowledge(
             r"^(It|They|This|That|These|Those)\s+(was|were|is|are|has|have|had|added|changed|became)\b",
             sentence,
             re.IGNORECASE,
+        ):
+            continue
+        # Filter heading+pronoun concatenations: "Velero It operates..." / "Redis They support..."
+        # Pattern: one or two capitalized words immediately followed by bare pronoun as next word
+        if re.match(r"^[A-Z]\w+(\s+[A-Z]\w+)? (It|They|This|He|She)\s+", sentence):
+            continue
+        # Filter dangling-pronoun quantity references (require prior context to be meaningful)
+        # e.g. "V4-Flash drops these numbers even further: 10%..."
+        if re.search(
+            r"\b(this|these|those|the above|the following) (number|metric|value|figure|result|finding|stat|percentage)s?\b",
+            sentence,
+            re.IGNORECASE,
+        ) and not re.search(r"\b(show|indicate|suggest|reveal|confirm|mean|represent)\b", sentence, re.IGNORECASE):
+            continue
+        # Filter generic-dismissal advisory sentences with no concrete claim
+        # e.g. "Optimizing CSS is rarely something you need to worry about..."
+        if re.search(
+            r"(?i)\brarely (something|a concern|necessary|needed|required|an issue|worth)\b",
+            sentence,
         ):
             continue
         # Filter first-person author narration (personal commentary, not domain knowledge)
@@ -220,6 +246,26 @@ def extract_and_append_knowledge(
             r"Check out\b|Find out\b|Visit\b|Download\b|Subscribe\b)",
             sentence,
             re.IGNORECASE,
+        ):
+            continue
+        # Filter event marketing announcements — "event for X developers", "conference for Y engineers"
+        if re.search(
+            r"(?i)\b(?:event|conference|summit|meetup|workshop|hackathon)\s+for\s+\w+\s+(?:developer|engineer|professional|practitioner)s?\b",
+            sentence,
+        ):
+            continue
+        # Filter concatenated section headers separated by double-dash (ToC / bullet-list blobs)
+        # e.g. "Model architecture ... Conv3D temporal compression -- Efficient Video Sampling"
+        if " -- " in sentence and len(sentence.split()) >= 15:
+            continue
+        # Filter generic marketing/upgrade CTAs and platform-pitch claims
+        if re.search(
+            r"(?i)(?:"
+            r"explore your options|plan ahead|take advantage of the latest|choose your path"
+            r"|\bis (?:now )?available and (?:makes for|offers?|provides?|delivers?)"
+            r"|\b(?:requires?|provides?|offers?|delivers?) (?:this |a |the )?(?:holistic|unified|comprehensive|end-to-end|forward-looking) (?:solution|platform|approach|upgrade)"
+            r")",
+            sentence,
         ):
             continue
         # Filter event marketing openers — "This year / Next year / Last year, we're..."
@@ -415,6 +461,12 @@ def extract_and_append_knowledge(
         if len(_blob_words) >= 12:
             _cap_ratio = sum(1 for w in _blob_words if re.match(r"^[A-Z]", w)) / len(_blob_words)
             if _cap_ratio > 0.45:
+                continue
+        # Filter bare product availability announcements with no technical substance
+        # e.g. "Vaadin 25.1 is now available and makes for a strong upgrade."
+        # Exempt if sentence contains a concrete metric or named platform target
+        if re.search(r"(?i)\bis (?:now )?available\b", sentence):
+            if not re.search(r"\d+\s*%|\d+[xX]|\bon [A-Z][a-z]+|\benabling\b", sentence):
                 continue
         # Require at least one informative signal: a digit, a 2+ char acronym, or two consecutive
         # title-case words (named entity / product name). Filters generic filler sentences.
