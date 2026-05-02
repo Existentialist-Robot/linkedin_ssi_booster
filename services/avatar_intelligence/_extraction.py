@@ -150,6 +150,12 @@ def extract_and_append_knowledge(
 
     for sentence in sentences:
         sentence = sentence.strip()
+        # Normalize Unicode curly/smart quotes to ASCII so regex filters work consistently
+        sentence = (
+            sentence.replace("\u2018", "'").replace("\u2019", "'")
+            .replace("\u201c", '"').replace("\u201d", '"')
+            .replace("\u2013", "-").replace("\u2014", "--")
+        )
         if len(sentence) < min_sentence_len:
             continue
         if re.search(r"[<>]|&[a-zA-Z#]", sentence):
@@ -376,6 +382,11 @@ def extract_and_append_knowledge(
             _repeated_words = len(_words) - len(set(w.lower() for w in _words))
             if _digit_tokens >= 4 and _repeated_words >= 4:
                 continue
+        # Filter release-list blobs and ToC navigation: 3+ version numbers where at least one repeats
+        # e.g. Spring Boot/Modulith dump, Granite "4.1 ... 4.1" ToC
+        _version_nums = re.findall(r"\d+\.\d+", sentence)
+        if len(_version_nums) >= 3 and len(set(_version_nums)) < len(_version_nums):
+            continue
         # Filter generic filler takes with no concrete claim (no number, no named entity pair)
         _generic_filler = bool(re.match(
             r"^(Countless|Many|Most|Some|Several|Various|A (number|lot|few|wide variety)) "
@@ -432,6 +443,12 @@ def extract_and_append_knowledge(
                     # packed into what was split as a single sentence by our regex splitter.
                     if sum(1 for _ in _sdoc.sents) >= 5:
                         continue
+                    # Filter verbless noun-phrase blobs: section headers, ToC lists, nav menus
+                    # e.g. "General multimodal reasoning Model architecture Conv3D temporal..."
+                    if len(_sdoc) >= 10:
+                        _has_any_verb = any(t.pos_ == "VERB" for t in _sdoc)
+                        if not _has_any_verb:
+                            continue
             except Exception:
                 pass  # spaCy errors are non-fatal — continue without this filter
         if len(new_facts) >= max_facts_per_article:
