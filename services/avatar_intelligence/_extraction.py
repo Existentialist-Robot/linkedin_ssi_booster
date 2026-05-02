@@ -192,8 +192,14 @@ def extract_and_append_knowledge(
             logger.debug("extraction [punct-start-fragment]: %.100s", sentence)
             continue
         # Filter sentences truncated mid-word (scraper cut off the page in the middle of a word).
-        # A truncated sentence ends with 3+ lowercase letters and no terminal punctuation.
-        if re.search(r"[a-z]{3,}$", sentence) and not re.search(r"[.!?\"'\u2019]\s*$", sentence):
+        # Catches both 3+ char truncations ("...code-generati") and very short 1-2 char trailing
+        # fragments after a space ("...and re", "...triage, i") — both are clear mid-word cuts.
+        # \s[a-z]{1,2}$ is safe: only matches when the final whitespace-delimited token is
+        # exactly 1-2 lowercase chars (e.g. " re", " i"), not product names or valid endings.
+        if (
+            re.search(r"[a-z]{3,}$", sentence)
+            or re.search(r"\s[a-z]{1,2}$", sentence)
+        ) and not re.search(r"[.!?\"'\u2019]\s*$", sentence):
             logger.debug("extraction [truncated-mid-word]: %.100s", sentence)
             continue
         # Filter long product-feature list blobs masquerading as a single sentence.

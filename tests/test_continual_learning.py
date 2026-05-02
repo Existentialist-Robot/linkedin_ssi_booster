@@ -696,8 +696,9 @@ def _run_sentence(sentence: str, tmp_path) -> list:
     "; fixed a critical bug where the scheduler would skip posts published on Sunday.",
     # sentence truncated mid-word (scraper cut off page content)
     "AWS is betting that the next competitive frontier in AI-assisted development is code-generati",
-    "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, investiga",
-    # Elastic product-feature-list sidebar blob
+    "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, investiga",    # 1-2 char trailing fragment (scraper cut mid-word: "...and re", "...triage, i")
+    "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, investigation, and re",
+    "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, i",    # Elastic product-feature-list sidebar blob
     "Context engineering Get the most relevant context to agents so that they deliver accurate and trusted outcomes Vector database Efficiently create, store, and search vector embeddings Search powered applications The speed, scale, and flexibility to power modern application experience Logs Collect, search, explore, and act on large volumes Threat protection Detect, investigate, and remediate cyber threats at scale.",
 ])
 def test_noisy_sentences_are_filtered(sentence, tmp_path):
