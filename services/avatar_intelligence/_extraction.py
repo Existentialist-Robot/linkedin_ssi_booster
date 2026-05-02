@@ -513,6 +513,30 @@ def extract_and_append_knowledge(
             )
             continue
 
+        # Within-article semantic dedup: skip if this sentence is near-paraphrase of a
+        # fact already collected from the same source URL in this run (spaCy similarity >= 0.93).
+        # Catches tense/wording variants that produce different hashes but identical meaning.
+        if spacy_available and nlp_engine is not None and new_facts:
+            try:
+                _raw_nlp = nlp_engine._ensure_model()
+                if _raw_nlp is not None:
+                    _this_doc = _raw_nlp(sentence)
+                    _is_near_dup = False
+                    for _prev in new_facts:
+                        if _prev.source_url == source_url:
+                            _prev_doc = _raw_nlp(_prev.statement)
+                            if _this_doc.similarity(_prev_doc) >= 0.93:
+                                _is_near_dup = True
+                                break
+                    if _is_near_dup:
+                        logger.debug(
+                            "extract_and_append_knowledge: semantic near-dup skipped for %s",
+                            fact_id,
+                        )
+                        continue
+            except Exception:
+                pass  # spaCy errors are non-fatal
+
         entities: list[str] = []
         tags: list[str] = []
         if spacy_available and nlp_engine is not None:
