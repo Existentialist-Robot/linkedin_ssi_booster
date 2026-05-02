@@ -8,13 +8,23 @@ import logging
 import re
 import requests
 
+try:
+    import trafilatura as _trafilatura
+    _TRAFILATURA_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _TRAFILATURA_AVAILABLE = False
+
 from services.content_curator._config import CURATOR_MAX_PER_FEED, RSS_FEEDS, KEYWORDS
 
 logger = logging.getLogger(__name__)
 
 
 def fetch_article_text(url: str, max_chars: int = 3000, spacy_nlp=None) -> str:
-    """Fetch a URL and return plain text (script/style stripped).
+    """Fetch a URL and return the article body as plain text.
+
+    Uses trafilatura to extract the main article body (strips nav menus,
+    sidebars, cookie banners, etc.) when available.  Falls back to naive
+    tag-stripping if trafilatura is not installed or returns empty.
 
     When spacy_nlp is provided and the article is long enough, uses extractive
     summarization (5 sentences) to surface buried key content rather than
@@ -25,9 +35,37 @@ def fetch_article_text(url: str, max_chars: int = 3000, spacy_nlp=None) -> str:
         resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         resp.raise_for_status()
         html = resp.text
-        html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<[^>]+>", " ", html)
-        text = re.sub(r"\s+", " ", text).strip()
+
+        # --- primary: trafilatura extracts clean article body ---
+        text = ""
+        if _TRAFILATURA_AVAILABLE:
+            text = _trafilatura.extract(
+                html,
+                include_comments=False,
+                include_tables=False,
+                no_fallback=False,
+            ) or ""
+            if text:
+                logger.debug("trafilatura extracted %d chars from %s", len(text), url)
+
+        # --- fallback: naive HTML tag stripping ---
+        if not text:
+            html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r"<[^>]+>", " ", html)
+            text = re.sub(r"\s+", " ", text).strip()
+            logger.debug("trafilatura returned empty; using tag-strip fallback (%d chars) from %s", len(text), url)
+
+        text_stripped = text.strip()
+        if len(text_stripped) < 200:
+            logger.info(f"[fetch_article_text] Skipping article (too short, {len(text_stripped)} chars): {url}")
+            return ""
+        letters = [c for c in text_stripped if c.isalpha()]
+        if letters:
+            upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+            if upper_ratio > 0.90:
+                logger.info(f"[fetch_article_text] Skipping article (nav blob, {upper_ratio:.2%} uppercase): {url}")
+                return ""
+
         if spacy_nlp and len(text) > 500:
             try:
                 summary = spacy_nlp.summarize_article(
