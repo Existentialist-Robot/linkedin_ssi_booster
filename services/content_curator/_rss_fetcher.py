@@ -19,6 +19,19 @@ from services.content_curator._config import CURATOR_MAX_PER_FEED, RSS_FEEDS, KE
 logger = logging.getLogger(__name__)
 
 
+def _looks_facty(text: str) -> bool:
+    """Heuristic: does a short text look like it contains a concrete fact?"""
+    # numeric signals (dates, metrics, versions)
+    has_digit = any(c.isdigit() for c in text)
+    # simple version-ish patterns
+    has_version = bool(re.search(r"\b\d+\.\d+(\.\d+)?\b", text))
+    # year-like patterns
+    has_year = bool(re.search(r"\b20(2[0-9]|3[0-9])\b", text))
+    # simple 'vX.Y' style
+    has_v_prefix = bool(re.search(r"\bv\d+(\.\d+)*\b", text, flags=re.IGNORECASE))
+
+    return has_digit or has_version or has_year or has_v_prefix
+
 def fetch_article_text(url: str, max_chars: int = 3000, spacy_nlp=None) -> str:
     """Fetch a URL and return the article body as plain text.
 
@@ -57,14 +70,69 @@ def fetch_article_text(url: str, max_chars: int = 3000, spacy_nlp=None) -> str:
 
         text_stripped = text.strip()
         if len(text_stripped) < 200:
-            logger.info(f"[fetch_article_text] Skipping article (too short, {len(text_stripped)} chars): {url}")
-            return ""
-        letters = [c for c in text_stripped if c.isalpha()]
+            if _looks_facty(text_stripped):
+                logger.debug(
+                    "[fetch_article_text] Short but facty-looking article (%d chars), keeping: %s",
+                    len(text_stripped),
+                    url,
+                )
+            else:
+                logger.info(
+                    "[fetch_article_text] Skipping article (too short, %d chars, not facty): %s",
+                    len(text_stripped),
+                    url,
+                )
+                return ""
+
+        # --- nav/blob detection on the *start* of the article only ---
+        nav_sample = text_stripped[:800]  # only inspect the first ~800 chars
+        letters = [c for c in nav_sample if c.isalpha()]
+        is_nav_blob = False
         if letters:
             upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
             if upper_ratio > 0.90:
-                logger.info(f"[fetch_article_text] Skipping article (nav blob, {upper_ratio:.2%} uppercase): {url}")
+                is_nav_blob = True
+                logger.debug(
+                    "[fetch_article_text] High uppercase ratio in intro (%.2f%%) for %s",
+                    upper_ratio * 100,
+                    url,
+                )
+
+        # If it looks like nav, we *try* summarization first (if available) instead of dropping immediately.
+        if is_nav_blob and spacy_nlp and len(text_stripped) > 500:
+            try:
+                summary = spacy_nlp.summarize_article(
+                    article_text=text_stripped[:max_chars],
+                    max_sentences=5,
+                    focus_entities=True,
+                )
+                if summary and len(summary.strip()) >= 200:
+                    logger.debug(
+                        "spaCy summary rescued nav-heavy article (%d -> %d chars) for %s",
+                        len(text_stripped),
+                        len(summary),
+                        url,
+                    )
+                    return summary
+                else:
+                    logger.info(
+                        "[fetch_article_text] Skipping nav blob after summarization (len=%d): %s",
+                        len(summary or ""),
+                        url,
+                    )
+                    return ""
+            except Exception as _exc:
+                logger.debug("spaCy summarization failed on nav blob, skipping article: %s", _exc)
                 return ""
+
+        # If is_nav_blob but no spacy_nlp or too short, keep current behavior (skip)
+        if is_nav_blob:
+            logger.info(
+                "[fetch_article_text] Skipping article (nav blob, %.2f%% uppercase in intro): %s",
+                upper_ratio * 100,
+                url,
+            )
+            return ""
 
         if spacy_nlp and len(text) > 500:
             try:
