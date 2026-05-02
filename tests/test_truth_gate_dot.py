@@ -577,7 +577,9 @@ class TestSpacySimilarityFloor:
         text = "The company reported 40% growth in 2024."
 
         with (
-            patch("services.console_grounding.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_domain_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_all_persona_facts_from_avatar_state", return_value=[]),
+            patch("services.console_grounding._truth_gate.get_project_names_from_avatar_state", return_value=set()),
         ):
             _, meta = truth_gate_result(
                 text=text,

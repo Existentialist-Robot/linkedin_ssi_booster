@@ -210,6 +210,15 @@ def extract_and_append_knowledge(
             sentence,
         ):
             continue
+        # Filter sentences opening with adversative conjunctions — they depend on the prior
+        # sentence for meaning and rarely stand alone as extractable facts.
+        # e.g. "But when you are developing...", "However, this also means..."
+        if re.match(
+            r"^(But |However,\s|Yet,\s|Although |Though |Nevertheless,\s|Nonetheless,\s)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
         # Filter "… Read more" truncated fragments from RSS feed previews
         if re.search(r"[…\.]{1,3}\s*Read more\s*$", sentence, re.IGNORECASE):
             continue
@@ -342,6 +351,23 @@ def extract_and_append_knowledge(
             sentence,
             re.IGNORECASE,
         ):
+            continue
+        # Filter conditional tutorial/advisory fragments — "When you are developing X..."
+        # "While you're building...", "Whenever you need to..."
+        # These are instructional prose, not extractable domain facts.
+        if re.match(
+            r"^(When|While|Whenever) (you|we) (are|were|'re|re )\s*(building|developing|creating|writing|working|deploying|running|using|handling|dealing|testing|debugging|setting up)",
+            sentence,
+            re.IGNORECASE,
+        ):
+            continue
+        # Filter background/setup sentences with colloquial anthropomorphism and no concrete metric
+        # e.g. "...overlays that the user never thinks about, but that a printer happily reproduces"
+        if re.search(
+            r"\b(user|developer|engineer)s? never (thinks?|notices?|sees?|considers?|cares?|worries?|realizes?) about\b",
+            sentence,
+            re.IGNORECASE,
+        ) and not re.search(r"\d+\s*%|\d+[xX]|\$\d|\d+\s*(ms|MB|GB|sec|min)", sentence):
             continue
         # Filter HuggingFace/GitHub navigation blobs — long run-on sentences with UI chrome keywords
         if re.search(

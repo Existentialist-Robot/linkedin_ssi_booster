@@ -38,8 +38,8 @@ def _is_spacy_available() -> bool:
         import spacy
         _SPACY_AVAILABLE = True
         return True
-    except ImportError:
-        logger.warning("spacy_nlp: spaCy not installed — NLP features disabled")
+    except Exception as exc:
+        logger.warning("spacy_nlp: spaCy not available — NLP features disabled (%s)", exc)
         _SPACY_AVAILABLE = False
         return False
 

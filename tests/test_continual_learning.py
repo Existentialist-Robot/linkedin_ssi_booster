@@ -535,3 +535,180 @@ def test_normalize_extracted_facts_ids_are_unique_across_reloads(tmp_path):
     result1 = normalize_extracted_facts(state)
     result2 = normalize_extracted_facts(state)
     assert result1[0].evidence_id == result2[0].evidence_id
+
+
+# ---------------------------------------------------------------------------
+# Sentence-filter regression tests (noise filtering)
+# ---------------------------------------------------------------------------
+# Each test passes a single-sentence article through extract_and_append_knowledge
+# with dry_run=False and asserts whether it is filtered (returns []) or passes
+# (returns a fact).  This keeps filter regressions visible and prevents
+# accidental removal of a guard later.
+
+def _run_sentence(sentence: str, tmp_path) -> list:
+    """Helper: run one sentence through the extraction pipeline."""
+    path = tmp_path / "ek.json"
+    path.write_text(json.dumps({"schemaVersion": "1.0", "facts": []}), encoding="utf-8")
+    return extract_and_append_knowledge(
+        sentence,
+        source_url="https://example.com/test",
+        source_title="Test Source",
+        path=path,
+        dry_run=False,
+    )
+
+
+# --- sentences that MUST be filtered ---
+
+@pytest.mark.parametrize("sentence", [
+    # adversative conjunction opener
+    "But when you are developing components like Vaadin Grid, CSS optimizations can make a real difference.",
+    "However, this also means the build process is now significantly slower on CI.",
+    "Yet, the migration path requires careful planning across all dependent services.",
+    "Nevertheless, teams must evaluate the trade-offs before adopting this approach.",
+    # conditional tutorial/advisory fragment
+    "When you are developing components that render thousands of DOM elements, performance tuning matters.",
+    "While you are building microservices, it is important to consider service mesh options carefully.",
+    "Whenever you need to handle large payloads, chunked streaming is the recommended approach.",
+    # anthropomorphism / never-thinks-about background prose
+    "A modern web UI is built around a scrolling viewport and other overlays that the user never thinks about, but that a printer happily reproduces on A4.",
+    # first-person author narration
+    "I couldn't believe how quickly the latency dropped after switching to the new runtime.",
+    "As I reviewed the benchmarks, the results were surprisingly consistent across all runs.",
+    # newsletter/podcast preamble
+    "Welcome to this week's edition of the AI Engineering digest.",
+    "For this episode we invited three platform engineers to discuss observability patterns.",
+    # boilerplate article opener
+    "In this post, we will explore how to deploy a Kubernetes cluster on AWS EKS.",
+    "This article covers the basics of setting up a RAG pipeline from scratch.",
+    # CTA boilerplate
+    "Learn more about our enterprise plan and how it can accelerate your team.",
+    "Get started with the free tier today and explore all available integrations.",
+    # passive advisory
+    "Users are encouraged to migrate to the new SDK before the deprecation deadline.",
+    "Developers should update their dependencies to avoid breaking changes in Q3.",
+    # marketing superlative tagline
+    "Our most advanced model yet, designed for enterprise-grade reliability.",
+    "The world's fastest vector database, now available on all major clouds.",
+    # RSS "appeared first on" boilerplate
+    "The post How to Use LangChain with Redis appeared first on The New Stack.",
+    # "X, Y, Z, and more." list fragment
+    "Support for streaming, caching, retries, and more.",
+    # rhetorical question openers
+    "Have you ever wondered why your RAG pipeline returns stale results?",
+    "Did you know that most enterprise AI projects fail in the first six months?",
+    "Are you struggling to keep up with the pace of LLM releases?",
+    # dangling-pronoun opener (no antecedent)
+    "It was designed to handle exactly this kind of workload at enterprise scale.",
+    "They were introduced to reduce cold-start latency across all regions.",
+    "This was the key insight that changed how the team approached the problem.",
+    # heading+pronoun concatenation (section title glued to next sentence)
+    "Velero It operates as a Kubernetes-native backup and migration tool for clusters.",
+    "Redis They support a wide range of data structures including sorted sets.",
+    # dangling-pronoun quantity reference (requires prior context)
+    "V4-Flash drops these numbers even further with additional quantization passes.",
+    "The benchmark shows these results across all three evaluated hardware configurations.",
+    # generic-dismissal advisory
+    "Optimizing CSS is rarely something you need to worry about in typical web apps.",
+    "Database indexing is rarely a concern for projects with fewer than 10,000 rows.",
+    # "Read more" truncated RSS fragment
+    "The new Bedrock AgentCore SDK provides a unified interface for all major LLM providers... Read more.",
+    # event marketing announcement
+    "Join us at the conference for Java developers in Toronto this September.",
+    "Our summit for AI practitioners will cover every major framework and toolchain.",
+    # double-dash section header concatenation (ToC blob)
+    "Model architecture overview -- Efficient Video Sampling -- Temporal compression -- Benchmark results -- Deployment guide -- Fine-tuning details.",
+    # generic marketing CTA
+    "Now is the time to explore your options and plan ahead for the next major release.",
+    "Take advantage of the latest features before your competitors do.",
+    # event marketing opener
+    "This year, we're launching three new product lines aimed at enterprise customers.",
+    "Next quarter, we are planning a major overhaul of the developer experience.",
+    # section header blob
+    "Version-Specific Highlights for the Spring Boot 3.4 release cycle.",
+    "TL;DR: This is a summary of all the breaking changes introduced in v2.",
+    "What's New in the latest Elasticsearch release for vector search users.",
+    # podcast preamble "In this installment/episode, I..."
+    "In this episode, I chat with the Kubernetes project maintainer about future roadmap plans.",
+    "In our discussion, I interview the lead architect about the new distributed tracing API.",
+    # pure URL sentence
+    "https://github.com/example/repo/releases/tag/v2.3.1",
+    # truncated sentence ending with ellipsis
+    "The new architecture introduces several important changes to how agents communicate...",
+    # sentence dangling on bare preposition at end
+    "These patterns trace all the way back to the foundational techniques of",
+    # "we show / walk through / introduce" preamble
+    "We walk you through the process of setting up a local Kubernetes cluster for development.",
+    "We introduce a new abstraction layer that simplifies cross-cloud deployments.",
+    # HuggingFace/GitHub navigation blob
+    "Log In Sign Up Back to Articles Models Datasets Spaces Upvote 42 for this model checkpoint.",
+    # pipe-delimited navigation links
+    "Home | Source on GitHub | Reference documentation | Changelog | Contributing guide",
+    # "In our recent livestream/webinar" opener
+    "In our recent livestream, we covered the new Spring AI 2.0 release with live demos.",
+    "In my recent webinar, I walked through the full agentic workflow from prompt to tool call.",
+    # anecdotal scene-setter
+    "Imagine if your entire data pipeline could self-heal without any human intervention.",
+    "Picture this: a world where every microservice automatically scales to zero on idle.",
+    "Somewhere out there, a team is still running Java 8 in production without a migration plan.",
+    # vague rhetorical survey opener
+    "Here's what we learned from the 2026 State of AI Infrastructure survey results.",
+    "Here's how you can avoid the most common mistakes when building RAG pipelines.",
+    # "You'll learn" educational preamble
+    "You'll learn how to configure the new authentication middleware in three easy steps.",
+    "You will discover why most teams underestimate the complexity of distributed tracing.",
+    # "On behalf of / Did you see / Have you seen" openers
+    "Did you see the announcement about the new Anthropic model released yesterday?",
+    "Have you seen the benchmarks comparing Llama 3 with GPT-4o on coding tasks?",
+    # "We'll focus / dive / cover" preambles
+    "We'll dive into the architecture decisions that drove the Spring Boot 3 redesign.",
+    "We will cover the three most impactful changes in the Kubernetes 1.33 release.",
+    # award/recognition self-promotion
+    "We're honored to be named a leader in the 2026 Gartner Magic Quadrant for AI platforms.",
+    "We are thrilled to announce that our platform won the InfoQ eMag award for best tooling.",
+    # camelCase mangled heading+body concatenation
+    "Why the Future of Macro-Risk is Agentic and InterconnectedThe phone rang at 3am.",
+    "Observability Patterns for Distributed SystemsWe have been running this approach.",
+    # table/architecture blob (digit-heavy repeated tokens)
+    "Dense 8B Dense 30B Dense Embedding size 2560 4096 4096 Number layers 40 40 64 heads 32 32 64.",
+    # release-list blob (3+ version numbers with at least one repeat)
+    "Spring Modulith 2.1.0 2.0.5 2.1.0 and 1.4.10 released with important bug fixes.",
+    # generic filler (no metric)
+    "Many companies are now investing heavily in AI infrastructure and platform tooling.",
+    "Several organizations have adopted Kubernetes as their primary container orchestration layer.",
+    # bare product availability announcement (no metric or "enabling")
+    "Vaadin 25.1 is now available and makes for a strong upgrade for existing applications.",
+    "The new Redis 8.0 release is now available with no breaking changes.",
+])
+def test_noisy_sentences_are_filtered(sentence, tmp_path):
+    """Sentences identified as noise must produce zero extracted facts."""
+    result = _run_sentence(sentence, tmp_path)
+    assert result == [], f"Expected sentence to be filtered, but it passed:\n  {sentence!r}"
+
+
+# --- sentences that MUST pass (good domain facts) ---
+
+@pytest.mark.parametrize("sentence", [
+    # the three facts currently in extracted_knowledge.json that should remain
+    "Agentic AI systems are rapidly expanding beyond the digital world and into the physical, where AI agents perceive, reason, and act in real environments.",
+    "Broadcom has announced the contribution of Velero, its Kubernetes-native backup and migration project, to the Cloud Native Computing Foundation as a Sandbox project.",
+    "OpenAI GPT models, Codex, and Managed Agents are now available on AWS, enabling enterprises to build secure AI in their AWS environments.",
+    # concrete metrics and named entities
+    "The solution improved extraction accuracy from 79.7% to 90.8% and reduced processing time from 20 hours to under 5 seconds.",
+    "Kubernetes is becoming the de facto operating system for AI.",
+    "The spring-ai-openai module now uses the official openai-java SDK across all OpenAI models.",
+    # availability announcement WITH enabling keyword (should pass)
+    "Elastic 8.16 is now available on AWS Marketplace, enabling one-click deployment with BYOK encryption.",
+    # generic filler WITH a concrete metric (should pass the generic-filler guard)
+    "Many companies reported a 40% reduction in infrastructure costs after migrating to Kubernetes.",
+    # camelCase inside a product name + 4-digit year (should pass the camelCase guard)
+    "Spring Boot 3.4 was released in November 2025 with support for CDS and virtual threads.",
+    # adversative opener that is not a conjunction — starts with a named subject
+    "Meta has unveiled a new AI-driven capacity efficiency platform using unified AI agents.",
+    # version numbers that are all unique (should pass the version-blob guard)
+    "Spring Boot 3.2, 3.3, and 3.4 each introduced distinct improvements to the AOT compiler.",
+])
+def test_good_sentences_pass_filters(sentence, tmp_path):
+    """Sentences with concrete domain facts must survive the filter gauntlet."""
+    result = _run_sentence(sentence, tmp_path)
+    assert len(result) >= 1, f"Expected sentence to be extracted, but it was filtered:\n  {sentence!r}"
