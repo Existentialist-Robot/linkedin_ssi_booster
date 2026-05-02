@@ -688,6 +688,17 @@ def _run_sentence(sentence: str, tmp_path) -> list:
     # bare product availability announcement (no metric or "enabling")
     "Vaadin 25.1 is now available and makes for a strong upgrade for existing applications.",
     "The new Redis 8.0 release is now available with no breaking changes.",
+    # email consent form scraped from InfoQ / similar sidebars
+    "View an example Enter your e-mail address Select your country Select a country I consent to InfoQ.com handling my data.",
+    "Enter your e-mail address Select your country to receive our weekly newsletter.",
+    # author byline / changelog entry starting with punctuation
+    ", Bharathan Balaji , and Daniel Suarez on 30 APR 2026 in Advanced (300) , Amazon Nova , Amazon SageMaker AI , Technical How-to Permalink Comments Share Large language models.",
+    "; fixed a critical bug where the scheduler would skip posts published on Sunday.",
+    # sentence truncated mid-word (scraper cut off page content)
+    "AWS is betting that the next competitive frontier in AI-assisted development is code-generati",
+    "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, investiga",
+    # Elastic product-feature-list sidebar blob
+    "Context engineering Get the most relevant context to agents so that they deliver accurate and trusted outcomes Vector database Efficiently create, store, and search vector embeddings Search powered applications The speed, scale, and flexibility to power modern application experience Logs Collect, search, explore, and act on large volumes Threat protection Detect, investigate, and remediate cyber threats at scale.",
 ])
 def test_noisy_sentences_are_filtered(sentence, tmp_path):
     """Sentences identified as noise must produce zero extracted facts."""
@@ -724,3 +735,23 @@ def test_good_sentences_pass_filters(sentence, tmp_path):
     """Sentences with concrete domain facts must survive the filter gauntlet."""
     result = _run_sentence(sentence, tmp_path)
     assert len(result) >= 1, f"Expected sentence to be extracted, but it was filtered:\n  {sentence!r}"
+
+
+def test_cross_url_dedup_same_statement_not_stored_twice(tmp_path):
+    """The same statement fetched from two different URLs must only be stored once."""
+    good = "Kubernetes is becoming the de facto operating system for AI workloads."
+    target = tmp_path / "ek.json"
+    facts1 = extract_and_append_knowledge(
+        article_text=good,
+        source_url="https://site-a.example.com/article",
+        source_title="Article A",
+        path=target,
+    )
+    assert len(facts1) == 1, "First call should extract exactly 1 fact"
+    facts2 = extract_and_append_knowledge(
+        article_text=good,
+        source_url="https://site-b.example.com/other-article",
+        source_title="Article B",
+        path=target,
+    )
+    assert facts2 == [], "Second call with same text from different URL should return 0 new facts"

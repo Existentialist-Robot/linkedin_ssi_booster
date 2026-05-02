@@ -114,6 +114,11 @@ def extract_and_append_knowledge(
         existing_graph = ExtractedKnowledgeGraph(schema_version="1.0", facts=[])
 
     existing_ids: set[str] = {f.id for f in existing_graph.facts}
+    # Cross-URL dedup: build a set of normalised statement hashes so the same boilerplate
+    # text fetched from multiple URLs (e.g. Elastic sidebar, InfoQ consent form) is only
+    # stored once regardless of which source_url it came from.
+    _stmt_hash = lambda s: hashlib.sha256(s.strip().lower().encode()).hexdigest()[:16]
+    existing_stmt_hashes: set[str] = {_stmt_hash(f.statement) for f in existing_graph.facts}
 
     # Strip HTML tags and decode common entities before extracting facts.
     clean_text = re.sub(r"<[^>]+>", " ", article_text)
@@ -172,6 +177,40 @@ def extract_and_append_knowledge(
         ):
             logger.debug("extraction [rss-boilerplate]: %.100s", sentence)
             continue
+        # Filter email-capture / consent form fragments scraped from page footers/sidebars
+        # e.g. InfoQ "View an example Enter your e-mail address Select your country..."
+        if re.search(
+            r"(Enter your e-mail address|Select your country|I consent to \w+\.\w+ handling"
+            r"|e-mail address Select|Select a country)",
+            sentence, re.IGNORECASE,
+        ):
+            logger.debug("extraction [email-consent-form]: %.100s", sentence)
+            continue
+        # Filter author byline and changelog fragments that start with punctuation
+        # e.g. ", Bharathan Balaji , and Daniel Suarez on 30 APR 2026 in Advanced..."
+        if re.match(r"^\s*[,;:]", sentence):
+            logger.debug("extraction [punct-start-fragment]: %.100s", sentence)
+            continue
+        # Filter sentences truncated mid-word (scraper cut off the page in the middle of a word).
+        # A truncated sentence ends with 3+ lowercase letters and no terminal punctuation.
+        if re.search(r"[a-z]{3,}$", sentence) and not re.search(r"[.!?\"'\u2019]\s*$", sentence):
+            logger.debug("extraction [truncated-mid-word]: %.100s", sentence)
+            continue
+        # Filter long product-feature list blobs masquerading as a single sentence.
+        # e.g. Elastic sidebar: "Context engineering Get the most relevant context... Vector
+        # database... Search powered applications... Threat protection..."
+        # These are 400+ char strings with at most one trailing period and 4+ capitalized
+        # section-header words in sequence with no sentence separators.
+        if len(sentence) > 400:
+            _period_count = sentence.count(". ")  # internal sentence separators
+            _header_seqs = re.findall(
+                r"\b(?:Context|Vector|Search|Threat|Workflow|Endpoint|Security|Logging|Analytics"
+                r"|Discover|Dashboard|Components|Deployment|Developer)\b",
+                sentence,
+            )
+            if _period_count == 0 and len(_header_seqs) >= 3:
+                logger.debug("extraction [product-feature-list-blob]: %.100s", sentence)
+                continue
         if re.match(r"^[\w\s,\-]+,\s+and\s+more\.?$", sentence, re.IGNORECASE):
             logger.debug("extraction [and-more-blob]: %.100s", sentence)
             continue
@@ -595,6 +634,15 @@ def extract_and_append_knowledge(
                 "extract_and_append_knowledge: skipping duplicate fact %s", fact_id
             )
             continue
+        # Cross-URL duplicate check: skip if the same statement text was already stored
+        # from a different URL (e.g. Elastic sidebar / InfoQ consent form appearing in
+        # multiple articles).
+        _this_stmt_hash = _stmt_hash(sentence)
+        if _this_stmt_hash in existing_stmt_hashes:
+            logger.debug(
+                "extract_and_append_knowledge: skipping cross-url duplicate statement %.60s", sentence
+            )
+            continue
 
         # Within-article semantic dedup: skip if this sentence is near-paraphrase of a
         # fact already collected from the same source URL in this run (spaCy similarity >= 0.93).
@@ -655,6 +703,7 @@ def extract_and_append_knowledge(
         )
         new_facts.append(fact)
         existing_ids.add(fact_id)
+        existing_stmt_hashes.add(_this_stmt_hash)
 
     if new_facts and not dry_run:
         updated_facts = existing_graph.facts + new_facts
