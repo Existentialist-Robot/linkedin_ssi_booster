@@ -4,60 +4,65 @@
 
 # Author: Shawn Jackson Dyck
 
-# Stack: Python 3.11+, Anthropic Claude API, Buffer GraphQL API
+# Stack: Python 3.12+, Ollama LLM (local), spaCy, Buffer GraphQL API, trafilatura, NetworkX, pytest
 
 ## Project Structure
 
-- All service modules live in `services/` package: `claude_service.py`, `buffer_service.py`, `content_curator.py`, `ssi_tracker.py`
+- All service modules live in `services/` package: `buffer_service.py`, `ollama_service.py`, `hybrid_retriever.py`, `knowledge_graph.py`, `spacy_nlp.py`, `ssi_tracker.py`, etc.
+- Submodules: `console_grounding/`, `content_curator/`, `avatar_intelligence/`, `derivative_of_truth/`, `selection_learning/`
 - Root-level orchestration: `main.py`, `scheduler.py`, `content_calendar.py`
-- Always import services via `from services.X import Y` — never from root
-- Run all scripts from the **project root** so `services/` is on sys.path
+- Always use absolute imports from the project root: `from services.X import Y`
+- Scripts are run from the project root: `python main.py --curate`
 
 ## Code Style
 
-- Python 3.11+ syntax preferred
+- Python 3.12+ syntax preferred
 - Type hints on all function signatures
-- Use `logging` (not `print`) for diagnostics — logger names match module name
+- Use `logging.getLogger(__name__)` (not `print`) for diagnostics
 - No bare `except:` — always catch specific exception types
 - Constants in UPPER_SNAKE_CASE at module top
 
 ## Environment & Secrets
 
 - All secrets loaded via `python-dotenv` from `.env` (never hardcode keys)
-- Required env vars: `ANTHROPIC_API_KEY`, `BUFFER_API_KEY`
+- Required env vars: `BUFFER_API_KEY`, `OLLAMA_BASE_URL`
 - `.env` is gitignored — use `.env.example` as template
 
 ## External APIs
 
-- **Buffer**: GraphQL API at `https://api.buffer.com` — all calls through `BufferService._query()`
-- **Anthropic**: Use `ClaudeService` wrapper; default model is `claude-opus-4-5` unless cost-optimisation needed
+- **Buffer**: GraphQL API at `https://api.buffer.com` — all calls through `services/buffer_service.py`
+- **Ollama**: Local LLM via `services/ollama_service.py` (primary: `gemma4:26b`, fallback: `llama3.2`)
+- **spaCy**: NLP, NER, similarity via `services/spacy_nlp.py`
+- **RSS**: Fetched and parsed via `feedparser` and `trafilatura` in `services/content_curator/_rss_fetcher.py`
 - Always handle API errors explicitly; surface meaningful messages to the logger
 
 ## SSI Focus
 
-Four target components with individual weightings:
+Four target components:
 
-- `establish_brand` — post quality, profile completeness
-- `find_right_people` — targeting, connection quality
-- `engage_with_insights` — article sharing, commenting
-- `build_relationships` — DMs, story posts
+- `establish_brand` — share builds, lessons, technical depth
+- `find_right_people` — tools, communities, questions that attract right audience
+- `engage_with_insights` — summarise/react to AI news with a bold take
+- `build_relationships` — behind-the-scenes stories, honest lessons
 
 ## Testing
 
 - Prefer `--dry-run` flag pattern for destructive operations (no API calls)
 - Unit tests go in `tests/` (create if missing); name files `test_<module>.py`
-- Mock external API calls — never hit live Anthropic/Buffer in tests
+- Mock external API calls — never hit live Buffer/Ollama in tests
+- Use `pytest` for all tests; all new modules/functions require tests
 
 ## After Every Change
 
 - Run `python -m py_compile <changed_files>` after editing any `.py` file and fix all errors before finishing
 - Update `README.md` whenever you change how the tool is configured, how a feature works, or what env vars are required — keep the docs in sync with the code
+- Update `docs/testing-and-dev.md` whenever the test count changes or new behaviour is covered
 
 ## After Every Code Change
 
 - Always run `python -m py_compile <changed_files>` immediately after editing any `.py` file
 - Fix all syntax errors before considering a task complete
-- Example: `python -m py_compile services/claude_service.py services/gemini_service.py services/ollama_service.py`
+- Example: `python -m py_compile services/content_curator/curator.py services/console_grounding/_gate_helpers.py`
 
 ## Do Not
 
