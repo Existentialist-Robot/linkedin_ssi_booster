@@ -21,6 +21,10 @@ def report_truth_gradient(
         "flagged": result.flagged,
         "uncertainty_sources": result.uncertainty_sources,
         "explanation": result.explanation,
+        "pln_mode": result.pln_mode,  # Phase 1: indicate PLN vs. legacy
+        "truth_derivative": (
+            round(result.truth_derivative, 4) if result.truth_derivative is not None else None
+        ),  # Phase 2: dT/dt
     }
     if verbose:
         report["evidence_paths"] = [
@@ -33,6 +37,9 @@ def report_truth_gradient(
                 "overlap": round(p.overlap, 3),
                 "chain_length": p.chain_length,
                 "conflicts_with": p.conflicts_with,
+                # Phase 1: PLN truth values
+                "pln_strength": round(p.pln_strength, 3) if p.pln_strength is not None else None,
+                "pln_confidence": round(p.pln_confidence, 3) if p.pln_confidence is not None else None,
             }
             for p in result.evidence_paths
         ]
@@ -89,9 +96,17 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
     c = Fore.CYAN
     r = Style.RESET_ALL
 
+    # Phase 1 & 2: Show PLN mode and truth derivative
+    mode_indicator = f"{c}Mode:{r} PLN-enhanced" if report.get("pln_mode", False) else f"{c}Mode:{r} Legacy"
+    derivative_str = ""
+    if report.get("truth_derivative") is not None:
+        dt_dt = report["truth_derivative"]
+        dt_color = Fore.GREEN if dt_dt > 0 else (Fore.RED if dt_dt < 0 else Fore.YELLOW)
+        derivative_str = f"   {c}dT/dt:{r} {dt_color}{dt_dt:+.4f}/hr{r}"
+    
     lines = [
         divider,
-        f"  {status}  {gradient_bar}  {Fore.WHITE}{tg:.4f}{r}",
+        f"  {status}  {gradient_bar}  {Fore.WHITE}{tg:.4f}{r}  {mode_indicator}{derivative_str}",
         (
             f"  {c}Uncertainty:{r} {_unc_colour(unc)}{unc:.4f}{r}   "
             f"{c}Confidence Penalty:{r} {cp:.4f}"
@@ -130,12 +145,21 @@ def format_truth_gradient_report(report: dict[str, Any]) -> str:
             cred_col = Fore.GREEN if cred >= 0.75 else (Fore.YELLOW if cred >= 0.62 else Fore.RED)
             unc_col = Fore.RED if unc_ep >= 0.29 else (Fore.YELLOW if unc_ep >= 0.16 else Fore.GREEN)
 
+            # Phase 1: Show PLN truth values if present
+            pln_str = ""
+            if ep.get("pln_strength") is not None and ep.get("pln_confidence") is not None:
+                pln_s = ep["pln_strength"]
+                pln_c = ep["pln_confidence"]
+                pln_s_col = Fore.GREEN if pln_s >= 0.7 else (Fore.YELLOW if pln_s >= 0.5 else Fore.RED)
+                pln_c_col = Fore.GREEN if pln_c >= 0.7 else (Fore.YELLOW if pln_c >= 0.5 else Fore.RED)
+                pln_str = f"  PLN<s={pln_s_col}{pln_s:.2f}{r}, c={pln_c_col}{pln_c:.2f}{r}>"
+
             lines.append(
                 f"    {icon} {src_colour}{source}{r}  "
                 f"[{ev_type} / {re_type}]  "
                 f"cred={cred_col}{cred:.2f}{r}  "
                 f"unc={unc_col}{unc_ep:.2f}{r}  "
-                f"chain={chain}"
+                f"chain={chain}{pln_str}"
             )
             lines.append(_explain_evidence_path_line(ep))
 
