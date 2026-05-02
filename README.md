@@ -110,6 +110,25 @@ Want to automate your LinkedIn growth with the best scheduling tool? [Sign up fo
 ---
 
 ## 🧮 Derivative of Truth (DoT) Framework
+---
+
+## 🧠 PLN (Probabilistic Logic Networks) Reasoning 
+
+The SSI Booster now features a full Probabilistic Logic Networks (PLN) inference engine, bringing advanced reasoning and explainability to every truth gradient calculation. With PLN, the system doesn't just check if a claim is supported — it can now model deduction, induction, abduction, and revision, dynamically weighing evidence and tracking the evolution of truth over time.
+
+**What does this mean for you?**
+
+- **Smarter, more nuanced truth scoring:** Each post and fact is evaluated using PLN's formal logic, not just keyword overlap or simple heuristics.
+- **Dynamic evidence weighting:** The system adapts how much weight to give each piece of evidence or reasoning step, based on context and confidence.
+- **Truth trajectory tracking:** See how the credibility of a claim changes as new evidence arrives, with dT/dt (rate of truth change) calculations.
+- **Dual-mode scoring:** Instantly compare PLN-based and legacy scoring for transparency and debugging.
+- **Richer DoT reports:** Every Derivative of Truth report now includes PLN metadata, so you can trace exactly how a claim was supported, revised, or rejected.
+- **PLN is on by default:** All new posts, curation, and learning runs use PLN reasoning automatically — no config required.
+
+Want to see the math and logic? Check out the new [docs/dot-pln-enhancement.md](docs/dot-pln-enhancement.md) and the PLN diagram in `media/pln-dot.png`.
+
+This upgrade makes the SSI Booster's grounding and explainability pipeline even more robust, transparent, and future-proof. The changes are live on the [main branch](https://github.com/samjd-zz/linkedin_ssi_booster.git).
+
 
 Every generated sentence receives a composite truth gradient score (evidence quality × reasoning strength × source credibility × claim-evidence token overlap). Sentences below `TRUTH_GRADIENT_FLAG_THRESHOLD` (default 0.35) are flagged `weak_dot_gradient` and removed before publication. DoT runs as Part B of the five-layer truth gate, after BM25 and before spaCy semantic checks.
 
