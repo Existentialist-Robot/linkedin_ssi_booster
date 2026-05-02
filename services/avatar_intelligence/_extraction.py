@@ -231,6 +231,12 @@ def extract_and_append_knowledge(
             r"^(It|They|This|That|These|Those)\s+(was|were|is|are|has|have|had|added|changed|became)\b",
             sentence,
             re.IGNORECASE,
+        ) or re.match(
+            # Future-tense preamble / teaser: "It will also cover/discuss/walk/show..."
+            r"^It will (also\s+)?(cover|discuss|explore|walk|show|demonstrate|explain"
+            r"|highlight|present|outline|introduce|address|describe)\b",
+            sentence,
+            re.IGNORECASE,
         ):
             logger.debug("extraction [pronoun-opener]: %.100s", sentence)
             continue
@@ -282,23 +288,44 @@ def extract_and_append_knowledge(
             continue
         # Filter newsletter/podcast preamble openers (no extractable domain knowledge)
         if re.match(
-            r"^(Welcome to |For this episode |In last week'?s |This week'?s |Last week'?s )",
+            r"^(Welcome to |For this episode |In last week'?s |This week'?s |Last week'?s |This latest one\b)",
             sentence,
             re.IGNORECASE,
         ):
             logger.debug("extraction [newsletter-preamble]: %.100s", sentence)
             continue
         # Filter boilerplate article openers — "In this post/article/release, we/you..." style
-        # Also catches "This post demonstrates/covers/explores..." variants
+        # Also catches "This post demonstrates/covers/explores..." and "This section covers..." variants
         if re.match(
             r"^(In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook|session|installment),?\s|"
             r"In this (post|article|tutorial|guide|blog|video|talk|walkthrough|demo|notebook|session|installment) we\b|"
-            r"^This (post|article|release|update|guide|tutorial|video) (demonstrates?|covers?|explores?|addresses?|"
-            r"introduces?|examines?|focuses? on|walks? through|provides?|presents?|shows?))",
+            r"This (post|article|release|update|guide|tutorial|video) (demonstrates?|covers?|explores?|addresses?|"
+            r"introduces?|examines?|focuses? on|walks? through|provides?|presents?|shows?)|" 
+            r"This section (covers?|discusses?|explains?|walks? through|introduces?|presents?|outlines?)\b)",
             sentence,
             re.IGNORECASE,
         ):
             logger.debug("extraction [boilerplate-opener]: %.100s", sentence)
+            continue
+        # Filter bullet-list run-ons: scraped blob with 2+ "Be <Adj>" imperatives glued together
+        if len(re.findall(r'\bBe [A-Z]', sentence)) >= 2:
+            logger.debug("extraction [bullet-list-run-on]: %.100s", sentence)
+            continue
+        # Filter code classname blobs: sentences containing a CamelCase identifier ≥25 chars
+        if re.search(r'\b[A-Z][a-zA-Z]{24,}\b', sentence):
+            logger.debug("extraction [code-classname-blob]: %.100s", sentence)
+            continue
+        # Filter newsletter promo banners ("Software Architects' Newsletter", "things you need to know...")
+        if re.search(
+            r"things you need to know as an architect|Software Architects'?\s+Newsletter",
+            sentence,
+            re.IGNORECASE,
+        ):
+            logger.debug("extraction [newsletter-promo-banner]: %.100s", sentence)
+            continue
+        # Filter comparative heading questions ("Why X compared to Y?") — section headers, not facts
+        if re.match(r'^Why .{5,} compared to ', sentence, re.IGNORECASE):
+            logger.debug("extraction [heading-comparison-question]: %.100s", sentence)
             continue
         # Filter disclaimer / AI-generated disclosure sentences
         if re.search(

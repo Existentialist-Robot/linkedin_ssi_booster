@@ -700,6 +700,24 @@ def _run_sentence(sentence: str, tmp_path) -> list:
     "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, investigation, and re",
     "XDR and endpoint security Secure your endpoints, clouds, and containers with AI-driven insights AI for security Automate your triage, i",    # Elastic product-feature-list sidebar blob
     "Context engineering Get the most relevant context to agents so that they deliver accurate and trusted outcomes Vector database Efficiently create, store, and search vector embeddings Search powered applications The speed, scale, and flexibility to power modern application experience Logs Collect, search, explore, and act on large volumes Threat protection Detect, investigate, and remediate cyber threats at scale.",
+    # future-tense preamble teaser (no extractable fact)
+    "It will also cover Monarch's major improvements since October, including native Kubernetes support.",
+    "It will demonstrate how to wire up the new AgentCore SDK with an existing Spring Boot service.",
+    # newsletter-link opener ("This latest one looks at...")
+    "This latest one looks at using A2A to enable yet another kind of agent-to-agent communication with Spring AI.",
+    # newsletter promo banner (InfoQ Software Architects' Newsletter)
+    "InfoQ BT InfoQ Software Architects' Newsletter A monthly overview of things you need to know as an architect or aspiring architect.",
+    "Sign up for the Software Architects' Newsletter and get things you need to know as an architect every month.",
+    # bullet-list run-on (2+ "Be <Capital>" imperatives glued into one sentence)
+    "Be generic to cover a variety of use cases Be specific so that a new user can apply it Be automated and scalable.",
+    # code classname blob (CamelCase identifier ≥25 chars)
+    "Upgraded Spring Boot to 3.5.14 Renamed JdbcChatMemoryRepositorySchemaInitializerPostgresqlTests to follow the integration test naming convention.",
+    # section-heading comparison question ("Why X compared to Y?")
+    "Why RFT with LLM-as-a-judge compared to generic RFT?",
+    "Why serverless compared to container-based deployments for latency-sensitive workloads?",
+    # "This section covers" boilerplate opener
+    "This section covers the key steps involved in designing and deploying LLM-as-a-judge reward functions.",
+    "This section discusses the architecture decisions behind the new distributed cache layer.",
 ])
 def test_noisy_sentences_are_filtered(sentence, tmp_path):
     """Sentences identified as noise must produce zero extracted facts."""
