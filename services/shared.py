@@ -34,7 +34,13 @@ logger = logging.getLogger(__name__)
 
 X_CHAR_LIMIT = 280  # Standard X character limit
 X_URL_CHARS  = 23   # Every URL on X counts as exactly 23 characters
-THREADS_CHAR_LIMIT = 500  # Standard Threads post limit
+THREADS_CHAR_LIMIT = 500   # Standard Threads post limit
+FACEBOOK_CHAR_LIMIT = 1300  # Facebook has no hard cap; practical target matches LinkedIn
+INSTAGRAM_CHAR_LIMIT = 2200  # Instagram caption limit; first 125 chars visible before "more"
+
+# Channels that use the secondary Buffer account (BUFFER_API_KEY_B) and
+# the SOCIAL_SYSTEM_PROMPT tone profile (less constrained, more cutting).
+SECONDARY_CHANNELS: frozenset[str] = frozenset({"facebook", "instagram", "bluesky"})
 
 # ---------------------------------------------------------------------------
 # Persona — configurable via .env
@@ -61,6 +67,22 @@ Never start a post with 'I'. Never use bullet points for the main body — write
 Avoid corporate jargon, passive voice, and hollow hype. Favour specifics over generalities.
 Set PERSONA_SYSTEM_PROMPT in your .env to customise this for a specific person and domain.
 IMPORTANT: Output plain text only — no Markdown. Do not use **, ##, __, `, or any other Markdown syntax. LinkedIn does not render Markdown."""
+)
+
+# Social-channel tone — used for Facebook, Instagram, and Bluesky (secondary Buffer account).
+# Less formal than PERSONA_SYSTEM_PROMPT: more cutting, unfiltered, conversational.
+# Shares the same persona facts and grounding schema — only the tone differs.
+SOCIAL_SYSTEM_PROMPT: str = os.getenv(
+    "SOCIAL_SYSTEM_PROMPT",
+    """You are writing social media content for a technical professional with strong opinions.
+Your voice is direct, unfiltered, and occasionally blunt — less polished than LinkedIn, more like talking to peers.
+You can be opinionated, sarcastic when warranted, and you don't soften edges to protect feelings.
+Posts feel like a smart colleague venting/sharing after a long day — grounded in real experience.
+Never use: 'In the age of AI', 'Game changer', 'Exciting to share', 'Thrilled to announce'.
+Contractions are fine. First-person is fine. Short punchy sentences preferred.
+Avoid corporate jargon, passive voice, and hollow hype. Say the uncomfortable thing if it's true.
+Set SOCIAL_SYSTEM_PROMPT in your .env to customise this for a specific person and domain.
+IMPORTANT: Output plain text only — no Markdown. Do not use **, ##, __, `, or any other Markdown syntax."""
 )
 
 # ---------------------------------------------------------------------------

@@ -344,7 +344,7 @@ def main():
     parser.add_argument("--bsky-stats", action="store_true", help="Fetch and display live Bluesky profile stats")
     parser.add_argument("--week",      type=int, default=1, help="Week number from content calendar (1-4)")
     parser.add_argument("--dry-run",   action="store_true", help="Preview posts without pushing to Buffer")
-    _VALID_CHANNELS = {"linkedin", "x", "bluesky", "threads", "youtube", "all"}
+    _VALID_CHANNELS = {"linkedin", "x", "bluesky", "threads", "youtube", "facebook", "instagram", "all"}
 
     def _parse_channels(value: str) -> list[str]:
         parts = [v.strip() for v in value.split(",") if v.strip()]
@@ -371,6 +371,14 @@ def main():
                         help="Extract and persist knowledge from curated articles into extracted_knowledge.json (skipped on --dry-run unless this flag is also set)")
     parser.add_argument("--reconcile", action="store_true",
                         help="Fetch published Buffer posts and reconcile with generated candidates to build acceptance priors")
+    parser.add_argument("--ingest-comments", action="store_true",
+                        help="Ingest a LinkedIn Comments.csv export into voice history (use with --comments-csv)")
+    parser.add_argument("--comments-csv", type=str, default="Comments.csv",
+                        help="Path to LinkedIn Comments.csv export (default: Comments.csv)")
+    parser.add_argument("--ingest-history", action="store_true",
+                        help="Fetch all published Buffer posts and add them to voice history")
+    parser.add_argument("--voice-stats", action="store_true",
+                        help="Show voice history stats (sample counts by source)")
     args = parser.parse_args()
 
     if args.debug:
@@ -396,11 +404,20 @@ def main():
                 + str(Style.RESET_ALL)
             )
             return
-    def build_buffer_service() -> BufferService:
-        buffer_api_key = os.getenv("BUFFER_API_KEY")
-        if not buffer_api_key:
-            raise ValueError("BUFFER_API_KEY environment variable is required")
-        return BufferService(api_key=buffer_api_key)
+    def build_buffer_service(channel: str = "linkedin") -> BufferService:
+        from services.shared import SECONDARY_CHANNELS
+        if channel in SECONDARY_CHANNELS:
+            key = os.getenv("BUFFER_API_KEY_B", "").strip()
+            if not key:
+                raise ValueError(
+                    f"Channel '{channel}' uses the secondary Buffer account. "
+                    "Set BUFFER_API_KEY_B in your .env file."
+                )
+            return BufferService(api_key=key)
+        key = os.getenv("BUFFER_API_KEY", "").strip()
+        if not key:
+            raise ValueError("BUFFER_API_KEY environment variable is required.")
+        return BufferService(api_key=key)
 
     if args.avatar_learn_report:
         from services.avatar_intelligence import build_learning_report, format_learning_report
@@ -464,6 +481,52 @@ def main():
         return
 
 
+    if args.voice_stats:
+        from services.voice_history import stats as _vh_stats
+        s = _vh_stats()
+        print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n📚 Voice History" + str(Style.RESET_ALL))
+        print(f"  Total samples : {s['total']}")
+        for src, count in s.get("by_source", {}).items():
+            print(f"  {src:25s}: {count}")
+        return
+
+    if args.ingest_comments:
+        from services.voice_history import ingest_comments_csv
+        csv_path = args.comments_csv
+        print(str(Fore.CYAN) + f"\nIngesting comments from: {csv_path}" + str(Style.RESET_ALL))
+        added, preview = ingest_comments_csv(csv_path, dry_run=args.dry_run)
+        if args.dry_run:
+            print(str(Fore.YELLOW) + f"[dry-run] Would add {len(preview)} samples:" + str(Style.RESET_ALL))
+            for s in preview[:10]:
+                print(f"  [{s['source']}] {s['text'][:80]}{'...' if len(s['text']) > 80 else ''}")
+            if len(preview) > 10:
+                print(f"  ... and {len(preview) - 10} more")
+        else:
+            print(str(Fore.GREEN) + f"✅  Added {added} new voice samples from comments." + str(Style.RESET_ALL))
+            if added == 0:
+                print("  (All comments were already ingested or below the minimum length threshold.)")
+        return
+
+    if args.ingest_history:
+        from services.voice_history import ingest_buffer_posts
+        buffer = build_buffer_service()
+        total_added = 0
+        for ch_name, ch_getter in [
+            ("linkedin", buffer.get_linkedin_channel_id),
+        ]:
+            try:
+                ch_id = ch_getter()
+                posts = buffer.get_published_posts(ch_id, limit=100)
+                added = ingest_buffer_posts(posts, channel=ch_name, dry_run=args.dry_run)
+                total_added += added
+                label = "[dry-run] would add" if args.dry_run else "Added"
+                print(str(Fore.GREEN) + f"  {label} {added} {ch_name} posts to voice history." + str(Style.RESET_ALL))
+            except Exception as e:
+                print(str(Fore.YELLOW) + f"  ⚠️  {ch_name}: {e}" + str(Style.RESET_ALL))
+        if not args.dry_run:
+            print(str(Fore.GREEN) + f"\n✅  Voice history updated: {total_added} new posts ingested." + str(Style.RESET_ALL))
+        return
+
     if not (args.schedule or args.curate or args.console):
         parser.print_help()
         return
@@ -486,13 +549,13 @@ def main():
         return
 
     if args.curate:
-        buffer = None if args.dry_run else build_buffer_service()
         from services.shared import AVATAR_CONFIDENCE_POLICY
         from services.content_curator import ContentCurator
         confidence_policy = args.confidence_policy or AVATAR_CONFIDENCE_POLICY
-        curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context)
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         for ch in curate_channels:
+            buffer = None if args.dry_run else build_buffer_service(ch)
+            curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context)
             if args.learn and not args.dry_run:
                 logger.info("🧠 Learn-only mode: fetching articles and extracting knowledge (no posts generated)")
             else:
@@ -532,7 +595,7 @@ def main():
         target_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         # --schedule has no "all" handler — expand it here
         if target_channels == ["all"]:
-            target_channels = ["linkedin", "x", "bluesky", "threads", "youtube"]
+            target_channels = ["linkedin", "x", "threads", "youtube", "facebook", "instagram", "bluesky"]
 
 
         for channel in target_channels:
@@ -682,7 +745,7 @@ def main():
                         + str(Style.RESET_ALL)
                     )
                     continue
-                buffer = build_buffer_service()
+                buffer = build_buffer_service(channel)
                 scheduler = PostScheduler(buffer_service=buffer)
                 try:
                     scheduled = scheduler.schedule_week(posts=posts, week_number=args.week, channel=channel)

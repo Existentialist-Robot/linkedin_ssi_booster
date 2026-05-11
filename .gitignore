@@ -69,3 +69,7 @@ data/avatar/extracted_knowledge.json
 
 data/selection/generated_candidates.jsonl
 data/avatar/domain_knowledge.json
+data/post_reviews/
+data/linkedin_tokens.json
+Comments.csv
+data/avatar/voice_history.json

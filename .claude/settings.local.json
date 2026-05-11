@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse -Force)",
+      "Bash(Select-Object -First 100)",
+      "Bash(Format-Table -Property Name, PSIsContainer, FullName)",
+      "Bash(.venv\\\\Scripts\\\\python.exe -c \"from services.linkedin_service import LinkedInService, build_linkedin_service; print\\('OK'\\)\")"
+    ]
+  }
+}

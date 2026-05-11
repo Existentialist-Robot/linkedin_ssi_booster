@@ -18,7 +18,12 @@ from typing import Any, Optional
 import ollama
 
 import json
-from services.shared import PERSONA_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT, SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS, THREADS_CHAR_LIMIT, clean_llm_text, format_post_paragraphs
+from services.shared import (
+    PERSONA_SYSTEM_PROMPT, SOCIAL_SYSTEM_PROMPT, YOUTUBE_SHORT_SYSTEM_PROMPT,
+    SSI_COMPONENT_INSTRUCTIONS, X_CHAR_LIMIT, X_URL_CHARS,
+    THREADS_CHAR_LIMIT, FACEBOOK_CHAR_LIMIT, INSTAGRAM_CHAR_LIMIT,
+    SECONDARY_CHANNELS, clean_llm_text, format_post_paragraphs,
+)
 from services.console_grounding import build_grounding_facts_block, ProjectFact, truth_gate
 from services.avatar_intelligence import build_extracted_grounding_context, ExtractedEvidenceFact
 
@@ -234,9 +239,31 @@ You are in interactive console chat mode.
         )
         hashtag_str = " ".join(f"#{h.lstrip('#')}" for h in hashtags)
 
-        if channel == "x":
+        _base_prompt = SOCIAL_SYSTEM_PROMPT if channel in SECONDARY_CHANNELS else PERSONA_SYSTEM_PROMPT
+
+        if channel == “facebook”:
+            max_length = FACEBOOK_CHAR_LIMIT
+            _platform_block = f”””\nIMPORTANT — this post is for Facebook, NOT LinkedIn:
+- Target length: up to {FACEBOOK_CHAR_LIMIT} characters
+- More personal, direct, and opinionated than LinkedIn — you can be blunt
+- Conversational first-person voice; contractions are fine
+- No corporate framing — write like you'd talk to a smart peer
+- 2-5 hashtags maximum, only if they genuinely fit
+- Do NOT use LinkedIn-style polish or filler CTAs
+“””
+        elif channel == “instagram”:
+            max_length = INSTAGRAM_CHAR_LIMIT
+            _platform_block = f”””\nIMPORTANT — this post is for Instagram, NOT LinkedIn:
+- Hard limit: {INSTAGRAM_CHAR_LIMIT} characters
+- First 125 characters are visible before “more” — make the hook count
+- Punchy, direct, and personal — your unfiltered take
+- You can be cutting; Instagram rewards strong opinions
+- 5-15 relevant hashtags at the very end (separated by a blank line)
+- Do NOT use LinkedIn structure, jargon, or hollow closings
+“””
+        elif channel == “x”:
             max_length = X_CHAR_LIMIT
-            _platform_block = f"""\nIMPORTANT â€” this post is for X (Twitter), NOT LinkedIn:
+            _platform_block = f”””\nIMPORTANT â€” this post is for X (Twitter), NOT LinkedIn:
 - Hard limit: {X_CHAR_LIMIT} characters total (count every character including spaces and punctuation)
 - Write ONE tight paragraph only â€” no multi-paragraph structure
 - No hashtags â€” they will NOT be appended for X
@@ -266,10 +293,14 @@ You are in interactive console chat mode.
             else ""
         )
 
-        system_prompt = f"""{PERSONA_SYSTEM_PROMPT}
+        from services.voice_history import build_voice_examples_block as _voice_block_fn
+        _voice_examples = _voice_block_fn(channel=channel)
+        _voice_block = f"\n\n{_voice_examples}" if _voice_examples else ""
+
+        system_prompt = f"""{_base_prompt}
 Maximum length: {max_length} characters including hashtags.{_platform_block}
 SSI optimisation goal:
-{ssi_instruction}{_continuity_block}"""
+{ssi_instruction}{_continuity_block}{_voice_block}"""
 
         platform_label = {
             "x": "X post",

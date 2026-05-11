@@ -155,6 +155,24 @@ class BufferService:
                 return ch["id"]
         raise BufferChannelNotConnectedError("No YouTube channel found in Buffer. Connect your YouTube channel first.")
 
+    def get_facebook_channel_id(self) -> Optional[str]:
+        """Find the Facebook Page or Profile channel ID."""
+        channels = self.get_channels()
+        for ch in channels:
+            if ch.get("service") in ("facebook", "facebook-page"):
+                logger.info(f"Found Facebook channel: {ch['name']} (id: {ch['id']})")
+                return ch["id"]
+        raise BufferChannelNotConnectedError("No Facebook channel found in Buffer. Connect your Facebook Page/Profile first.")
+
+    def get_instagram_channel_id(self) -> Optional[str]:
+        """Find the Instagram Business channel ID."""
+        channels = self.get_channels()
+        for ch in channels:
+            if ch.get("service") in ("instagram", "instagram-business"):
+                logger.info(f"Found Instagram channel: {ch['name']} (id: {ch['id']})")
+                return ch["id"]
+        raise BufferChannelNotConnectedError("No Instagram channel found in Buffer. Connect your Instagram Business account first.")
+
     def create_post(self, channel_id: str, text: str, scheduled_at: Optional[str] = None) -> dict:
         """
         Create a post in Buffer.
