@@ -42,6 +42,9 @@ htmlcov/
 *.swp
 *.swo
 
+# Claude Code local session settings (permissions are machine-specific)
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db

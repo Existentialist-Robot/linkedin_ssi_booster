@@ -93,6 +93,59 @@ def print_startup_notice():
     # except Exception as e:
     #     print(str(Fore.YELLOW) + f"\n⚠️  Could not check Buffer queue: {e}" + str(Style.RESET_ALL))
 
+
+def _check_api_key_expiry() -> None:
+    """Warn once per calendar day when a tracked API key is within 10 days of expiry.
+
+    Keys to track: add (env_var_name, expires_env_var_name) tuples to the list below.
+    The notified-date is stored in data/.expiry_notified to avoid repeating within one day.
+    """
+    from datetime import date as _date
+    keys_to_check = [
+        ("BUFFER_API_KEY_B", "BUFFER_API_KEY_B_EXPIRES"),
+        # ("BUFFER_API_KEY", "BUFFER_API_KEY_EXPIRES"),  # uncomment when ready
+    ]
+    today = _date.today()
+    notified_path = Path("data") / ".expiry_notified"
+    try:
+        notified_path.parent.mkdir(parents=True, exist_ok=True)
+        last_notified = _date.fromisoformat(notified_path.read_text().strip()) if notified_path.exists() else None
+    except (ValueError, OSError):
+        last_notified = None
+
+    if last_notified and last_notified >= today:
+        return
+
+    warned = False
+    for key_var, expires_var in keys_to_check:
+        expiry_str = os.getenv(expires_var, "").strip()
+        if not expiry_str:
+            continue
+        try:
+            expiry = _date.fromisoformat(expiry_str)
+        except ValueError:
+            continue
+        days_left = (expiry - today).days
+        if days_left > 10:
+            continue
+        if days_left <= 0:
+            print(str(Fore.RED) + str(Style.BRIGHT)
+                  + f"\n[KEY EXPIRED] {key_var} expired on {expiry}. Update it now in .env."
+                  + str(Style.RESET_ALL))
+        else:
+            print(str(Fore.YELLOW) + str(Style.BRIGHT)
+                  + f"\n[KEY EXPIRY] {key_var} expires in {days_left} day(s) on {expiry}. "
+                  + "Update .env before it stops working."
+                  + str(Style.RESET_ALL))
+        warned = True
+
+    if warned:
+        try:
+            notified_path.write_text(today.isoformat())
+        except OSError:
+            pass
+
+
 # --- Coloured log formatter ---
 class _ColourFormatter(logging.Formatter):
     _LEVEL = {
@@ -356,7 +409,7 @@ def main():
         return parts
 
     parser.add_argument("--channel",   type=_parse_channels, default=["linkedin"],
-                        help="Target channel(s) as comma-separated list: linkedin,x,bluesky,threads,youtube,all (default: linkedin)")
+                        help="Target channel(s) as comma-separated list: linkedin,x,bluesky,threads,youtube,facebook,instagram,all (default: linkedin)")
     parser.add_argument("--type",      choices=["idea", "post"], default="idea",
                         help="idea: add to Buffer Ideas board; post: schedule directly to next available queue slot (default: idea)")
     parser.add_argument("--debug",     action="store_true", help="Enable DEBUG-level logging (shows raw API payloads and responses)")
@@ -379,7 +432,13 @@ def main():
                         help="Fetch all published Buffer posts and add them to voice history")
     parser.add_argument("--voice-stats", action="store_true",
                         help="Show voice history stats (sample counts by source)")
+    parser.add_argument("--check-expiry", action="store_true",
+                        help="Check API key expiry dates and exit (safe to run any time)")
     args = parser.parse_args()
+
+    if args.check_expiry:
+        _check_api_key_expiry()
+        return
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -532,6 +591,7 @@ def main():
         return
 
     print_startup_notice()
+    _check_api_key_expiry()
 
     _github_context = build_github_profile_context(
         max_chars=int(os.getenv("GITHUB_CONTEXT_MAX_CHARS", "30000"))
