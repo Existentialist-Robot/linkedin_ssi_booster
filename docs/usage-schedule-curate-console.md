@@ -2,17 +2,41 @@
 
 The CLI centers on three main workflows: scheduling from a private content calendar, curating from live RSS sources, and running a grounded interactive console. A `--dry-run` mode is available across flows to generate and inspect outputs without making Buffer API calls.
 
+## Running with Docker Compose
+
+The recommended way to run all commands is via Docker Compose using `run.sh`, which automatically exports your `USER_UID` for PulseAudio passthrough (voice output).
+
+```bash
+# Start the core stack (Ollama + Piper TTS + app) in the background
+bash run.sh --profile core up -d
+
+# Run any one-shot command against the running stack
+docker compose --profile core run --rm app python main.py --curate
+docker compose --profile core run --rm app python main.py --schedule --week 1 --dry-run
+
+# Interactive console (TTY required for stdin)
+docker compose --profile core run --rm -it app python main.py --console
+
+# Full mode — adds FLUX image generation
+bash run.sh --profile full up -d
+```
+
+> **Voice note:** `run.sh` exports `USER_UID=$(id -u)` and mounts the PulseAudio socket so `CONSOLE_USE_VOICE=true` works inside the container. Running `docker compose` directly without `run.sh` will work but audio output will be silent unless your shell already has `USER_UID` exported.
+
 ## Main commands
 
 ```bash
 python main.py --schedule --week 1 --dry-run
 python main.py --curate --dry-run
 python main.py --console
+python main.py --console --verify
+python main.py --console --avatar-explain
+python main.py --console --dot-report
 python main.py --report
 python main.py --save-ssi 10.49 9.69 11.0 12.15
 ```
 
-`--schedule` uses `content_calendar.py`, `--curate` uses live RSS feeds filtered by niche keywords, and `--console` opens an interactive persona chat with deterministic grounding for factual project, career, and domain knowledge queries. The documentation also lists `/help`, `/reset`, and `/exit` as console commands.
+`--schedule` uses `content_calendar.py`, `--curate` uses live RSS feeds filtered by niche keywords, and `--console` opens an interactive persona chat with deterministic grounding for factual project, career, and domain knowledge queries. Console mode supports flags for verification (`--verify`), avatar explanations (`--avatar-explain`), and DoT reports (`--dot-report`), or you can toggle these modes during a session using in-console commands.
 
 ## Schedule mode
 
@@ -43,15 +67,96 @@ python main.py --curate --avatar-explain
 
 ### Console mode — welcome screen and query routing
 
-When you run `--console`, the startup screen explains the three query modes:
+When you run `--console`, the startup screen explains the three query modes and shows the current status of diagnostic modes:
 
 ```
-📋 Project & career questions (deterministic, cited answers)
-🧠 Domain knowledge questions (routed to domain facts)
-💬 Free-form persona chat (AI-generated, grounded in persona)
+🧠 Persona Console Mode — Enhanced Query Routing
+- No Buffer actions will be performed in this mode.
+
+  Status: verify=OFF | avatar-explain=OFF | dot-report=OFF
+
+3 Query Routing Modes:
+
+  1️⃣  Explicit File Request → Deterministic citation (raw facts)
+    • persona_graph
+    • extracted_knowledge
+    • domain_knowledge
+    • narrative_memory
+
+  2️⃣  Learned Knowledge → Search extracted knowledge for relevant facts
+    • from your learned knowledge, what are the AI trends?
+    • based on what you learned, explain kubernetes
+    • using your learned knowledge, tell me about RAG
+    • search your learned knowledge for microservices
+
+  3️⃣  Everything Else → LLM with graph-enhanced retrieval (default)
+    • What is RAG?
+    • Explain vector search
+    • What projects have you worked on?
+    • write a LinkedIn post about...
+    • How are you today?
+
+🔗 Knowledge Graph Integration:
+  • Route 3 uses hybrid fact ranking:
+    - 70% BM25 keyword matching
+    - 20% graph proximity (facts closer to persona node rank higher)
+    - 10% claim support (facts with more supporting edges rank higher)
+  • Use /graph-stats to inspect graph structure (nodes, edges, types)
+
+  Commands: /help, /reset, /reload, /exit, /verify, /avatar-explain, /dot-report, /graph-stats
 ```
 
-Routing is **deterministic** — no model call is made for grounded queries. The router detects intent from the query text and retrieves the best-matching facts from the in-memory fact pool, which combines persona graph facts and domain knowledge facts.
+#### Console Commands
+
+Console mode supports the following slash commands:
+
+| Command            | Description                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| `/help`            | Display all available commands                                            |
+| `/reset`           | Clear conversation history                                                |
+| `/reload`          | Re-read persona graph, domain packs, and extracted_knowledge.json         |
+| `/exit` or `/quit` | Exit console mode                                                         |
+| `/verify`          | Toggle DoT + similarity verification on/off                               |
+| `/avatar-explain`  | Toggle avatar-explain report (evidence IDs and grounding summary) on/off  |
+| `/dot-report`      | Toggle Derivative of Truth report (truth gradient and uncertainty) on/off |
+| `/graph-stats`     | Show knowledge graph statistics (node/edge counts, node types)            |
+
+**Status Display**: The status line shows the current state of all three diagnostic modes. When a mode is enabled, it displays in **green**; when disabled, it displays in **red**.
+
+**Toggle Behavior**: When you toggle a mode with `/verify`, `/avatar-explain`, or `/dot-report`, the command displays confirmation and updates the status line. You can enable/disable any combination of modes during your session without restarting console mode.
+
+**Visual Feedback**: When diagnostic modes are active, console displays progress indicators for long-running operations:
+
+- 🤔 **Thinking...** — LLM is generating a response
+- 📊 **Verifying...** — Running DoT + similarity checks (when `/verify` is on)
+- 🧠 **Generating avatar-explain...** — Building evidence report (when `/avatar-explain` is on)
+- 📈 **Generating DoT report...** — Calculating truth gradient (when `/dot-report` is on)
+
+**Simplified Query Routing (3 Modes)**
+
+The console uses intelligent routing with 3 distinct modes:
+
+1. **Explicit File Name Requests** → Deterministic citation (raw facts from data/avatar directory)
+   - Only triggers when you explicitly mention a file name: `persona_graph`, `extracted_knowledge`, `domain_knowledge`, or `narrative_memory`
+   - Returns raw facts directly from the artifact files
+
+2. **"From Your Learned Knowledge"** → Use latest 5 extracted knowledge as context (or search)
+   - Triggers on phrases like "from your learned knowledge", "based on what you learned"
+   - Retrieves the 5 most recent items from extracted_knowledge.json and uses them as LLM context
+   - **Search Mode**: When you say "search your learned knowledge" or similar, it performs keyword-based search instead of returning latest 5
+   - Search phrases: "search your learned knowledge", "search your learning", "find in your learned knowledge", "query your learned knowledge"
+   - Search scores facts by keyword overlap and tag matching, returning top 5 most relevant results
+
+3. **Everything Else** → LLM with graph-enhanced retrieval (default)
+   - All other queries (domain questions, project questions, tech queries, generative requests, general chat)
+   - Uses **hybrid fact ranking** to retrieve the most relevant facts:
+     - **70% BM25**: Traditional keyword matching for query relevance
+     - **20% Graph Proximity**: Facts closer to the persona node in the knowledge graph rank higher
+     - **10% Claim Support**: Facts with more supporting edges (cross-references) rank higher
+   - Provides natural AI responses grounded in your knowledge base
+   - Fallback: If knowledge graph initialization fails, routes fall back to simple BM25 retrieval
+
+**Key Design:** Most queries route to the LLM with artifacts as context, providing natural AI responses grounded in facts. Deterministic citation only happens when you explicitly request a file by name.
 
 #### Query routing rules
 
@@ -90,16 +195,17 @@ The following terms are recognized by the console router and trigger tech-tag gr
 
 ## Channel behavior
 
-The README documents channel-specific output rules across LinkedIn, X, Bluesky, Threads, YouTube, and `all`. LinkedIn appends source URLs and hashtags programmatically, while X, Bluesky, and Threads are shorter single-post outputs without hashtag appending, and YouTube produces spoken Short scripts that are saved locally rather than sent to Buffer.
+The README documents channel-specific output rules across LinkedIn, X, Bluesky, Threads, Facebook, YouTube, and `all`. LinkedIn appends source URLs and hashtags programmatically, while X, Bluesky, Threads, and Facebook are shorter single-post outputs without hashtag appending, and YouTube produces spoken Short scripts that are saved locally rather than sent to Buffer.
 
-| Channel    | Behavior                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `linkedin` | Default channel; source URL and hashtags are appended programmatically for curation output.             |
-| `x`        | 280-character limit, single paragraph, no hashtag append.                                               |
-| `bluesky`  | 300-character limit, X-like post behavior.                                                              |
-| `threads`  | 500-character limit, conversational short post behavior, no hashtag append.                             |
-| `youtube`  | Generates a spoken script, prints it, and saves it to `yt-vid-data/`; not pushed to Buffer.             |
-| `all`      | Runs LinkedIn, X, Bluesky, Threads, and YouTube together, with YouTube handled as a local script artifact. |
+| Channel    | Behavior                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| `linkedin` | Default channel; source URL and hashtags are appended programmatically for curation output.                          |
+| `x`        | 280-character limit, single paragraph, no hashtag append.                                                            |
+| `bluesky`  | 300-character limit, X-like post behavior.                                                                           |
+| `threads`  | 500-character limit, conversational short post behavior, no hashtag append.                                          |
+| `facebook` | Similar to LinkedIn; source URL and hashtags are appended programmatically for curation output.                      |
+| `youtube`  | Generates a spoken script, prints it, and saves it to `yt-vid-data/`; not pushed to Buffer.                          |
+| `all`      | Runs LinkedIn, X, Bluesky, Threads, Facebook, and YouTube together, with YouTube handled as a local script artifact. |
 
 ## Curation pipeline
 

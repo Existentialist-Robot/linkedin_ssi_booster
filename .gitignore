@@ -76,3 +76,6 @@ data/post_reviews/
 data/linkedin_tokens.json
 Comments.csv
 data/avatar/voice_history.json
+data/selection/published_posts_cache.jsonl
+
+models/

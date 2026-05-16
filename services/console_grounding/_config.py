@@ -35,6 +35,35 @@ DOMAIN_KNOWLEDGE_PHRASES: frozenset[str] = frozenset([
     "can you explain", "teach me", "what's",
 ])
 
+# File names from data/avatar directory (without .json extension)
+# When user explicitly mentions these, route to deterministic citation
+EXPLICIT_ARTIFACT_PHRASES: frozenset[str] = frozenset([
+    "persona_graph",
+    "extracted_knowledge",
+    "domain_knowledge",
+    "narrative_memory",
+])
+
+# Phrases that request using learned knowledge as context
+LEARNED_KNOWLEDGE_PHRASES: frozenset[str] = frozenset([
+    "from your learned knowledge",
+    "from your learning",
+    "from what you learned",
+    "based on what you learned",
+    "using your learned knowledge",
+    "with your learned knowledge",
+])
+
+# Phrases that request searching learned knowledge
+SEARCH_LEARNED_KNOWLEDGE_PHRASES: frozenset[str] = frozenset([
+    "search your learned knowledge",
+    "search your learning",
+    "search from your learned knowledge",
+    "find in your learned knowledge",
+    "look for in your learned knowledge",
+    "query your learned knowledge",
+])
+
 DEFAULT_TAG_EXPANSIONS: dict[str, set[str]] = {
     "java": {"spring", "jms", "oracle", "weblogic", "solr", "lucene", "elasticsearch"},
 }

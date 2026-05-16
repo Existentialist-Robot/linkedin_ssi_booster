@@ -102,6 +102,26 @@ def record_moderation_event(
 # ---------------------------------------------------------------------------
 
 
+def _format_fact_summary(f: Union[EvidenceFact, DomainEvidenceFact, ExtractedEvidenceFact]) -> str:
+    """Helper to handle the string formatting for different fact types."""
+    # Common truncation logic
+    def trunc(s: str, length: int = 80) -> str:
+        return f"{s[:length]}..." if len(s) > length else s
+
+    if isinstance(f, EvidenceFact):
+        return f"[{f.evidence_id}] {f.project} ({f.years}) — {trunc(f.details)}"
+    
+    if isinstance(f, DomainEvidenceFact):
+        tags = f" (Tags: {', '.join(f.tags)})" if f.tags else ""
+        return f"[{f.evidence_id}] {f.domain} — {trunc(f.statement)}{tags}"
+    
+    if isinstance(f, ExtractedEvidenceFact):
+        tags = f" (Tags: {', '.join(f.tags)})" if f.tags else ""
+        source = f" ← {trunc(f.source_title, 60)}" if f.source_title else ""
+        return f"[{f.evidence_id}] {trunc(f.statement)}{tags}{source}"
+
+    return f"[{getattr(f, 'evidence_id', '?')}] Unknown type: {str(f)[:100]}"
+
 def build_explain_output(
     evidence_facts: Sequence[Union[EvidenceFact, DomainEvidenceFact]],
     article_ref: str,
@@ -109,63 +129,27 @@ def build_explain_output(
     ssi_component: str,
     dot_per_sentence_scores: list[float] | None = None,
     spacy_sim_scores: dict[str, float] | None = None,
-    extracted_facts: "Sequence[ExtractedEvidenceFact] | None" = None,
+    extracted_facts: Sequence[ExtractedEvidenceFact] | None = None,
     article_title: str = "",
     article_url: str = "",
 ) -> ExplainOutput:
-    """Build an ExplainOutput summary from the evidence facts used in a generation.
-
-    Args:
-        evidence_facts:           Persona + domain facts retrieved for grounding.
-        article_ref:              Article title or URL for display.
-        channel:                  Target channel (linkedin, x, bluesky, etc.).
-        ssi_component:            SSI component the post targets.
-        dot_per_sentence_scores:  Per-sentence DoT gradient from TruthGateMeta.
-        spacy_sim_scores:         Per-sentence spaCy similarity from TruthGateMeta.
-        extracted_facts:          NLP-extracted knowledge facts used as evidence.
-        article_title:            Title of the article used as external evidence.
-        article_url:              URL of the article used as external evidence.
     """
+    Builds an ExplainOutput summary. 
+    Assumes facts have been pre-filtered by the caller (routing layer).
+    """
+    # 1. Map Persona/Domain facts to summaries
+    summaries = [_format_fact_summary(f) for f in evidence_facts]
     ids = [f.evidence_id for f in evidence_facts]
-    summaries = []
-    for f in evidence_facts:
-        if isinstance(f, EvidenceFact):
-            summaries.append(
-                f"[{f.evidence_id}] {f.project} ({f.years}) — "
-                f"{f.details[:80]}{'...' if len(f.details) > 80 else ''}"
-            )
-        elif isinstance(f, DomainEvidenceFact):
-            summaries.append(
-                f"[{f.evidence_id}] {f.domain} — "
-                f"{f.statement[:80]}{'...' if len(f.statement) > 80 else ''} "
-                f"(Tags: {', '.join(f.tags)})"
-            )
-        else:
-            attrs = (
-                ", ".join(f"{k}={v}" for k, v in vars(f).items())
-                if hasattr(f, "__dict__")
-                else str(f)
-            )
-            summaries.append(
-                f"[{getattr(f, 'evidence_id', '?')}] Unknown evidence type: {attrs}"
-            )
 
-    # Build extracted knowledge summaries
-    ext_summaries: list[str] = []
-    for xf in (extracted_facts or []):
-        tag_str = f" (Tags: {', '.join(xf.tags)})" if xf.tags else ""
-        source_str = f" \u2190 {xf.source_title[:60]}" if xf.source_title else ""
-        ext_summaries.append(
-            f"[{xf.evidence_id}] {xf.statement[:80]}{'...' if len(xf.statement) > 80 else ''}"
-            f"{tag_str}{source_str}"
-        )
+    # 2. Map Extracted knowledge to summaries
+    ext_summaries = [_format_fact_summary(xf) for xf in (extracted_facts or [])]
 
-    # Build article evidence one-liner
+    # 3. Build article evidence one-liner
     art_evidence = ""
     if article_title or article_url:
         _title = (article_title or article_ref)[:80]
-        _url = article_url[:100] if article_url else ""
-        art_evidence = _title + (f" | {_url}" if _url else "")
+        _url = f" | {article_url[:100]}" if article_url else ""
+        art_evidence = f"{_title}{_url}"
 
     return ExplainOutput(
         evidence_ids=ids,
@@ -465,6 +449,46 @@ def build_learning_report() -> LearningReport:
     )
 
 
+def _load_category_insights() -> dict[str, Any]:
+    """Load category distribution from the selection learning candidates log.
+
+    Returns a dict with:
+      - category_counts: {category: count}
+      - ssi_counts: {ssi_component: count}
+      - top_category: str
+      - total_classified: int
+    """
+    try:
+        from services.selection_learning._constants import CANDIDATES_LOG_PATH
+        from services.selection_learning._storage import JsonlStore
+
+        records = JsonlStore.read(CANDIDATES_LOG_PATH)
+        category_counts: Counter[str] = Counter()
+        ssi_counts: Counter[str] = Counter()
+        total_classified = 0
+
+        for rec in records:
+            cat = rec.get("primary_category", "")
+            ssi = rec.get("primary_ssi_component", "")
+            if cat:
+                category_counts[cat] += 1
+                total_classified += 1
+            if ssi:
+                ssi_counts[ssi] += 1
+
+        top_category = category_counts.most_common(1)[0][0] if category_counts else ""
+        return {
+            "category_counts": dict(category_counts.most_common(10)),
+            "ssi_counts": dict(ssi_counts),
+            "top_category": top_category,
+            "total_classified": total_classified,
+            "total_candidates": len(records),
+        }
+    except Exception as exc:
+        logger.debug("Category insights unavailable: %s", exc)
+        return {}
+
+
 def format_learning_report(report: LearningReport) -> str:
     """Format a LearningReport as a human-readable plain-text block."""
     lines = [
@@ -496,6 +520,33 @@ def format_learning_report(report: LearningReport) -> str:
         lines.append("")
     else:
         lines.append("No recommendations (insufficient data or no patterns detected).")
+
+    # Category insights section — loaded from selection learning candidates log
+    cat_insights = _load_category_insights()
+    if cat_insights and cat_insights.get("total_classified", 0) > 0:
+        total_cands = cat_insights.get("total_candidates", 0)
+        total_classified = cat_insights["total_classified"]
+        lines.append("── Category Insights (Model2Vec) ───────────────────────")
+        lines.append(f"Candidates logged : {total_cands}")
+        lines.append(f"Classified        : {total_classified} ({total_classified * 100 // max(total_cands, 1)}%)")
+        lines.append("")
+
+        cat_counts = cat_insights.get("category_counts", {})
+        if cat_counts:
+            lines.append("Top categories by article volume:")
+            for cat, count in cat_counts.items():
+                pct = count * 100 // max(total_classified, 1)
+                bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
+                lines.append(f"  {cat:<25} {bar}  {count:>4} ({pct}%)")
+            lines.append("")
+
+        ssi_counts = cat_insights.get("ssi_counts", {})
+        if ssi_counts:
+            lines.append("SSI component distribution (from category mapping):")
+            for ssi, count in sorted(ssi_counts.items(), key=lambda x: x[1], reverse=True):
+                pct = count * 100 // max(total_classified, 1)
+                lines.append(f"  {ssi:<30} {count:>4} ({pct}%)")
+            lines.append("")
 
     lines.append("────────────────────────────────────────────────────────")
     return "\n".join(lines)

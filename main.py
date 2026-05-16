@@ -170,43 +170,70 @@ from services.console_grounding import (
     parse_query_constraints,
     retrieve_relevant_facts,
     build_deterministic_grounded_reply,
+    get_latest_extracted_knowledge,
+    build_learned_knowledge_context,
+    build_grounding_facts_block,
 )
 from services.ollama_service import OllamaService
 from services.github_service import build_github_profile_context
+from services.piper_service import speak_text
 
-def run_console(ai: OllamaService, github_context: str = "") -> None:
-    """Run interactive persona chat mode in the terminal."""
+def run_console(ai: OllamaService, github_context: str = "", verify: bool = False, avatar_explain: bool = False, dot_report: bool = False) -> None:
+    """Run interactive persona chat mode in the terminal.
+    
+    When verify=True, DoT report scanning and spaCy similarity checks are displayed
+    for each generated response.
+    When avatar_explain=True, evidence IDs and grounding summary are printed after each LLM reply.
+    When dot_report=True, Derivative of Truth report is printed after each LLM reply.
+    """
     # Patterns that should always route to LLM (not deterministic fact citation)
     GENERATIVE_REQUEST_PHRASES = [
         "write", "generate", "give me", "post", "reply", "respond", "script", "make me", "create",
         "linkedin", "youtube", "x", "bluesky", "twitter", "tiktok", "thread", "mastodon", "deck", "slide"
     ]
 
-    print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n🧠 Persona Console Mode" + str(Style.RESET_ALL))
+    def _print_status() -> None:
+        """Print current console mode status."""
+        _status_line = str(Style.DIM) + "  Status: " + str(Style.RESET_ALL)
+        _status_line += str(Fore.GREEN if verify else Fore.RED) + f"verify={'ON' if verify else 'OFF'}" + str(Style.RESET_ALL)
+        _status_line += str(Style.DIM) + " | " + str(Style.RESET_ALL)
+        _status_line += str(Fore.GREEN if avatar_explain else Fore.RED) + f"avatar-explain={'ON' if avatar_explain else 'OFF'}" + str(Style.RESET_ALL)
+        _status_line += str(Style.DIM) + " | " + str(Style.RESET_ALL)
+        _status_line += str(Fore.GREEN if dot_report else Fore.RED) + f"dot-report={'ON' if dot_report else 'OFF'}" + str(Style.RESET_ALL)
+        print(_status_line)
+
+    print(str(Fore.CYAN) + str(Style.BRIGHT) + "\n🧠 Persona Console Mode — Enhanced Query Routing" + str(Style.RESET_ALL))
     print("- No Buffer actions will be performed in this mode.")
     print()
-    print(str(Fore.WHITE) + str(Style.BRIGHT) + "How to use this console:" + str(Style.RESET_ALL))
-    print("  Chat freely with Sam's AI persona, or ask grounded questions that draw")
-    print("  directly from the loaded persona graph and domain knowledge base.")
+    _print_status()
     print()
-    print(str(Fore.CYAN) + "  📋 Project & career questions (deterministic, cited answers):" + str(Style.RESET_ALL))
-    print("    • What projects have you worked on?")
-    print("    • Where have you worked?")
-    print("    • What did you build at <company>?")
-    print("    • What Java or Spring Boot projects have you done?")
+    print(str(Fore.WHITE) + str(Style.BRIGHT) + "3 Query Routing Modes:" + str(Style.RESET_ALL))
     print()
-    print(str(Fore.CYAN) + "  🧠 Domain knowledge questions (routed to domain facts):" + str(Style.RESET_ALL))
+    print(str(Fore.YELLOW) + "  1️⃣  Explicit File Request → Deterministic citation (raw facts)" + str(Style.RESET_ALL))
+    print("    • persona_graph")
+    print("    • extracted_knowledge")
+    print("    • domain_knowledge")
+    print("    • narrative_memory")
+    print()
+    print(str(Fore.YELLOW) + "  2️⃣  Learned Knowledge → Latest 5 extracted facts as context (or search)" + str(Style.RESET_ALL))
+    print("    • from your learned knowledge, what are the AI trends?")
+    print("    • based on what you learned, explain...")
+    print("    • search your learned knowledge for RAG techniques")
+    print("    • find in your learned knowledge about microservices")
+    print()
+    print(str(Fore.YELLOW) + "  3️⃣  Everything Else → LLM with graph-enhanced retrieval (default)" + str(Style.RESET_ALL))
     print("    • What is RAG?")
-    print("    • Explain BM25 retrieval.")
-    print("    • How does vector search work?")
-    print("    • Tell me about microservices.")
-    print("    • What do you know about LLMs?")
-    print("    • What is prompt engineering?")
+    print("    • Explain vector search")
+    print("    • What projects have you worked on?")
+    print("    • write a LinkedIn post about...")
+    print("    • How are you today?")
     print()
-    print(str(Fore.CYAN) + "  💬 Free-form persona chat (AI-generated, grounded in persona):" + str(Style.RESET_ALL))
-    print("    • Any topic not matching a grounded query is handled by the AI model.")
+    print(str(Fore.WHITE) + str(Style.BRIGHT) + "🔗 Knowledge Graph Integration:" + str(Style.RESET_ALL))
+    print("    • 70% BM25 keyword matching")
+    print("    • 20% graph proximity (facts closer to persona node rank higher)")
+    print("    • 10% claim support (facts with more supporting edges rank higher)")
     print()
-    print(str(Fore.WHITE) + "  Commands: /help, /reset, /reload, /exit" + str(Style.RESET_ALL))
+    print(str(Fore.WHITE) + "  Commands: /help, /reset, /reload, /exit, /verify, /avatar-explain, /dot-report, /graph-stats" + str(Style.RESET_ALL))
     print()
 
 
@@ -223,17 +250,32 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         domain_facts_to_project_facts,
         build_grounding_context,
     )
+    
     from services.console_grounding._models import ProjectFact as _ProjectFact
+    from services.knowledge_graph import KnowledgeGraphManager
+    from services.hybrid_retriever import HybridRetriever
 
-    def _load_knowledge_state() -> tuple[list, str]:
-        """Load (or reload) avatar knowledge state and return (_profile_facts, _grounding_context)."""
+    # Initialize Knowledge Graph Manager
+    _kg: KnowledgeGraphManager | None = None
+    _hybrid_retriever: HybridRetriever | None = None
+
+    def _load_knowledge_state() -> tuple[list, str, list, list, list]:
+        """Load (or reload) avatar knowledge state.
+        
+        Returns: (_profile_facts, _grounding_context, _raw_evidence_facts, _raw_domain_facts, _raw_extracted_facts)
+        """
         avatar_state = _lav_console()
         avatar_facts = normalize_evidence_facts(avatar_state)
+        
+        domain_facts_raw = []
         domain_pf: list = []
         try:
-            domain_pf = domain_facts_to_project_facts(normalize_domain_facts(avatar_state))
+            domain_facts_raw = normalize_domain_facts(avatar_state)
+            domain_pf = domain_facts_to_project_facts(domain_facts_raw)
         except Exception as exc:
             logger.warning("Domain knowledge not loaded for console mode: %s", exc)
+        
+        extracted_raw = []
         extracted_pf: list = []
         try:
             extracted_raw = normalize_extracted_facts(avatar_state)
@@ -250,18 +292,34 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
             ]
         except Exception as exc:
             logger.warning("Extracted knowledge not loaded for console mode: %s", exc)
+        
         profile_facts = evidence_facts_to_project_facts(avatar_facts) + domain_pf + extracted_pf
         grounding_ctx = build_grounding_context(avatar_facts)
         if github_context:
             grounding_ctx = f"{grounding_ctx}\n\n{github_context}" if grounding_ctx else github_context
-        return profile_facts, grounding_ctx
+        return profile_facts, grounding_ctx, list(avatar_facts), domain_facts_raw, extracted_raw
 
-    _profile_facts, _grounding_context = _load_knowledge_state()
-    logger.info(
+    _profile_facts, _grounding_context, _raw_evidence_facts, _raw_domain_facts, _raw_extracted_facts = _load_knowledge_state()
+    logger.debug(
         "Console mode: loaded %d grounding facts (%d total)",
         len(_profile_facts),
         len(_profile_facts),
     )
+
+    # Bootstrap Knowledge Graph from avatar state
+    try:
+        _kg = KnowledgeGraphManager()
+        _kg.bootstrap_from_avatar_state(_lav_console())
+        _hybrid_retriever = HybridRetriever(kg=_kg)
+        logger.debug(
+            "Knowledge Graph initialized: %d nodes, %d edges",
+            _kg.node_count,
+            _kg.edge_count,
+        )
+    except Exception as kg_err:
+        logger.warning("Knowledge Graph initialization failed: %s — using fallback retrieval", kg_err)
+        _kg = None
+        _hybrid_retriever = None
 
     from services.console_grounding import truth_gate_result as _tg_result
 
@@ -271,7 +329,11 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         spaCy article sim is intentionally excluded — it requires a source article
         text and is always empty when article_text="" (console mode has no article).
         Fact-pool sim (best match across persona/domain facts) works in all contexts.
+        
+        Only runs when verify=True.
         """
+        if not verify:
+            return
         try:
             _, _meta = _tg_result(reply, "", _profile_facts)
             dot = _meta.truth_gradient
@@ -316,6 +378,38 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
         except Exception:
             pass  # never interrupt the conversation for a scoring failure
 
+    def print_graph_statistics(summary):
+        """
+        Prints the graph statistics in a visually enhanced, structured, and colored format.
+        """
+        print("\n" + "="*60)
+        print(f"{Fore.CYAN}{Style.BRIGHT}{'GRAPH STRUCTURE ANALYSIS':^60}")
+        print("="*60)
+
+        # --- 1. Core Metrics (Table Format) ---
+        print(f"\n{Fore.YELLOW}{'--- CORE METRICS ---':^60}")
+        print(f"{Fore.YELLOW}{'Metric':<20}{'Count':>10}{'Details':<30}")
+        print("-" * 60)
+
+        print(f"{'Nodes':<20}{summary['nodes']:>10} | {'Edges':<20}{summary['edges']:>10}")
+        
+        # --- 2. Component Breakdown (Grouped Stats) ---
+        print(f"\n{Fore.YELLOW}{'--- COMPONENT BREAKDOWN ---':^60}")
+        
+        # Node Type Breakdown
+        node_types = summary.get('node_types', {})
+        if node_types:
+            print(f"{Fore.BLUE}{'Node Type Distribution':<20}{'Count':>10}")
+            print("-" * 30)
+            for node_type, count in node_types.items():
+                print(f"  {Fore.BLUE}{node_type:<18}{Fore.BLUE}{count:>10}")
+        else:
+            print(f"{Fore.BLUE}{'No specific node type breakdown available.'}")
+
+        print("\n" + "="*60)
+        print(f"{Fore.CYAN}{Style.BRIGHT}{'ANALYSIS COMPLETE':^60}")
+        print("="*60)
+
     while True:
         try:
             user_input = input("\nYou> ").strip()
@@ -331,39 +425,57 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
             print("Exiting console.")
             return
         if cmd == "/help":
-            print("Commands: /help, /reset, /reload, /exit")
+            print("Commands: /help, /reset, /reload, /exit, /verify, /avatar-explain, /dot-report, /graph-stats")
             print("  /reload — re-read persona graph, domain packs, and extracted_knowledge.json")
+            print("  /verify — toggle DoT + similarity verification on/off")
+            print("  /avatar-explain — toggle avatar-explain report on/off")
+            print("  /dot-report — toggle DoT report on/off")
+            print("  /graph-stats — show knowledge graph statistics")
             continue
         if cmd == "/reset":
             history.clear()
             print("Conversation history cleared.")
             continue
         if cmd == "/reload":
-            _profile_facts, _grounding_context = _load_knowledge_state()
+            _profile_facts, _grounding_context, _raw_evidence_facts, _raw_domain_facts, _raw_extracted_facts = _load_knowledge_state()
             print(
                 str(Fore.CYAN)
                 + f"Knowledge reloaded — {len(_profile_facts)} grounding facts now active."
                 + str(Style.RESET_ALL)
             )
             continue
-
-        lower_input = user_input.lower()
-        if any(phrase in lower_input for phrase in GENERATIVE_REQUEST_PHRASES):
-            history.append({"role": "user", "content": user_input})
-            if len(history) > max_turns * 2:
-                history = history[-max_turns * 2 :]
-            try:
-                reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
-            except Exception as e:
-                print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
-                continue
-            history.append({"role": "assistant", "content": reply})
-            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
-            _print_truth_score(reply)
+        if cmd == "/verify":
+            verify = not verify
+            _status = str(Fore.GREEN) + "ON" + str(Style.RESET_ALL) if verify else str(Fore.RED) + "OFF" + str(Style.RESET_ALL)
+            print(f"Verify mode: {_status}")
+            _print_status()
+            continue
+        if cmd == "/avatar-explain":
+            avatar_explain = not avatar_explain
+            _status = str(Fore.GREEN) + "ON" + str(Style.RESET_ALL) if avatar_explain else str(Fore.RED) + "OFF" + str(Style.RESET_ALL)
+            print(f"Avatar-explain mode: {_status}")
+            _print_status()
+            continue
+        if cmd == "/dot-report":
+            dot_report = not dot_report
+            _status = str(Fore.GREEN) + "ON" + str(Style.RESET_ALL) if dot_report else str(Fore.RED) + "OFF" + str(Style.RESET_ALL)
+            print(f"DoT report mode: {_status}")
+            _print_status()
+            continue
+        if cmd == "/graph-stats":
+            if _kg is None:
+                print(str(Fore.RED) + "Knowledge Graph is not available." + str(Style.RESET_ALL))
+            else:
+                summary = _kg.summary()
+                print(f"  Persona ID: {summary['persona_id']}")
+                print_graph_statistics(summary)
             continue
 
+        # Parse query to determine routing mode
         constraints = parse_query_constraints(user_input)
-        if constraints.requires_grounding:
+        
+        # Route 1: Explicit file name requests → Deterministic citation (raw facts)
+        if constraints.explicit_artifact_request:
             facts = retrieve_relevant_facts(_profile_facts, constraints, limit=8)
             reply = build_deterministic_grounded_reply(user_input, facts, constraints)
             history.append({"role": "user", "content": user_input})
@@ -371,26 +483,137 @@ def run_console(ai: OllamaService, github_context: str = "") -> None:
             if len(history) > max_turns * 2:
                 history = history[-max_turns * 2 :]
             print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+            speak_text(reply)
             continue
 
+        # Route 2: "From your learned knowledge" → Use latest 8 extracted knowledge as context
+        # If user asks to search, use keyword-based search instead of latest 8
+        if constraints.use_learned_knowledge:
+            if constraints.search_learned_knowledge:
+                from services.console_grounding._retrieval import search_learned_knowledge
+                learned_facts = search_learned_knowledge(user_input, _profile_facts, limit=8)
+            else:
+                learned_facts = get_latest_extracted_knowledge(_profile_facts, limit=8)
+            # Filter the raw lists based on the 'learned_facts' we actually retrieved
+            used_extracted = [f for f in _raw_extracted_facts if any(lf.source.endswith(f.evidence_id) for lf in learned_facts)]
+            learned_context = build_learned_knowledge_context(learned_facts)
+            history.append({"role": "user", "content": user_input})
+            if len(history) > max_turns * 2:
+                history = history[-max_turns * 2 :]
+            try:
+                # Use learned knowledge as PRIMARY context (put it first and emphasize it)
+                # The learned knowledge should be the focus, with persona context as background
+                enhanced_context = f"{learned_context}\n\n{_grounding_context}" if _grounding_context else learned_context
+                print(str(Fore.CYAN) + "🤔 Thinking..." + str(Style.RESET_ALL), end="", flush=True)
+                reply = ai.chat_as_persona(history, grounding_context=enhanced_context, max_tokens=600)
+                print("\r" + " " * 20 + "\r", end="", flush=True)  # Clear the "Thinking..." line
+            except Exception as e:
+                print("\r" + " " * 20 + "\r", end="", flush=True)  # Clear the "Thinking..." line
+                print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
+                continue
+            history.append({"role": "assistant", "content": reply})
+            print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
+            speak_text(reply)
+            
+            if verify:
+                print(str(Fore.CYAN) + "📊 Verifying..." + str(Style.RESET_ALL), end="", flush=True)
+                _print_truth_score(reply)
+                print("\r" + " " * 20 + "\r", end="", flush=True)  # Clear the "Verifying..." line
+            
+            
+            from services.shared import print_validation_reports
+
+            print_validation_reports(
+                post_text=reply,
+                context_text=user_input,
+                grounding_facts=_profile_facts,
+                raw_evidence=[],
+                raw_domain=[],
+                raw_extracted=used_extracted,
+                facts_used_for_dot=facts,
+                verify=verify,
+                avatar_explain=avatar_explain,
+                dot_report=dot_report
+            )
+
+            continue
+
+        # Route 3: Everything else → LLM with artifact context (default)
+        # This includes: domain/project/tech queries, generative requests, general chat
+        # Always retrieve relevant facts and use as context
+        if _hybrid_retriever is not None:
+            # Use hybrid retriever (BM25 + graph proximity + claim support)
+            # Combine all raw facts (evidence + domain + extracted) for hybrid scoring
+            _all_candidates = list(_raw_evidence_facts) + _raw_domain_facts + _raw_extracted_facts
+            facts_ranked = _hybrid_retriever.find_facts(user_input, _all_candidates, limit=8)
+            # Convert results back to ProjectFact for compatibility with build_grounding_facts_block
+            from services.avatar_intelligence import EvidenceFact, DomainEvidenceFact, ExtractedEvidenceFact
+            facts = []
+            for f in facts_ranked:
+                if isinstance(f, EvidenceFact):
+                    # Find matching ProjectFact from _profile_facts
+                    matching = [pf for pf in _profile_facts if pf.source.startswith("persona:") and f.evidence_id in pf.source]
+                    facts.extend(matching[:1])  # Add first match
+                elif isinstance(f, DomainEvidenceFact):
+                    matching = [pf for pf in _profile_facts if pf.source.startswith("domain:") and f.evidence_id in pf.source]
+                    facts.extend(matching[:1])
+                elif isinstance(f, ExtractedEvidenceFact):
+                    matching = [pf for pf in _profile_facts if pf.source.startswith("extracted_knowledge:") and f.evidence_id in pf.source]
+                    facts.extend(matching[:1])
+            # Categorize only the top facts for the validation report
+            # This ensures build_explain_output only sees what was actually used
+            used_ev = [f for f in facts_ranked[:8] if isinstance(f, EvidenceFact)]
+            used_dom = [f for f in facts_ranked[:8] if isinstance(f, DomainEvidenceFact)]
+            used_ext = [f for f in facts_ranked[:8] if isinstance(f, ExtractedEvidenceFact)]
+            # Ensure we have at least some facts even if conversion failed
+            if not facts:
+                facts = retrieve_relevant_facts(_profile_facts, constraints, limit=8)
+        else:
+            # Fallback to simple retrieval when graph not available
+            facts = retrieve_relevant_facts(_profile_facts, constraints, limit=8)
+        facts_context = build_grounding_facts_block(facts, limit=8)
         history.append({"role": "user", "content": user_input})
         if len(history) > max_turns * 2:
             history = history[-max_turns * 2 :]
         try:
-            reply = ai.chat_as_persona(history, grounding_context=_grounding_context, max_tokens=600)
+            # Use retrieved facts as additional context
+            enhanced_context = f"{_grounding_context}\n\n{facts_context}" if _grounding_context else facts_context
+            print(str(Fore.CYAN) + "🤔 Thinking..." + str(Style.RESET_ALL), end="", flush=True)
+            reply = ai.chat_as_persona(history, grounding_context=enhanced_context, max_tokens=600)
+            print("\r" + " " * 20 + "\r", end="", flush=True)  # Clear the "Thinking..." line
         except Exception as e:
+            print("\r" + " " * 20 + "\r", end="", flush=True)  # Clear the "Thinking..." line
             print(str(Fore.RED) + f"Sam> Error: {e}" + str(Style.RESET_ALL))
             continue
         history.append({"role": "assistant", "content": reply})
         print(str(Fore.GREEN) + f"Sam> {reply}" + str(Style.RESET_ALL))
-        _print_truth_score(reply)
+        speak_text(reply)
+        
+        if verify:
+            print(str(Fore.CYAN) + "📊 Verifying..." + str(Style.RESET_ALL), end="", flush=True)
+            _print_truth_score(reply)
+            print("\r" + " " * 20 + "\r", end="", flush=True)  # Clear the "Verifying..." line
 
+        from services.shared import print_validation_reports
+        print_validation_reports(
+            post_text=reply,
+            context_text=user_input,
+            grounding_facts=_profile_facts,
+            raw_evidence=used_ev,
+            raw_domain=used_dom,
+            raw_extracted=used_ext,
+            facts_used_for_dot=facts,
+            verify=verify,
+            avatar_explain=avatar_explain,
+            dot_report=dot_report
+        )
 
 def main():
     parser = argparse.ArgumentParser(description="LinkedIn SSI Booster via Buffer API")
     parser.add_argument("--schedule",  action="store_true", help="Generate and schedule posts to Buffer (use with --dry-run to preview only)")
     parser.add_argument("--curate",    action="store_true", help="Curate AI news and create ideas in Buffer")
     parser.add_argument("--console",   action="store_true", help="Open interactive persona chat mode (no Buffer calls)")
+    parser.add_argument("--verify",    action="store_true", help="Enable DoT report scanning and spaCy similarity checks in console mode (requires --console)")
     parser.add_argument("--report",    action="store_true", help="Print SSI component report")
     parser.add_argument("--save-ssi",  nargs=4, metavar=("BRAND", "FIND", "ENGAGE", "BUILD"),
                         type=float, help="Record today's SSI scores: --save-ssi 10.49 9.69 11.0 12.15")
@@ -405,7 +628,8 @@ def main():
         if invalid:
             parser.error(f"invalid --channel value(s): {', '.join(invalid)}. Choose from: {', '.join(sorted(_VALID_CHANNELS))}")
         if "all" in parts:
-            return ["all"]
+            # Expand "all" to individual channels for generation loop
+            return ["linkedin", "x", "bluesky", "threads", "youtube", "facebook"]
         return parts
 
     parser.add_argument("--channel",   type=_parse_channels, default=["linkedin"],
@@ -434,6 +658,14 @@ def main():
                         help="Show voice history stats (sample counts by source)")
     parser.add_argument("--check-expiry", action="store_true",
                         help="Check API key expiry dates and exit (safe to run any time)")
+    parser.add_argument("--classify", action="store_true",
+                        help="Batch-classify articles via Model2Vec before curation (requires: pip install model2vec)")
+    parser.add_argument("--add-category", nargs=3, metavar=("NAME", "DESCRIPTION", "SSI_COMPONENT"),
+                        help="Add a custom category: --add-category 'AI Research' 'Machine learning papers and studies' establish_brand")
+    parser.add_argument("--list-categories", action="store_true",
+                        help="List all available Model2Vec categories with descriptions and SSI component mapping")
+    parser.add_argument("--remove-category", nargs="+", metavar="NAME",
+                        help="Remove custom categories by name: --remove-category 'AI Research' 'Government Tech'")
     args = parser.parse_args()
 
     if args.check_expiry:
@@ -456,6 +688,8 @@ def main():
             incompatible.append("--save-ssi")
         if args.bsky_stats:
             incompatible.append("--bsky-stats")
+        if args.reconcile:
+            incompatible.append("--reconcile")
         if incompatible:
             print(
                 str(Fore.YELLOW)
@@ -498,17 +732,19 @@ def main():
         x_id = os.getenv("BUFFER_X_CHANNEL_ID")
         bsky_id = os.getenv("BUFFER_BLUESKY_CHANNEL_ID")
         threads_id = os.getenv("BUFFER_THREADS_CHANNEL_ID")
+        facebook_id = os.getenv("BUFFER_FACEBOOK_CHANNEL_ID")
         if x_id:
             channel_ids["x"] = x_id
         if bsky_id:
             channel_ids["bluesky"] = bsky_id
         if threads_id:
             channel_ids["threads"] = threads_id
+        if facebook_id:
+            channel_ids["facebook"] = facebook_id
         stats = reconcile_published(buffer, {k: v for k, v in channel_ids.items() if v is not None})
         print(str(Fore.GREEN) + "\n✅  Reconcile complete" + str(Style.RESET_ALL))
         for k, v in stats.items():
             print(f"   {k}: {v}")
-        return
 
     if args.save_ssi:
         brand, find, engage, build = args.save_ssi
@@ -539,6 +775,69 @@ def main():
                     print(f"  {tp['url']}")
         return
 
+    if args.list_categories:
+        from services.model2vec_service import get_model2vec_service
+        svc = get_model2vec_service()
+        if not svc.is_available():
+            print(str(Fore.YELLOW) + "\n⚠️  Model2Vec is not available (install with: pip install model2vec numpy)" + str(Style.RESET_ALL))
+            return
+        categories = svc.list_categories()
+        if not categories:
+            print(str(Fore.YELLOW) + "\n⚠️  No categories found" + str(Style.RESET_ALL))
+            return
+        print(str(Fore.CYAN) + str(Style.BRIGHT) + f"\n🏷️  Model2Vec Categories ({len(categories)} total)" + str(Style.RESET_ALL))
+        print()
+        for name, meta in sorted(categories.items()):
+            is_custom = meta.get("custom", "False") == "True"
+            ssi = meta.get("ssi_component", "general")
+            desc = meta.get("description", "")
+            custom_marker = str(Fore.MAGENTA) + " [custom]" + str(Style.RESET_ALL) if is_custom else ""
+            print(str(Fore.WHITE) + str(Style.BRIGHT) + f"  {name}" + str(Style.RESET_ALL) + custom_marker)
+            print(f"    {desc[:100]}{'...' if len(desc) > 100 else ''}")
+            print(str(Fore.YELLOW) + f"    → {ssi}" + str(Style.RESET_ALL))
+            print()
+        return
+
+    if args.add_category:
+        from services.model2vec_service import get_model2vec_service
+        svc = get_model2vec_service()
+        if not svc.is_available():
+            print(str(Fore.YELLOW) + "\n⚠️  Model2Vec is not available (install with: pip install model2vec numpy)" + str(Style.RESET_ALL))
+            return
+        name, description, ssi_component = args.add_category
+        valid_ssi = {"establish_brand", "find_right_people", "engage_with_insights", "build_relationships"}
+        if ssi_component not in valid_ssi:
+            print(str(Fore.RED) + f"\n❌  Invalid SSI component: {ssi_component}" + str(Style.RESET_ALL))
+            print(f"    Valid options: {', '.join(sorted(valid_ssi))}")
+            return
+        success = svc.add_category(name, description, ssi_component)
+        if success:
+            print(str(Fore.GREEN) + f"\n✅  Added custom category: '{name}'" + str(Style.RESET_ALL))
+            print(f"    Description: {description[:80]}{'...' if len(description) > 80 else ''}")
+            print(str(Fore.YELLOW) + f"    SSI Component: {ssi_component}" + str(Style.RESET_ALL))
+        else:
+            print(str(Fore.RED) + f"\n❌  Failed to add category '{name}' (may already exist)" + str(Style.RESET_ALL))
+        return
+
+    if args.remove_category:
+        from services.model2vec_service import get_model2vec_service
+        svc = get_model2vec_service()
+        if not svc.is_available():
+            print(str(Fore.YELLOW) + "\n⚠️  Model2Vec is not available (install with: pip install model2vec numpy)" + str(Style.RESET_ALL))
+            return
+        names = args.remove_category
+        results = svc.remove_categories(names)
+        successes = [n for n, r in zip(names, results) if r]
+        failures = [n for n, r in zip(names, results) if not r]
+        if successes:
+            print(str(Fore.GREEN) + f"\n✅  Removed {len(successes)} category(ies):" + str(Style.RESET_ALL))
+            for name in successes:
+                print(f"    • {name}")
+        if failures:
+            print(str(Fore.RED) + f"\n❌  Failed to remove {len(failures)} category(ies):" + str(Style.RESET_ALL))
+            for name in failures:
+                print(f"    • {name} (not found or is a default category)")
+        return
 
     if args.voice_stats:
         from services.voice_history import stats as _vh_stats
@@ -605,7 +904,7 @@ def main():
     )
 
     if args.console:
-        run_console(ai=ai, github_context=_github_context)
+        run_console(ai=ai, github_context=_github_context, verify=args.verify, avatar_explain=args.avatar_explain, dot_report=args.dot_report)
         return
 
     if args.curate:
@@ -615,13 +914,13 @@ def main():
         curate_channels: list[str] = args.channel if isinstance(args.channel, list) else [args.channel]
         for ch in curate_channels:
             buffer = None if args.dry_run else build_buffer_service(ch)
-            curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context)
+            curator = ContentCurator(ai_service=ai, buffer_service=buffer, confidence_policy=confidence_policy, github_context=_github_context, classify=args.classify)
             if args.learn and not args.dry_run:
                 logger.info("🧠 Learn-only mode: fetching articles and extracting knowledge (no posts generated)")
             else:
                 logger.info("🔍 Curating AI news sources (channel: %s, type: %s)...", ch, args.type)
             try:
-                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report, learn=args.learn)
+                ideas = curator.curate_and_create_ideas(dry_run=args.dry_run, channel=ch, message_type=args.type, request_delay=5.0, interactive=args.interactive, avatar_explain=args.avatar_explain, dot_report=args.dot_report, learn=args.learn, classify=args.classify)
             except BufferQueueFullError as e:
                 print(str(Fore.YELLOW) + f"\n⚠️  Buffer queue is full — no new posts were scheduled.\n   {e}\n   Free up slots at https://publish.buffer.com before running again." + str(Style.RESET_ALL))
                 continue
@@ -657,7 +956,6 @@ def main():
         if target_channels == ["all"]:
             target_channels = ["linkedin", "x", "threads", "youtube", "facebook", "instagram", "bluesky"]
 
-
         for channel in target_channels:
             logger.info("📝 Generating %d posts for week %d (channel: %s)...", len(week_topics), args.week, channel)
             posts = []
@@ -679,7 +977,7 @@ def main():
 
             for topic in week_topics:
                 logger.info("  Generating: %s", topic['title'])
-                grounding_query = f"{topic['title']}. {topic['angle']}. {topic['ssi_component']}"
+                grounding_query = f"{topic['title']}. {topic['angle']}. {topic.get('ssi_component', 'establish_brand')}"
                 # Combine both fact types
                 _gen_avatar_facts = normalize_evidence_facts(_gen_avatar_state)
                 _gen_domain_facts = normalize_domain_facts(_gen_avatar_state)
@@ -700,7 +998,7 @@ def main():
                     post = ai.generate_youtube_short_script(
                         title=topic["title"],
                         angle=topic["angle"],
-                        ssi_component=topic["ssi_component"],
+                        ssi_component=topic.get("ssi_component", "establish_brand"),
                         grounding_facts=grounding_facts,
                         interactive=args.interactive,
                     )
@@ -709,15 +1007,17 @@ def main():
                     script_path = Path("yt-vid-data") / f"{timestamp}_{safe_title}.txt"
                     script_content = (
                         f"TITLE: {topic['title']}\n"
-                        f"SSI COMPONENT: {topic['ssi_component']}\n\n"
+                        f"SSI COMPONENT: {topic.get('ssi_component', 'establish_brand')}\n\n"
                         f"{post}\n"
                     )
                     if not args.dry_run:
                         script_path.write_text(script_content, encoding="utf-8")
-                    print(str(Fore.RED) + str(Style.BRIGHT) + f"\n🎬 YOUTUBE SHORT SCRIPT (channel: {channel}):" + str(Style.RESET_ALL))
+                    print(str(Fore.RED) + str(Style.BRIGHT) + f"🎬 YOUTUBE SHORT SCRIPT (channel: {channel}):" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + f"📄 TITLE:  {topic['title']}" + str(Style.RESET_ALL))
-                    print(str(Fore.CYAN) + f"🎯 SSI:    {topic['ssi_component']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI:    {topic.get('ssi_component', 'establish_brand')}" + str(Style.RESET_ALL))
                     print(f"\n{post}\n")
+                    print("GitHub: https://buff.ly/tfajNLI")
+                    print("Sign up for Buffer with my partner link — join.buffer.com/samjd42  — to start scheduling, publishing, and analyzing your social posts in one place while supporting my work.")
                     if not args.dry_run:
                         print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
                     posts.append({**topic, "generated_text": post})
@@ -725,7 +1025,7 @@ def main():
                     post = ai.generate_linkedin_post(
                         title=topic["title"],
                         angle=topic["angle"],
-                        ssi_component=topic["ssi_component"],
+                        ssi_component=topic.get("ssi_component", "establish_brand"),
                         hashtags=topic.get("hashtags", []),
                         grounding_facts=grounding_facts,
                         channel=channel,
@@ -741,7 +1041,7 @@ def main():
                 if channel != "youtube":
                     print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
                     print(str(Fore.WHITE) + str(Style.BRIGHT) + f"📝 TOPIC: {topic['title']} (channel: {channel})" + str(Style.RESET_ALL))
-                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic['ssi_component']}" + str(Style.RESET_ALL))
+                    print(str(Fore.CYAN) + f"🎯 SSI COMPONENT: {topic.get('ssi_component', 'establish_brand')}" + str(Style.RESET_ALL))
                     print(f"\n{post}\n")
 
                 if args.dot_report:
@@ -781,16 +1081,36 @@ def main():
                     _ev_proj2 = int(os.getenv("EVIDENCE_PROJECT_COUNT", "3"))
                     _ev_dom2 = int(os.getenv("EVIDENCE_DOMAIN_COUNT", "2"))
                     _relevant = retrieve_evidence(grounding_query, _all_facts, limit=_ev_proj2 + _ev_dom2)  # type: ignore[arg-type]
-                    _gen_extracted_facts = normalize_extracted_facts(_gen_avatar_state)
+                    
+                    # Score and filter extracted facts by relevance (retrieve_evidence doesn't support ExtractedEvidenceFact type)
+                    _gen_extracted_facts_all = normalize_extracted_facts(_gen_avatar_state)
+                    _ev_extracted = int(os.getenv("EVIDENCE_EXTRACTED_COUNT", "2"))
+                    _q_tokens = set(re.findall(r"[a-zA-Z0-9_+#.-]{2,}", grounding_query.lower()))
+                    _scored_extracted = []
+                    for _fact in _gen_extracted_facts_all:
+                        _text = " ".join([
+                            getattr(_fact, "statement", ""),
+                            getattr(_fact, "source_title", ""),
+                            " ".join(getattr(_fact, "tags", []) or []),
+                            " ".join(getattr(_fact, "entities", []) or []),
+                        ])
+                        _tokens = set(re.findall(r"[a-zA-Z0-9_+#.-]{2,}", _text.lower()))
+                        _score = len(_q_tokens & _tokens)
+                        _scored_extracted.append((_score, _fact))
+                    _scored_extracted.sort(key=lambda x: x[0], reverse=True)
+                    _relevant_extracted = [f for s, f in _scored_extracted if s > 0][:_ev_extracted]
+                    if not _relevant_extracted and _gen_extracted_facts_all:
+                        _relevant_extracted = list(_gen_extracted_facts_all)[:_ev_extracted]
+                    
                     _, _gate_meta = _tgr_exp(post, topic.get("angle", ""), grounding_facts)
                     _explain = build_explain_output(
                         evidence_facts=_relevant,
                         article_ref=topic.get("title", ""),
                         channel=channel,
-                        ssi_component=topic.get("ssi_component", ""),
+                        ssi_component=topic.get('ssi_component', 'establish_brand'),
                         dot_per_sentence_scores=_gate_meta.dot_per_sentence_scores,
                         spacy_sim_scores=_gate_meta.spacy_sim_scores,
-                        extracted_facts=_gen_extracted_facts,
+                        extracted_facts=_relevant_extracted,
                     )
                     print(format_explain_output(_explain))
 

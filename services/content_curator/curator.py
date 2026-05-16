@@ -57,12 +57,14 @@ class ContentCurator:
         confidence_policy: str = "balanced",
         enable_spacy_summarization: bool = True,
         github_context: str = "",
+        classify: bool = False,
     ) -> None:
         self.ai = ai_service
         self.buffer = buffer_service
         self.confidence_policy = confidence_policy
         self.enable_spacy_summarization = enable_spacy_summarization
         self.github_context = github_context
+        self._classify = classify
         self.curation_grounding_keywords = load_curation_grounding_keywords()
         self.curation_grounding_tag_expansions = load_curation_grounding_tag_expansions()
         self._avatar_facts: list = []
@@ -330,13 +332,54 @@ class ContentCurator:
                 + [article_to_evidence_path(article, post_text)]
             )
             _dot_result = score_claim_with_truth_gradient(post_text, _dot_paths)
-            _dot_report_dict = report_truth_gradient(post_text, _dot_result, verbose=True)
+            _dot_report_dict = report_truth_gradient(
+                post_text,
+                _dot_result,
+                verbose=True,
+                primary_category=article.get("primary_category"),
+                primary_ssi_component=article.get("primary_ssi_component"),
+            )
             _dot_colour = str(Fore.RED) if _dot_result.flagged else str(Fore.CYAN)
             from services.derivative_of_truth._reporting import format_dot_report_header
             print(format_dot_report_header("Derivative of Truth Report (curate)"))
             print(format_truth_gradient_report(_dot_report_dict))
         except Exception as _dot_err:
             logger.debug("DoT report unavailable (curate): %s", _dot_err)
+    
+
+        # Category alignment validation — only when classify is active
+        if self._classify:
+            try:
+                from services.model2vec_service import validate_category_alignment
+                article_text = f"{article.get('title', '')} {article.get('summary', '')}".strip()
+                _align = validate_category_alignment(
+                    post_text=post_text,
+                    article_text=article_text,
+                    article_category=article.get("primary_category", ""),
+                    article_ssi_component=article.get("primary_ssi_component", ""),
+                )
+                if _align.post_category:
+                    _c = str(Fore.CYAN)
+                    _r = str(Style.RESET_ALL)
+                    _dim = str(Style.DIM)
+                    if _align.flagged:
+                        _align_col = str(Fore.RED)
+                        _align_sym = "⚠️ "
+                    elif _align.alignment_score >= 0.7:
+                        _align_col = str(Fore.GREEN)
+                        _align_sym = "✅"
+                    else:
+                        _align_col = str(Fore.YELLOW)
+                        _align_sym = "◑ "
+                    print(
+                        f"  {_c}Category Alignment:{_r} "
+                        f"{_align_sym} {_align_col}{_align.alignment_score:.2f}{_r}"
+                        f"  {_dim}post={_align.post_category} / article={_align.article_category}{_r}"
+                    )
+                    if _align.flagged:
+                        print(f"  {str(Fore.RED)}⚠️  {_align.flag_reason}{_r}")
+            except Exception as _align_err:
+                logger.debug("Category alignment check unavailable: %s", _align_err)
 
     def _print_article_header(self, article: dict[str, Any], channel: str, ssi_component: str, conf_route: str, conf_reason: str) -> None:
         print(str(Fore.CYAN) + f"\n{'='*60}" + str(Style.RESET_ALL))
@@ -368,20 +411,24 @@ class ContentCurator:
         dry_run: bool = False,
         max_ideas: int = 5,
         request_delay: float = 5.0,
-        channel: str = "linkedin",
+        channel: str | list[str] = "linkedin",
         message_type: str = "idea",
         interactive: bool = False,
         avatar_explain: bool = False,
         dot_report: bool = False,
         learn: bool = False,
+        classify: bool = False,
     ) -> list | None:
         """Fetch articles, generate posts, apply routing, push to Buffer.
 
         message_type='idea'  — creates Buffer Ideas for manual review.
         message_type='post'  — schedules posts directly to the queue.
         channel='all'        — LinkedIn + X + Bluesky + Threads + YouTube per article.
+        channel can be a string or list of strings for multiple channels.
         """
-        articles = fetch_relevant_articles(spacy_nlp=self._spacy_nlp)
+        
+        _do_classify = self._classify or classify
+        articles = fetch_relevant_articles(spacy_nlp=self._spacy_nlp, classify=_do_classify)
         try:
             from services.selection_learning import compute_acceptance_priors, rank_articles as _rank_arts
             _priors = compute_acceptance_priors()
@@ -394,12 +441,12 @@ class ContentCurator:
         published = set() if dry_run else self._load_published_titles()
         created_ideas: list | None = []
 
-        learn_only = learn and not dry_run
+        learn_only = learn
         if learn_only:
-            logger.info("🧠 --learn mode (no --dry-run): extracting knowledge only — skipping generation entirely")
+            logger.info("🧠 --learn mode: extracting knowledge only — skipping generation%s", " (dry run)" if dry_run else "")
 
         for article in articles:
-            if not learn and len(created_ideas) >= max_ideas:
+            if created_ideas is not None and not learn and len(created_ideas) >= max_ideas:
                 break
             if article["title"] in published:
                 logger.info("Skipping already-published idea: %s", article["title"][:60])
@@ -487,7 +534,20 @@ class ContentCurator:
 
             logger.info("Generating [%s|%s] for: %s...", message_type, ssi_component, article["title"][:60])
 
-            if channel == "all":
+            # Normalize channel to list
+            if isinstance(channel, str):
+                if channel == "all":
+                    channel_list = ["all"]
+                elif "," in channel:
+                    channel_list = [ch.strip() for ch in channel.split(",") if ch.strip()]
+                else:
+                    channel_list = [channel]
+            else:  # list
+                channel_list = channel
+
+            if created_ideas is None:  # Already stopped due to buffer full
+                break
+            if channel_list == ["all"]:
                 created_ideas = self._process_all_channels(
                     article=article,
                     ssi_component=ssi_component,
@@ -504,13 +564,32 @@ class ContentCurator:
                 )
                 if created_ideas is None:  # buffer full — stop
                     break
+            elif len(channel_list) > 1:
+                for ch in channel_list:
+                    result = self._process_single_channel(
+                        article=article,
+                        ssi_component=ssi_component,
+                        grounding_facts=grounding_facts,
+                        extracted_facts=extracted_facts,
+                        channel=ch,
+                        message_type=message_type,
+                        dry_run=dry_run,
+                        interactive=interactive,
+                        avatar_explain=avatar_explain,
+                        dot_report=dot_report,
+                        candidate_id=_candidate_id,
+                        created_ideas=created_ideas,
+                    )
+                    if result is None:  # buffer full — stop
+                        created_ideas = None
+                        break
             else:
                 result = self._process_single_channel(
                     article=article,
                     ssi_component=ssi_component,
                     grounding_facts=grounding_facts,
                     extracted_facts=extracted_facts,
-                    channel=channel,
+                    channel=channel_list[0],
                     message_type=message_type,
                     dry_run=dry_run,
                     interactive=interactive,
@@ -520,8 +599,8 @@ class ContentCurator:
                     created_ideas=created_ideas,
                 )
                 if result is None:  # buffer full — stop
+                    created_ideas = None
                     break
-
         return created_ideas
 
     # ------------------------------------------------------------------
@@ -571,6 +650,19 @@ class ContentCurator:
             requested_mode=message_type,
         )
         li_text = append_url_and_hashtags(li_text, article["link"])
+        # print_validation_reports(
+        #     post_text=li_text,
+        #     context_text=article["summary"],
+        #     grounding_facts=grounding_facts,
+        #     raw_evidence=self._avatar_facts,
+        #     raw_domain=self._domain_facts,
+        #     raw_extracted=extracted_facts,
+        #     facts_used_for_dot=grounding_facts + (extracted_facts or []),
+        #     avatar_explain=avatar_explain,
+        #     dot_report=dot_report,
+        #     channel="all",
+        #     ssi_component=ssi_component
+        # )
 
         time.sleep(request_delay)
         x_post = self.ai.summarise_for_curation(
@@ -638,12 +730,12 @@ class ContentCurator:
         print(str(Fore.MAGENTA) + f"\n🦋 BLUESKY POST:" + str(Style.RESET_ALL) + f"\n{bsky_post}")
         if yt_script:
             print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT:" + str(Style.RESET_ALL) + f"\n{yt_script}\n")
-
+            print("GitHub: https://buff.ly/tfajNLI")
+            print("Sign up for Buffer with my partner link — join.buffer.com/samjd42  — to start scheduling, publishing, and analyzing your social posts in one place while supporting my work.")
         if avatar_explain:
             self._print_avatar_explain(li_text, article, grounding_facts, "all", ssi_component, extracted_facts=extracted_facts)
         if dot_report:
             self._print_dot_report(li_text, article, grounding_facts, extracted_facts)
-
         if dry_run:
             created_ideas.append({"dry_run": True, "title": article["title"], "ssi_component": ssi_component, "channel": "all"})
             return created_ideas
@@ -724,7 +816,6 @@ class ContentCurator:
         created_ideas: list,
     ) -> list | None:
         """Generate and route a post for a single channel / idea mode."""
-        effective_channel = "linkedin" if (message_type == "post" and channel == "linkedin") else channel
 
         try:
             from services.avatar_intelligence import build_continuity_context
@@ -740,7 +831,7 @@ class ContentCurator:
             article_text=article["summary"],
             source_url=article["link"],
             ssi_component=ssi_component,
-            channel=effective_channel,
+            channel=channel,
             post_mode=(message_type == "post"),
             grounding_facts=grounding_facts,
             extracted_facts=extracted_facts,
@@ -751,6 +842,20 @@ class ContentCurator:
         if not post_text:
             logger.info("Skipping article with no usable content: %s", article["title"][:60])
             return created_ideas
+
+        # print_validation_reports(
+        #     post_text=post_text,
+        #     context_text=article["summary"],
+        #     grounding_facts=grounding_facts,
+        #     raw_evidence=self._avatar_facts,
+        #     raw_domain=self._domain_facts,
+        #     raw_extracted=extracted_facts,
+        #     facts_used_for_dot=grounding_facts + (extracted_facts or []),
+        #     avatar_explain=avatar_explain,
+        #     dot_report=dot_report,
+        #     channel=channel,
+        #     ssi_component=ssi_component
+        # )
 
         try:
             from services.shared import AVATAR_LEARNING_ENABLED
@@ -771,22 +876,25 @@ class ContentCurator:
         except Exception as _mem_exc:
             logger.warning("Narrative memory update failed (continuing): %s", _mem_exc)
 
-        if effective_channel == "linkedin":
+        if channel == "linkedin":
             post_text = append_url_and_hashtags(post_text, article["link"])
-        elif effective_channel == "youtube":
+        elif channel == "facebook":
+            post_text = append_url_and_hashtags(post_text, article["link"])
+        elif channel == "youtube":
             post_text = truncate_at_sentence(post_text, 500)
-        elif effective_channel == "x":
+        elif channel == "x":
             x_budget = X_CHAR_LIMIT - X_URL_CHARS
             post_text = truncate_at_sentence(post_text, x_budget)
             if article["link"] and article["link"] not in post_text:
                 post_text = post_text.rstrip() + f"\n\n{article['link']}"
-        elif effective_channel == "threads":
+
+        elif channel == "threads":
             url_overhead = (2 + len(article["link"])) if article.get("link") else 0
             threads_budget = max(80, THREADS_CHAR_LIMIT - url_overhead)
             post_text = truncate_at_sentence(post_text, threads_budget)
             if article["link"] and article["link"] not in post_text:
                 post_text = post_text.rstrip() + f"\n\n{article['link']}"
-        elif effective_channel == "bluesky":
+        elif channel == "bluesky":
             url_overhead = (2 + len(article["link"])) if article.get("link") else 0
             bsky_budget = 300 - url_overhead
             post_text = truncate_at_sentence(post_text, bsky_budget)
@@ -797,7 +905,7 @@ class ContentCurator:
             post_text=post_text,
             article_summary=article["summary"],
             grounding_facts=grounding_facts,
-            channel=effective_channel,
+            channel=channel,
             article_ref=article.get("link", article["title"]),
             requested_mode=message_type,
         )
@@ -811,7 +919,7 @@ class ContentCurator:
                     article_title=article.get("title", ""),
                     article_source=article.get("source", ""),
                     ssi_component=ssi_component,
-                    channel=effective_channel,
+                    channel=channel,
                     post_text=post_text,
                     buffer_id=None,
                     route=_conf_route,
@@ -824,7 +932,7 @@ class ContentCurator:
         print(str(Fore.GREEN) + f"\n✍️  GENERATED POST:" + str(Style.RESET_ALL) + f"\n{post_text}")
 
         if avatar_explain:
-            self._print_avatar_explain(post_text, article, grounding_facts, effective_channel, ssi_component, extracted_facts=extracted_facts)
+            self._print_avatar_explain(post_text, article, grounding_facts, channel, ssi_component, extracted_facts=extracted_facts)
         if dot_report:
             self._print_dot_report(post_text, article, grounding_facts, extracted_facts)
 
@@ -852,7 +960,7 @@ class ContentCurator:
 
         effective_message_type = "idea" if _conf_route == "idea" else message_type
         if effective_message_type == "post":
-            if effective_channel == "youtube":
+            if channel == "youtube":
                 yt_dir = Path("yt-vid-data")
                 yt_dir.mkdir(exist_ok=True)
                 safe_title = re.sub(r"[^\w\-]", "_", article["title"][:60]).strip("_")
@@ -862,11 +970,9 @@ class ContentCurator:
                     f"TITLE: {article['title']}\nSSI COMPONENT: {ssi_component}\nSOURCE: {article['link']}\n\n{post_text}\n",
                     encoding="utf-8",
                 )
-                print(str(Fore.RED) + str(Style.BRIGHT) + "\n🎬 YOUTUBE SHORT SCRIPT (copy to lipsync.video):" + str(Style.RESET_ALL))
-                print(str(Fore.WHITE) + f"📄 TITLE:  {article['title']}" + str(Style.RESET_ALL))
-                print(str(Fore.CYAN) + f"🎯 SSI:    {ssi_component}" + str(Style.RESET_ALL))
-                print(f"\n{post_text}\n")
                 print(str(Fore.GREEN) + f"💾 Saved to: {script_path}" + str(Style.RESET_ALL))
+                print("GitHub: https://buff.ly/tfajNLI")
+                print("Sign up for Buffer with my partner link — join.buffer.com/samjd42  — to start scheduling, publishing, and analyzing your social posts in one place while supporting my work.")
                 print(str(Fore.YELLOW) + "⚠️  Buffer YouTube requires a video — script not pushed." + str(Style.RESET_ALL))
                 self._save_published_title(article["title"])
                 created_ideas.append({
@@ -875,16 +981,19 @@ class ContentCurator:
                     "script_path": str(script_path),
                 })
                 return created_ideas
-            elif effective_channel == "x":
+            elif channel == "x":
                 channel_id = self.buffer.get_x_channel_id()
-            elif effective_channel == "threads":
+
+            elif channel == "threads":
                 channel_id = self.buffer.get_threads_channel_id()
-            elif effective_channel == "bluesky":
+            elif channel == "bluesky":
                 channel_id = self.buffer.get_bluesky_channel_id()
+            elif channel == "facebook":
+                channel_id = self.buffer.get_facebook_channel_id()
             else:
                 channel_id = self.buffer.get_linkedin_channel_id()
             try:
-                post = self.buffer.create_scheduled_post(channel_id, post_text, channel=effective_channel)
+                post = self.buffer.create_scheduled_post(channel_id, post_text, channel=channel)
                 self._save_published_title(article["title"])
                 try:
                     from services.selection_learning import update_candidate_buffer_id as _upd
