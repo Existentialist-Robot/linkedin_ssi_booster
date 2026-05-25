@@ -42,12 +42,18 @@ htmlcov/
 *.swp
 *.swo
 
-# Claude Code local session settings (permissions are machine-specific)
-.claude/settings.local.json
+# Claude Code — all local settings and session state are machine-specific
+.claude/
+
+# Cline AI rules (upstream author's config — superseded by CLAUDE.md)
+.clinerules
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Scratch — one-off scripts, generated charts, raw LLM outputs
+scratch/
 
 # Project-specific
 files.zip
@@ -59,6 +65,9 @@ ssi_history.json
 
 # Personal content — gitignored, copy from content_calendar.example.py
 content_calendar.py
+
+# Working context — session task list, crash-safe, human-readable
+context/
 
 # Avatar identity data — personal career facts, runtime memory, and learning log.
 # Gitignored so forks don't expose real personal data.
@@ -77,5 +86,14 @@ data/linkedin_tokens.json
 Comments.csv
 data/avatar/voice_history.json
 data/selection/published_posts_cache.jsonl
+
+# Generated images — large binaries, local only
+data/images/
+
+# Chart source data — local only (references personal article content)
+data/chart_data/
+
+# Image workflow docs — local only (personal series strategy)
+data/image_strategy/
 
 models/
