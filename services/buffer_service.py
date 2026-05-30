@@ -338,6 +338,37 @@ class BufferService:
         edges = data.get("posts", {}).get("edges", [])
         return [e["node"] for e in edges if e.get("node")]
 
+    def update_post_image(self, post_id: str, image_url: str) -> dict:
+        """
+        Replace the image asset on an existing Buffer post (draft or scheduled).
+        Does not change post text, schedule time, or status.
+        """
+        mutation = """
+        mutation UpdatePost($input: UpdatePostInput!) {
+          updatePost(input: $input) {
+            ... on PostActionSuccess {
+              post {
+                id
+                status
+              }
+            }
+            ... on MutationError {
+              message
+            }
+          }
+        }
+        """
+        data = self._query(mutation, {
+            "input": {
+                "id": post_id,
+                "assets": [{"image": {"url": image_url}}],
+            }
+        })
+        result = data.get("updatePost", {})
+        if "message" in result:
+            raise RuntimeError(f"Buffer updatePost error: {result['message']}")
+        return result.get("post", {})
+
     def get_published_posts(self, channel_id: str, limit: int = 50) -> list[dict]:
         """Fetch confirmed-published (sent) posts for *channel_id*.
 

@@ -1,7 +1,10 @@
---extra-index-url https://download.pytorch.org/whl/cu124
-torch
-torchvision
-torchaudio
+# Install PyTorch CUDA wheels first (must use --index-url, not --extra-index-url):
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+# Then install the rest:
+#   pip install -r requirements-flux.txt
+#
+# Or in one shot:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 && pip install -r requirements-flux.txt
 diffusers
 accelerate
 transformers

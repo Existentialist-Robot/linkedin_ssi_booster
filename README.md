@@ -18,6 +18,15 @@ Sign up for Buffer with my partner link — http://join.buffer.com/samjd42 — t
 
 ------
 
+## Starting a new Claude Code session
+
+1. Read the active task list — tracks in-progress work and next actions so you can pick up without re-explaining context:
+   `C:\Users\EXR\.claude\projects\c--Users-EXR-Documents-GitHub-linkedin-ssi-booster\memory\active_tasks.md`
+2. Run `python main.py --check-expiry` to check API key expiry.
+3. Full session guide: `CLAUDE.md`.
+
+------
+
 ## 🧠 Intelligence Stack
 
 ##### _<ul><u>— Why This Is Smarter Than Just 'AI Writes Posts'</u></ul>_
