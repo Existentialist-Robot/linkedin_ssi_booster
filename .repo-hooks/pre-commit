@@ -62,9 +62,20 @@
 # organisation repos, server-side secret scanning (push protection) is the backstop that cannot
 # be skipped.
 #
+# REPO-LOCAL EXTENSION (opt-in, absent by default). A repository that needs a check of its own
+# commits it as `.repo-hooks.local/pre-commit`, OUTSIDE `.repo-hooks/` (that directory holds only
+# vendored bytes, and `rollout arm` refuses any other name there). When that file exists, this
+# hook runs it with bash AFTER the secret scan passes, from the worktree top, with the caller's
+# locale restored and Git's hook environment (GIT_INDEX_FILE etc.) intact; a nonzero exit blocks
+# the commit. A repository without the file behaves exactly as before. The extension is authored
+# by the recipient, not vendored, and is the one place this hook reads the working tree. A path
+# there that is not a regular file fails closed.
+#
 # False positive? Append this to the offending line:   pragma: allowlist secret
 # Hard override (discouraged, leaves a trail):          git commit --no-verify
 set -uo pipefail
+had_lc_all="${LC_ALL+x}"
+orig_lc_all="${LC_ALL-}"
 export LC_ALL=C
 
 block_closed() {
@@ -210,5 +221,26 @@ if [ -n "$bad" ] || [ -n "$risky" ]; then
   echo "  Override (discouraged):  git commit --no-verify" >&2
   echo "" >&2
   exit 1
+fi
+
+# The repository's own check, only when it declares one (see REPO-LOCAL EXTENSION above).
+ext_rel=".repo-hooks.local/pre-commit"
+top="$(git rev-parse --show-toplevel 2>/dev/null)" \
+  || block_closed "could not find the worktree top to look for $ext_rel."
+if [ -e "$top/$ext_rel" ] || [ -L "$top/$ext_rel" ]; then
+  [ -f "$top/$ext_rel" ] || block_closed "found $ext_rel but it is not a regular file."
+  (
+    cd "$top" || exit 1
+    if [ -n "$had_lc_all" ]; then export LC_ALL="$orig_lc_all"; else unset LC_ALL; fi
+    exec bash "$ext_rel" "$@"
+  )
+  ext_rc=$?
+  if [ "$ext_rc" -ne 0 ]; then
+    echo "" >&2
+    echo "COMMIT BLOCKED by this repository's own check: $ext_rel exited $ext_rc." >&2
+    echo "  Override (discouraged):  git commit --no-verify" >&2
+    echo "" >&2
+    exit 1
+  fi
 fi
 exit 0

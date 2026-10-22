@@ -4,8 +4,8 @@
 from: eden-os
 upstream_path: tools/hooks/portable/pre-commit
 path: .repo-hooks/pre-commit
-upstream_sha: b3291d955ffef2b8f623ce13bd83740bdfa45993
-sha256: 11cb2f006b83aaa3a6ae4ea53f120dc7aa0a2f33c6c821b705adfd79fd253ea7
+upstream_sha: 257df37cb6bce98bb3d97c8b5287517a1fc0b24a
+sha256: 97b1af5ce2ae3d1b12e1b9f7a8f34305b0f9bce9b0b300ae58c7ee2320351a22
 policy: readonly
 note: portable secret-scanning pre-commit; D-567 option A
 
