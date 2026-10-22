@@ -68,8 +68,13 @@
 # hook runs it with bash AFTER the secret scan passes, from the worktree top, with the caller's
 # locale restored and Git's hook environment (GIT_INDEX_FILE etc.) intact; a nonzero exit blocks
 # the commit. A repository without the file behaves exactly as before. The extension is authored
-# by the recipient, not vendored, and is the one place this hook reads the working tree. A path
-# there that is not a regular file fails closed.
+# by the recipient, not vendored, and is the one place this hook reads the working tree.
+# Fail-closed rules (codex review 2026-10-22): the opt-in is the INDEX entry, not the file on
+# disk. An extension path present on disk but not staged blocks (an untracked drop never runs);
+# a staged entry that is not a single stage-0 regular file (mode 100644/100755; a 120000
+# symlink included) blocks; a working-tree copy that is a symlink, not a regular file, or
+# differs from the staged bytes blocks. The index tree is recorded before the extension runs
+# and the commit blocks if the extension changed it: the secret scan must have read what lands.
 #
 # False positive? Append this to the offending line:   pragma: allowlist secret
 # Hard override (discouraged, leaves a trail):          git commit --no-verify
@@ -227,14 +232,35 @@ fi
 ext_rel=".repo-hooks.local/pre-commit"
 top="$(git rev-parse --show-toplevel 2>/dev/null)" \
   || block_closed "could not find the worktree top to look for $ext_rel."
-if [ -e "$top/$ext_rel" ] || [ -L "$top/$ext_rel" ]; then
-  [ -f "$top/$ext_rel" ] || block_closed "found $ext_rel but it is not a regular file."
+git -C "$top" ls-files -s -z -- "$ext_rel" > "$tmpd/ext_index" \
+  || block_closed "could not read the index entry for $ext_rel."
+ext_entries="$(tr '\0' '\n' < "$tmpd/ext_index" | awk 'NF { n++ } END { print n + 0 }')"
+if [ "$ext_entries" = "0" ] && { [ -e "$top/$ext_rel" ] || [ -L "$top/$ext_rel" ]; }; then
+  block_closed "found $ext_rel on disk but not staged; an extension runs only once it is committed (git add it)."
+fi
+if [ "$ext_entries" != "0" ]; then
+  [ "$ext_entries" = "1" ] || block_closed "found $ext_rel with more than one index entry (a conflict)."
+  ext_meta="$(tr '\0' '\n' < "$tmpd/ext_index" | cut -f1)"
+  ext_mode="$(printf '%s' "$ext_meta" | cut -d' ' -f1)"
+  ext_stage="$(printf '%s' "$ext_meta" | cut -d' ' -f3)"
+  { [ "$ext_mode" = "100644" ] || [ "$ext_mode" = "100755" ]; } && [ "$ext_stage" = "0" ] \
+    || block_closed "found $ext_rel but its staged entry is not a regular file (mode $ext_mode, stage $ext_stage)."
+  [ ! -L "$top/$ext_rel" ] || block_closed "found $ext_rel but it is a symlink on disk."
+  [ -f "$top/$ext_rel" ] || block_closed "found $ext_rel staged but it is not a regular file on disk."
+  git -C "$top" diff --no-ext-diff --no-textconv --quiet -- "$ext_rel" \
+    || block_closed "found $ext_rel with unstaged changes; stage them or restore the file."
+  tree_before="$(git -C "$top" write-tree)" \
+    || block_closed "could not record the index tree before running $ext_rel."
   (
     cd "$top" || exit 1
     if [ -n "$had_lc_all" ]; then export LC_ALL="$orig_lc_all"; else unset LC_ALL; fi
     exec bash "$ext_rel" "$@"
   )
   ext_rc=$?
+  tree_after="$(git -C "$top" write-tree)" \
+    || block_closed "could not re-read the index tree after running $ext_rel."
+  [ "$tree_before" = "$tree_after" ] \
+    || block_closed "found that $ext_rel changed the index after the secret scan; a check may not stage."
   if [ "$ext_rc" -ne 0 ]; then
     echo "" >&2
     echo "COMMIT BLOCKED by this repository's own check: $ext_rel exited $ext_rc." >&2
