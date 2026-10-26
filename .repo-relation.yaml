@@ -34,3 +34,10 @@ architecture:
         demand, and .clinerules carries coding rules written for Cline
       revision: 4e7b2f124f0c8ec26e075b66d8b27184cf0ed51e
       blob: 38afb5e32b3628dc91177112008b01689686fad3
+  # R7, assessment rank 3: applicability and enforcement profile, inactive by default.
+  # Nothing declared here refuses a commit, runs on a schedule, or arms.
+  profile:
+    applies: [R2-applicability-graph, R6-crosswalk, R7-policy-gates, R9-review-boundary]
+    enforcement: inactive
+    cadence: none
+    arming: none
