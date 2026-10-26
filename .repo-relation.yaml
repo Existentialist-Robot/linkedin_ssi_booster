@@ -20,8 +20,8 @@ tooling:
 
 startup:
   tier0: [.repo-relation.yaml]
-  tier1: README.md
-  tier2_on_demand: [QUICKSTART.md, docs/architecture.md]
+  tier1: AGENTS.md
+  tier2_on_demand: [README.md, QUICKSTART.md, docs/architecture.md]
 
 # Architecture record (an inactive, declarative profile; nothing here is enforced or run).
 architecture:
