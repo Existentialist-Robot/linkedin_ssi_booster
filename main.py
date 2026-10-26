@@ -43,9 +43,10 @@ def print_startup_notice():
     print(str(Fore.YELLOW) + "\n⚠️  IMPORTANT: Posts scheduled beyond the cutoff may not count for SSI growth!" + str(Style.RESET_ALL))
 
     # Try to connect to Buffer and check scheduled posts
-    buffer_api_key = os.getenv("BUFFER_API_KEY")
+    # Keys are BUFFER_API_KEY_A / _B (Eden, 2026-10-25); the old name still works.
+    buffer_api_key = os.getenv("BUFFER_API_KEY_A") or os.getenv("BUFFER_API_KEY")
     if not buffer_api_key:
-        print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY not set. Buffer scheduling will be disabled." + str(Style.RESET_ALL))
+        print(str(Fore.YELLOW) + "\n⚠️  BUFFER_API_KEY_A not set. Buffer scheduling will be disabled." + str(Style.RESET_ALL))
         return
     # Buffer scheduling check logic is commented out for now
     # try:
@@ -360,9 +361,9 @@ def main():
         return
 
     def build_buffer_service() -> BufferService:
-        buffer_api_key = os.getenv("BUFFER_API_KEY")
+        buffer_api_key = os.getenv("BUFFER_API_KEY_A") or os.getenv("BUFFER_API_KEY")
         if not buffer_api_key:
-            raise ValueError("BUFFER_API_KEY environment variable is required")
+            raise ValueError("BUFFER_API_KEY_A environment variable is required")
         return BufferService(api_key=buffer_api_key)
 
     if args.report:
