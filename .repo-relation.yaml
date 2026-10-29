@@ -20,5 +20,24 @@ tooling:
 
 startup:
   tier0: [.repo-relation.yaml]
-  tier1: README.md
-  tier2_on_demand: [QUICKSTART.md, docs/architecture.md]
+  tier1: AGENTS.md
+  tier2_on_demand: [README.md, QUICKSTART.md, docs/architecture.md]
+
+# Architecture record (an inactive, declarative profile; nothing here is enforced or run).
+architecture:
+  # R6, assessment rank 1: one revision-pinned surface -> role/mechanism crosswalk row.
+  # `blob` is the surface's git blob at `revision`, so a later edit to it reads as drift.
+  crosswalk:
+    - surface: README.md
+      role: routing-layout
+      mechanism: README.md is the orientation page; QUICKSTART.md and docs/architecture.md are on
+        demand, and .clinerules carries coding rules written for Cline
+      revision: 4e7b2f124f0c8ec26e075b66d8b27184cf0ed51e
+      blob: 38afb5e32b3628dc91177112008b01689686fad3
+  # R7, assessment rank 3: applicability and enforcement profile, inactive by default.
+  # Nothing declared here refuses a commit, runs on a schedule, or arms.
+  profile:
+    applies: [R2-applicability-graph, R6-crosswalk, R7-policy-gates, R9-review-boundary]
+    enforcement: inactive
+    cadence: none
+    arming: none
