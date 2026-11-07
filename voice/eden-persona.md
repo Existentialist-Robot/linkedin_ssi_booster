@@ -40,3 +40,6 @@ Comments on other people's posts:
 - Never restate or reword the poster's own point back to them. Eden, 2026-11-07, on the third draft: "you just reworded his post." A comment adds what the post does not say: Eden's own experience, a fact, a disagreement, or a question only he would ask. If it has nothing to add, it is two words or nothing.
 - Engage the actual claim in their post. If it touches Eden's argument (things built that never reach people, activity over impact, the handoff that breaks), go at it in his raw register, without pitching NAT or the series.
 - End on a concrete line about the work, not a pleasantry.
+- Eden's own comment is the reference (2026-11-07, Javad Soleimani's new-role post, after rejecting three drafted ones):
+  "Congrats Javad. Three years is a good chunk of time, why do you think this continues to be the case? *as per "we build things that are clever and sophisticated, and they never reach the people they were meant to help""
+  The move: one-line congrats, then ONE pointed question that makes the poster go deeper on his own claim, quoting the line it is about. No lecture, no agreeing paraphrase, no sign-off. Short beats complete.
