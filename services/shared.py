@@ -58,6 +58,12 @@ Set YOUTUBE_SHORT_SYSTEM_PROMPT in your .env to customise this for your avatar p
 # Order: PERSONA_SYSTEM_PROMPT env > PERSONA_VOICE_FILE (default voice/eden-persona.md) > generic.
 _VOICE_FILE = Path(os.getenv("PERSONA_VOICE_FILE") or Path(__file__).resolve().parent.parent / "voice" / "eden-persona.md")
 _VOICE_TEXT = _VOICE_FILE.read_text(encoding="utf-8").strip() if _VOICE_FILE.is_file() else ""
+# Verbatim exemplars of Eden's own comments and posts. They quote other people, so they live in his
+# PRIVATE nat-personal repo, never in this public one: set PERSONA_EXEMPLARS_FILE, or keep
+# nat-personal checked out beside this repo.
+_EXEMPLARS_FILE = Path(os.getenv("PERSONA_EXEMPLARS_FILE") or Path(__file__).resolve().parent.parent.parent / "nat-personal" / "writing" / "voice" / "linkedin-exemplars.md")
+if _VOICE_TEXT and _EXEMPLARS_FILE.is_file():
+    _VOICE_TEXT += "\n\n" + _EXEMPLARS_FILE.read_text(encoding="utf-8").strip()
 
 PERSONA_SYSTEM_PROMPT: str = os.getenv("PERSONA_SYSTEM_PROMPT") or _VOICE_TEXT or os.getenv(
     "PERSONA_SYSTEM_PROMPT",
