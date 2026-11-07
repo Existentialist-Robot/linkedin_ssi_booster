@@ -19,6 +19,7 @@ The ollama_service module owns API logic — nothing in here should import from 
 """
 
 import os
+from pathlib import Path
 import re
 import logging
 from typing import Optional
@@ -51,7 +52,14 @@ YOUTUBE_SHORT_SYSTEM_PROMPT: str = os.getenv(
 Set YOUTUBE_SHORT_SYSTEM_PROMPT in your .env to customise this for your avatar persona."""
 )
 
-PERSONA_SYSTEM_PROMPT: str = os.getenv(
+# Eden's voice lives in a committed file (voice/eden-persona.md), loaded by default, because the
+# .env copy sat commented out and every post fell back to the generic ghostwriter below
+# (Eden, 2026-11-07: "make sure the generator for post is much more aligned to my blog tone").
+# Order: PERSONA_SYSTEM_PROMPT env > PERSONA_VOICE_FILE (default voice/eden-persona.md) > generic.
+_VOICE_FILE = Path(os.getenv("PERSONA_VOICE_FILE") or Path(__file__).resolve().parent.parent / "voice" / "eden-persona.md")
+_VOICE_TEXT = _VOICE_FILE.read_text(encoding="utf-8").strip() if _VOICE_FILE.is_file() else ""
+
+PERSONA_SYSTEM_PROMPT: str = os.getenv("PERSONA_SYSTEM_PROMPT") or _VOICE_TEXT or os.getenv(
     "PERSONA_SYSTEM_PROMPT",
     """You are a LinkedIn content strategist and ghostwriter for a senior technical professional.
 Your voice is technical but human: concise, direct, and occasionally contrarian. Posts feel written by someone who has actually shipped the thing.
